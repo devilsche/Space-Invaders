@@ -1,4 +1,5 @@
-from .ships import SHIP_CONFIG
-from .projectiles import PROJECTILES_CONFIG
 from .enemy import ENEMY_CONFIG
-from .settings import WIDTH, HEIGHT, FPS, FONT_SIZE
+from .projectile import PROJECTILES_CONFIG
+from .settings import WIDTH, HEIGHT, FPS, FONT_SIZE, LIVES, LIVES_COOLDOWN, RESPAWN_PROTECTION
+from .shield import SHIELD_CONFIG
+from .ship import SHIP_CONFIG

@@ -1,7 +1,7 @@
 import json
 import os
 
-HIGHSCORE_FILE = "highscore.json"
+HIGHSCORE_FILE = "data/highscore.json"
 
 def load_highscore():
     if os.path.exists(HIGHSCORE_FILE):

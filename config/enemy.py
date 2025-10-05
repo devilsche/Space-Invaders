@@ -1,7 +1,7 @@
 ENEMY_CONFIG = {
     # --- Standard-Alien, leicht zu besiegen ---
     "alien": {
-        "img"   : "assets/images/enemies/alien.png",
+        "img"   : "assets/images/enemy/alien.png",
         "size"  : (45, 45),
         "hp"    : 100,
         "points": 10,
@@ -33,7 +33,7 @@ ENEMY_CONFIG = {
 
     # --- Schneller Gegner, wenig HP ---
     "drone": {
-        "img"   : "assets/images/enemies/drone.png",
+        "img"   : "assets/images/enemy/drone.png",
         "size"  : (30, 30),
         "hp"    : 50,
         "points": 20,
@@ -65,7 +65,7 @@ ENEMY_CONFIG = {
 
     # --- Starker Gegner, Tank ---
     "tank": {
-        "img"   : "assets/images/enemies/tank.png",
+        "img"   : "assets/images/enemy/tank.png",
         "size"  : (60, 60),
         "hp"    : 300,
         "points": 50,
@@ -99,7 +99,7 @@ ENEMY_CONFIG = {
 
     # --- Präzisionsschütze ---
     "sniper": {
-        "img"   : "assets/images/enemies/sniper.png",
+        "img"   : "assets/images/enemy/sniper.png",
         "size"  : (40, 40),
         "hp"    : 120,
         "points": 30,
@@ -131,7 +131,7 @@ ENEMY_CONFIG = {
 
     # --- Endgegner ---
     "boss": {
-        "img"   : "assets/images/enemies/boss.png",
+        "img"   : "assets/images/enemy/boss.png",
         "size"  : (140, 100),
         "hp"    : 1000,
         "points": 1000,

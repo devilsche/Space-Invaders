@@ -1,8 +1,7 @@
 # entities/player.py
 import pygame
-from config.ships import SHIP_CONFIG
-from config.projectiles import PROJECTILES_CONFIG
-from config.ships import SHIP_CONFIG
+from config.ship import SHIP_CONFIG
+from config.projectile import PROJECTILES_CONFIG
 from entities.projectile import Laser, Rocket, Nuke
 
 WEAPON_CLS = {"laser": Laser, "rocket": Rocket, "nuke": Nuke}
@@ -47,11 +46,13 @@ class Player:
 
     def _angles(self, weapon: str, amount: int):
         angs = SHIP_CONFIG[self.stage].get("angle", {}).get(weapon, []) or [0]
+        print( angs )
         i = 0
         out = []
         while len(out) < amount:
             out.append(angs[i % len(angs)])
             i += 1
+
         return out[:amount]
 
     def _stage_weapons(self):
@@ -108,6 +109,7 @@ class Player:
         coords = self._muzzles(weapon, amount)
         angles = self._angles(weapon, amount)
         for (mx, my), ang in zip(coords, angles):
+            print( ang )
             shots.append(WEAPON_CLS[weapon].create(mx, my, self.assets, owner="player", angle_deg=ang))
         self._last_shots[weapon] = now
         return shots

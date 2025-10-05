@@ -1,12 +1,8 @@
-# game/game.py
 import pygame
-import random
-
 from assets.load_assets import load_assets
-from config import WIDTH, HEIGHT, FPS, FONT_SIZE, ENEMY_CONFIG
-from entities import Player, Enemy, Explosion
-from utils import load_highscore, save_highscore
-
+from utils              import load_highscore, save_highscore
+from config             import *
+from entities           import *
 
 class Game:
     def __init__(self):
@@ -14,54 +10,58 @@ class Game:
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("Space Invaders")
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.Font(None, FONT_SIZE)
+        self.font  = pygame.font.Font(None, FONT_SIZE)
 
         self.assets = load_assets()
-        self.player = Player(WIDTH, HEIGHT, self.assets)
 
         self.player_shots = []
-        self.enemy_shots = []
-        self.enemies = []
-        self.explosions = []
+        self.enemy_shots  = []
+        self.enemies      = []
+        self.explosions   = []
 
-        self.enemy_dir = 1
-        self.enemy_speed = 0
+        self.enemy_dir   = 1
+        self.enemy_speed = 0.0
+        self.wave_num    = 0
 
-        self.score = 0
-        self.highscore = load_highscore()
-        self.paused = False
-        self.running = True
-        self.player_dead = False
+        self.score              = 0
+        self.highscore          = load_highscore()
+        self.paused             = False
+        self.running            = True
+        self.shield             = None
+        self.shield_until       = 0
+        self._shield_ready_at   = 0
+        self.player_dead        = False
+        self.lives              = LIVES
+        self.lives_cooldown     = LIVES_COOLDOWN
+        self.respawn_protection = RESPAWN_PROTECTION
+        self._respawn_ready_at  = 0
+        self.spawn_pos          = (WIDTH // 2, HEIGHT - 80)   # NEU: feste Spawn-Position
 
-        self.wave_num = 0              # 0 = erste Welle
-        self.wave_speed_add = 0.5      # Zuwachs pro Welle
+        self.player = Player(WIDTH, HEIGHT, self.assets)
+        self.player.rect.center = self.spawn_pos  
 
 
         if "music_paths" in self.assets and "raining_bits" in self.assets["music_paths"]:
             try:
                 pygame.mixer.music.load(self.assets["music_paths"]["raining_bits"])
-                pygame.mixer.music.set_volume(0.3)
+                pygame.mixer.music.set_volume(0.1)
                 pygame.mixer.music.play(-1)
             except pygame.error:
                 pass
 
         # self._build_wave("alien")
 
+    # ---------------- Wellen ----------------
     def _build_wave(self, enemy_type: str):
         self.enemies.clear()
-
         form = ENEMY_CONFIG[enemy_type]["formation"]
         for r in range(form["rows"]):
             for c in range(form["cols"]):
                 x = c * form["h_spacing"] + form["margin_x"]
                 y = r * form["v_spacing"] + form["margin_y"]
                 self.enemies.append(Enemy(enemy_type, self.assets, x, y))
-
-        # Basisgeschwindigkeit aus Config
         base = ENEMY_CONFIG[enemy_type]["move"]["speed_start"]
-        # Wellenzuwachs: erste Welle unverändert, danach +wave_speed_add je Welle
-        self.enemy_speed = base + max(0, self.wave_num) * self.wave_speed_add
-
+        self.enemy_speed = base + max(0, self.wave_num)
         self.enemy_dir = 1
         self.wave_num += 1
 
@@ -74,8 +74,7 @@ class Game:
                 if e.key == pygame.K_ESCAPE:
                     self.paused = not self.paused
                     try:
-                        if self.paused: pygame.mixer.music.pause()
-                        else:           pygame.mixer.music.unpause()
+                        pygame.mixer.music.pause() if self.paused else pygame.mixer.music.unpause()
                     except pygame.error:
                         pass
                 elif e.key == pygame.K_F11:
@@ -88,29 +87,58 @@ class Game:
                     self.player.set_stage(3)
                 elif e.key == pygame.K_4:
                     self.player.set_stage(4)
+                elif e.key == pygame.K_F1:
+                    self._build_wave( 'alien' )
+                elif e.key == pygame.K_F2:
+                    self._build_wave( 'drone' )
+                elif e.key == pygame.K_F3:
+                    self._build_wave( 'tank' )
+                elif e.key == pygame.K_F4:
+                    self._build_wave( 'sniper' )
+                elif e.key == pygame.K_F5:
+                    self._build_wave( 'boss' )
+                elif e.key == pygame.K_F12:
+                    self.enemies = []
+
                 elif e.key == pygame.K_SPACE and not self.paused and not self.player_dead:
                     self.player_shots.extend(self.player.shoot_weapon("laser"))
                 elif e.key == pygame.K_r and not self.paused and not self.player_dead:
                     self.player_shots.extend(self.player.shoot_weapon("rocket"))
-                elif e.key == pygame.K_n and not self.paused and not self.player_dead:
+                elif e.key == pygame.K_e and not self.paused and not self.player_dead:
                     self.player_shots.extend(self.player.shoot_weapon("nuke"))
-                elif e.key == pygame.K_F1:
-                    self._build_wave("alien")
-                elif e.key == pygame.K_F2:
-                    self._build_wave("drone")
-                elif e.key == pygame.K_F3:
-                    self._build_wave("tank")
-                elif e.key == pygame.K_F4:
-                    self._build_wave("sniper")
-                elif e.key == pygame.K_F5:
-                    self._build_wave("boss")
+
+                elif e.key == pygame.K_q and not self.paused and not self.player_dead:
+                    if self.shield:
+                        self.shield = None
+                        break
+                    now = pygame.time.get_ticks()
+                    if now >= self._shield_ready_at:
+                        frames = self.assets["shield_frames"]
+                        fps    = self.assets["shield_fps"]
+
+                        scale = max(self.player.rect.w, self.player.rect.h) / frames[0].get_width() * self.assets["shield_scale"]
+                        self.shield = Shield( *self.player.rect.center, frames, fps=fps, scale=scale, loop=True )
+                        self.shield_until     = now + self.assets["shield_duration"]
+                        self._shield_ready_at = now + self.assets["shield_cooldown"]
+
 
 
     # ---------------- Update ----------------
     def _update(self):
         keys = pygame.key.get_pressed()
+        now  = pygame.time.get_ticks()
+
+        # während tot: kein Input, keine Kollisionen
+        if self.player_dead:
+            if (self.lives == -1 or self.lives > 0) and now >= self._respawn_ready_at:
+                self._respawn()
+
         if not self.player_dead:
             self.player.handle_input(keys, WIDTH, HEIGHT)
+
+
+        if keys[pygame.K_SPACE] and not self.paused and not self.player_dead:
+            self.player_shots.extend(self.player.shoot_weapon("laser")) 
 
         # Projektile bewegen
         for p in self.player_shots[:]:
@@ -122,116 +150,156 @@ class Game:
             if p.offscreen():
                 self.enemy_shots.remove(p)
 
-        # Gegner bewegen mit Drop am Rand
+        for e in self.enemies[:]:
+            if e.offscreen():
+                e.remove()
+
+        if self.shield:
+            self.shield.set_center(self.player.rect.center)
+            self.shield.update()
+            if pygame.time.get_ticks() >= self.shield_until or self.shield.done:
+                self.shield = None
+
+        # Gegner bewegen + droppen am Rand
         if self.enemies:
-            move_cfg = self.enemies[0].cfg["move"]
-            dx = self.enemy_dir * max(1, move_cfg["speed_start"])
-
-            left = min(en.rect.left for en in self.enemies)
+            dx = self.enemy_dir * max(1, int(self.enemy_speed))
+            left  = min(en.rect.left  for en in self.enemies)
             right = max(en.rect.right for en in self.enemies)
-
-            hit_right = (self.enemy_dir == 1) and (right + dx >= WIDTH)
-            hit_left  = (self.enemy_dir == -1) and (left  - dx <= 0)
-
-            if hit_right or hit_left:
+            move_cfg = self.enemies[0].cfg["move"]
+            if (self.enemy_dir == 1 and right + dx >= WIDTH) or (self.enemy_dir == -1 and left - dx <= 0):
                 self.enemy_dir *= -1
-                drop = move_cfg["drop_px"]
-                for en in self.enemies:
-                    en.drop(drop)
+                for en in self.enemies: en.drop(move_cfg["drop_px"])
             else:
-                for en in self.enemies:
-                    en.update(dx)
+                for en in self.enemies: en.update(dx)
 
-            # Gegner feuern
+            # Gegner feuern: nur shoot_weapon
             for en in self.enemies:
-                shots = en.shoot()
-                if shots:
-                    self.enemy_shots.extend(shots)
+                for w, amt in en.weapons.items():
+                    if amt > 0:
+                        self.enemy_shots.extend(en.shoot_weapon(w, amt))
 
-        # Kollision: Gegner-Projektile -> Spieler
-        if not self.player_dead:
+
+        # ---- Kollision: Gegner-Projektil -> Spieler ----
+        if not self.player_dead and not self.shield:
             for p in self.enemy_shots[:]:
-                if p.rect.colliderect(self.player.rect):
+                # Schild fängt ab
+                if self.shield and self.shield.hit_circle(p.rect.center):
                     self.enemy_shots.remove(p)
-                    if hasattr(p, "on_hit"):
-                        p.on_hit(self, self.player.rect.center)
-                    # Spieler-Explosion
-                    frames = self.assets.get("explosion_frames", [])
-                    self.explosions.append(Explosion(self.player.rect.centerx, self.player.rect.centery, frames, fps=24, scale=3.0))
-                    self.player_dead = True
-                    self.running = False
+                    continue
+
+                if p.rect.colliderect(self.player.rect):
+                    # Unverwundbarkeit nach Respawn beachten
+                    if now < getattr(self.player, "invincible_until", 0):
+                        self.enemy_shots.remove(p)
+                        continue
+
+                    self.enemy_shots.remove(p)
+                    if hasattr(p, "on_hit"): p.on_hit(self, self.player.rect.center)
+
+                    frames = self.assets.get("expl_laser", [])
+                    fps    = self.assets.get("expl_laser_fps", 24)
+                    self.explosions.append(Explosion(self.player.rect.centerx,
+                                                    self.player.rect.centery,
+                                                    frames, fps=fps, scale=2.5))
+
+                    self.player_dead       = True
+                    self._respawn_ready_at = now + self.lives_cooldown
+                    # self._build_wave("alien")  # falls gewollt, sonst entfernen
                     break
 
 
         # Kollision: Spieler-Projektile -> Gegner
         for p in self.player_shots[:]:
-            # erst Treffer suchen
-            hit_idx = -1
-            for i, en in enumerate(self.enemies):
+            hit_enemy = None
+            for en in self.enemies:
                 if p.rect.colliderect(en.rect):
-                    hit_idx = i
+                    hit_enemy = en
                     break
-            if hit_idx == -1:
+            if not hit_enemy:
                 continue
 
-            hit_enemy = self.enemies[hit_idx]
+            # Projektil raus
             self.player_shots.remove(p)
 
-            # AoE/SFX vom Projektil (kann Gegner bereits aus self.enemies löschen)
+            # Projektil-spezifischer Hit (kann Gegner via AoE schon entfernen!)
             if hasattr(p, "on_hit"):
                 p.on_hit(self, hit_enemy.rect.center)
 
-            # Nur wenn er noch existiert, Direktschaden anwenden und ggf. entfernen
-            if hit_enemy in self.enemies:
-                direct = getattr(p, "dmg", 10) if getattr(p, "radius", 0) == 0 else 0
-                dead = hit_enemy.take_damage(direct)
-                if dead:
-                    self.score += hit_enemy.points
-                    self.highscore = max(self.highscore, self.score)
-                    frames = self.assets.get("explosion_frames", [])
-                    self.explosions.append(Explosion(hit_enemy.rect.centerx,
-                                                    hit_enemy.rect.centery,
-                                                    frames, fps=24, scale=1.2))
-                    self.enemies.pop(hit_idx)
+            # Wenn der eben getroffene Gegner durch AoE schon entfernt wurde -> weiter
+            if hit_enemy not in self.enemies:
+                continue
+
+            # Direkt-Schaden anwenden und ggf. entfernen
+            dead = hit_enemy.take_damage(getattr(p, "dmg", 10))
+            if dead:
+                self.score += hit_enemy.points
+                self.highscore = max(self.highscore, self.score)
+                frames = self.assets.get("expl_rocket", []) or self.assets.get("expl_laser", [])
+                fps    = self.assets.get("expl_rocket_fps", 24)
+                self.explosions.append(Explosion(hit_enemy.rect.centerx,
+                                                hit_enemy.rect.centery,
+                                                frames, fps=fps, scale=1.2))
+                # Entfernen nur, wenn noch vorhanden
+                if hit_enemy in self.enemies:
+                    self.enemies.remove(hit_enemy)
 
 
         # Explosionen updaten
         for ex in self.explosions[:]:
             ex.update()
-            if ex.done:
-                self.explosions.remove(ex)
+            if ex.done: self.explosions.remove(ex)
 
         # Welle fertig -> neue bauen
         # if not self.enemies and not self.player_dead:
-        #     self._build_wave("alien")
+            # self._build_wave("alien")
 
     # ---------------- Draw ----------------
     def _draw(self):
         bg = self.assets.get("background_img")
-        if bg:
-            self.screen.blit(bg, (0, 0))
-        else:
-            self.screen.fill((0, 0, 0))
+        self.screen.blit(bg, (0, 0)) if bg else self.screen.fill((0, 0, 0))
+
+        for p in self.player_shots: p.draw(self.screen)
+        for p in self.enemy_shots:  p.draw(self.screen)
+        for en in self.enemies:     en.draw(self.screen)
+        for ex in self.explosions:  ex.draw(self.screen)
 
         if not self.player_dead:
             self.player.draw(self.screen)
+            if self.shield:
+                self.shield.draw(self.screen)
 
-        for p in self.player_shots:
-            p.draw(self.screen)
-        for p in self.enemy_shots:
-            p.draw(self.screen)
-        for en in self.enemies:
-            en.draw(self.screen)
-        for ex in self.explosions:
-            ex.draw(self.screen)
-
-        # HUD
-        txt1 = self.font.render(f"Score: {self.score}", True, (255, 255, 255))
-        txt2 = self.font.render(f"High Score: {self.highscore}", True, (255, 255, 255))
-        self.screen.blit(txt1, (10, 10))
-        self.screen.blit(txt2, (10, 50))
-
+        self.screen.blit(self.font.render(f"Score: {self.score}", True, (255,255,255)), (10, 10))
+        self.screen.blit(self.font.render(f"High Score: {self.highscore}", True, (255,255,255)), (10, 50))
         pygame.display.flip()
+
+
+    def kill_player(self):
+        if self.player_dead:
+            return
+        self.player_dead = True
+        self._respawn_ready_at = pygame.time.get_ticks() + self.lives_cooldown
+
+
+    def _respawn(self):
+        if self.lives > 0:
+            self.lives -= 1
+
+        # Player neu erzeugen mit deinen Parametern
+        self.player = Player(WIDTH, HEIGHT, self.assets)
+        self.player.rect.center = self.spawn_pos
+        # # Schutzphase
+        # self.player.invincible_until = pygame.time.get_ticks() + self.respawn_protection
+        # # optionales Blinken
+        # self.player.blink_until = self.player.invincible_until
+
+        self.player_dead = False
+        self._respawn_ready_at = 0
+
+
+
+
+
+
 
     # ---------------- Loop ----------------
     def run(self):
@@ -241,6 +309,5 @@ class Game:
                 self._update()
             self._draw()
             self.clock.tick(FPS)
-
         save_highscore(self.highscore)
         pygame.quit()

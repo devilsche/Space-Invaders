@@ -1,11 +1,8 @@
-# assets/load_assets.py
 import pygame
-from config.ships import SHIP_CONFIG
-from config.enemy import ENEMY_CONFIG
-from config.projectiles import PROJECTILES_CONFIG
-from config import WIDTH, HEIGHT
+from config import WIDTH, HEIGHT, SHIP_CONFIG, ENEMY_CONFIG, PROJECTILES_CONFIG, SHIELD_CONFIG
 
-def _raw(path): return pygame.image.load(path).convert_alpha()
+def _raw(path):
+    return pygame.image.load(path).convert_alpha()
 
 def _trim(s: pygame.Surface):
     r = s.get_bounding_rect()
@@ -17,29 +14,50 @@ def _scaled(path, size=None, trim=True):
     if size: img = pygame.transform.smoothscale(img, size)
     return img
 
-def _slice(sheet, cols, rows, fw, fh, scale=1.0, colorkey_from=(0,0)):
-    # für exp2.png ohne Alpha: ColorKey entfernen
-    if sheet.get_bitsize() == 24:  # kein Alpha → convert()
-        ck = sheet.get_at(colorkey_from)
-        sheet = sheet.convert()
+def _slice(sheet, cols, rows, fw, fh, scale=1.0, colorkey_from=(0, 0)):
+    has_alpha = sheet.get_masks()[3] != 0  # True bei RGBA
+    if has_alpha:
+        base = sheet.convert_alpha()
+        colorkey = None
+    else:
+        base = sheet.convert()
+        colorkey = base.get_at(colorkey_from)
+
     frames = []
     for r in range(rows):
         for c in range(cols):
-            s = sheet.subsurface(pygame.Rect(c*fw, r*fh, fw, fh)).copy()
-            if s.get_bitsize() == 24:  # ColorKey setzen
-                s.set_colorkey(sheet.get_at((0,0)))
+            s = base.subsurface(pygame.Rect(c*fw, r*fh, fw, fh)).copy()
+            if not has_alpha and colorkey is not None:
+                s.set_colorkey(colorkey)
                 s = s.convert_alpha()
             if scale != 1.0:
-                s = pygame.transform.smoothscale(s, (int(fw*scale), int(fh*scale)))
+                s = pygame.transform.smoothscale(
+                    s, (int(fw*scale), int(fh*scale))
+                )
             frames.append(s)
     return frames
+
+def _slice_sheet(sheet, cols, rows, fw, fh, scale):
+    """sheet: pygame.Surface"""
+    frames = []
+    print("scale", scale)
+    base = sheet.convert_alpha()
+    tw, th = int(fw*scale), int(fh*scale)
+    for row in range(rows):
+        for col in range(cols):
+            image_slice = base.subsurface( pygame.Rect(col * fw, row * fh, fw, fh) ).copy()
+            if (tw, th) != (fw, fh):
+                image_slice = pygame.transform.smoothscale(image_slice, (tw, th))
+            frames.append(image_slice)
+    return frames
+
 
 def load_assets():
     a = {}
 
     # Hintergrund optional
     try:
-        a["background_img"] = _scaled("assets/images/background.png", (WIDTH, HEIGHT), trim=False)
+        a["background_img"] = _scaled("assets/images/background_gpt.png", (WIDTH, HEIGHT), trim=False)
     except Exception:
         a["background_img"] = None
 
@@ -78,4 +96,20 @@ def load_assets():
     # Musikpfade optional
     a["music_paths"] = {"raining_bits": "assets/music/raining_bits.ogg"}
 
+    scfg = SHIELD_CONFIG[1]["shield"]
+    sheet = pygame.image.load(scfg["sheet"]).convert_alpha()
+    a["shield_frames"] = _slice_sheet(
+        sheet,
+        cols  = scfg["cols"],
+        rows  = scfg["rows"],
+        fw    = scfg["fw"],
+        fh    = scfg["fh"],
+        scale = scfg.get("scale")
+    )
+    a["shield_fps"]      = scfg.get("fps")
+    a["shield_duration"] = scfg.get("duration")
+    a["shield_cooldown"] = scfg.get("cooldown")
+    a["shield_scale"]    = scfg.get("scale")
+
     return a
+
