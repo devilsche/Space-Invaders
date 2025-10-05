@@ -1,0 +1,278 @@
+import pygame
+from config import *
+import math, random
+
+class Bullet:
+    def __init__(self, x, y, vx, vy, color=(255, 255, 0)):
+        self.rect = pygame.Rect(x, y, 5, 10)
+        self.vx = vx
+        self.vy = vy
+        self.color = color
+
+    def update(self):
+        self.rect.x += self.vx
+        self.rect.y += self.vy
+
+    def offscreen(self):
+        return (
+            self.rect.bottom < 0 or self.rect.top > HEIGHT or
+            self.rect.right < 0 or self.rect.left > WIDTH
+        )
+
+    def draw(self, screen):
+        pygame.draw.rect(screen, self.color, self.rect)
+
+
+class Player:
+    __slots__ = ("rect","img","tilt")
+    def __init__(self, img):
+        self.img = img
+        self.rect = pygame.Rect(WIDTH//2 - img.get_width()//2, HEIGHT, *img.get_size())
+        self.tilt = 0
+
+    def handle_input(self, keys):
+        dx = 0
+        dy = 0
+        self.tilt = 0
+
+        if keys[pygame.K_LEFT]:
+            dx -= PLAYER_SPEED
+            self.tilt = -1
+        if keys[pygame.K_RIGHT]:
+            dx += PLAYER_SPEED
+            self.tilt = 1
+        if keys[pygame.K_UP]:
+            dy -= PLAYER_SPEED
+        if keys[pygame.K_DOWN]:
+            dy += PLAYER_SPEED
+
+        # bewegen
+        self.rect.x += dx
+        self.rect.y += dy
+
+        # innerhalb des Screens halten
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > WIDTH:
+            self.rect.right = WIDTH
+        if self.rect.top < 0:
+            self.rect.top = 0
+        if self.rect.bottom > HEIGHT:
+            self.rect.bottom = HEIGHT
+
+    def shoot(self, stage=1):
+        shots = []
+
+        # geradeaus
+        shots.append(Bullet(self.rect.centerx - 2, self.rect.top, 0, -10))
+
+        if stage >= 2:
+            # leicht links
+            shots.append(Bullet(self.rect.centerx - 2, self.rect.top, -5, -10))
+            # leicht rechts
+            shots.append(Bullet(self.rect.centerx - 2, self.rect.top, 5, -10))
+
+        if stage >= 3:
+            # noch breiter streuen
+            shots.append(Bullet(self.rect.centerx - 2, self.rect.top, -8, -10))
+            shots.append(Bullet(self.rect.centerx - 2, self.rect.top, 8, -10))
+
+        return shots
+
+    def _tilt_and_rotate(self):
+        w,h = self.img.get_size()
+        factor = 1.0 - (0.3 if self.tilt else 0.0)
+        scaled = pygame.transform.scale(self.img, (max(1,int(w*factor)), h))
+        angle = -5 if self.tilt>0 else (5 if self.tilt<0 else 0)
+        rot = pygame.transform.rotate(scaled, angle)
+        return rot, rot.get_rect(center=self.rect.center)
+    def draw(self, screen):
+        img, r = self._tilt_and_rotate()
+        screen.blit(img, r)
+
+class Enemy:
+    __slots__ = ("rect", "img", "_wobble_phase", "_wobble_speed", "_wobble_amp", "_base_x", "max_hp", "hp", "points")
+
+    def __init__(self, x, y, img, max_hp=30, points=10):
+        self.img = img
+        self.rect = img.get_rect(topleft=(x, y))
+        # Wackel-Parameter
+        self._wobble_phase = random.uniform(0, 2*math.pi)
+        self._wobble_speed = random.uniform(1.0, 2.0)
+        self._wobble_amp   = random.randint(6, 16)
+        self._base_x = x
+        self.max_hp = max_hp
+        self.hp = max_hp
+        self.points = points
+
+    def take_damage(self, dmg):
+        """Gibt True zurück wenn tot (hp <= 0)."""
+        self.hp -= dmg
+        return self.hp <= 0
+
+    def update(self, dx=0):
+        # horizontale Bewegung + Basis mitführen
+        self._base_x += dx
+        t = pygame.time.get_ticks() / 1000.0
+        wobble = int(math.sin(t * self._wobble_speed + self._wobble_phase) * self._wobble_amp)
+        self.rect.x = self._base_x + wobble
+
+    def drop(self, dy):
+        self.rect.y += dy
+        # Basis neu setzen, damit kein Sprung entsteht
+        self._base_x = self.rect.x
+
+    def draw(self, screen):
+        screen.blit(self.img, self.rect)
+        # kleine HP-Leiste oben (optional)
+        if self.hp < self.max_hp:
+            w = self.rect.width
+            hw = int(w * (self.hp / self.max_hp))
+            pygame.draw.rect(screen, (60,60,60), (self.rect.x, self.rect.y-6, w, 4))
+            pygame.draw.rect(screen, (0,200,0), (self.rect.x, self.rect.y-6, hw, 4))
+
+    def shoot(self):
+        return Bullet(
+            self.rect.centerx - 2,
+            self.rect.bottom,
+            0,              # vx (horizontal)
+            ENEMY_BULLET_SPEED,  # vy (positiv = runter)
+            (255, 255, 255) # Farbe
+        )
+
+class Boss:
+    def __init__(self, x, y, img):
+        self.img = img
+        self.rect = img.get_rect(center=(x, y))
+        self.max_hp = BOSS_MAX_HP
+        self.hp = self.max_hp
+
+        # Winkelgrenzen zu den unteren Bildschirmrändern
+        cx, cy = self.rect.center
+        self.angle_min = math.atan2(HEIGHT - cy, 0 - cx)
+        self.angle_max = math.atan2(HEIGHT - cy, WIDTH - cx)
+
+        # Sinus-Schwingung im Halbkreis
+        self.angle_mid = 0.5 * (self.angle_min + self.angle_max)
+        self.angle_amp = 0.5 * (self.angle_max - self.angle_min)
+        self.phase = 0.0
+        self.last_ms = pygame.time.get_ticks()
+
+    def take_damage(self, dmg):
+        self.hp -= dmg
+        return self.hp <= 0
+
+    def update(self):
+        now = pygame.time.get_ticks()
+        dt = (now - self.last_ms) / 1000.0
+        self.last_ms = now
+
+        # langsames Schwingen
+        self.phase += 2 * math.pi * BOSS_SWING_HZ * dt
+        self.angle = self.angle_mid + self.angle_amp * math.sin(self.phase)
+
+    def try_shoot(self, last_ms, cooldown_ms, Bullet, color=(255,255,255)):
+        now = pygame.time.get_ticks()
+        if now - last_ms < cooldown_ms:
+            return None, last_ms
+        vx = math.cos(self.angle) * BOSS_BULLET_SPEED
+        vy = math.sin(self.angle) * BOSS_BULLET_SPEED
+        b = Bullet(self.rect.centerx, self.rect.centery, vx, vy, color)
+        return b, now
+
+
+    def draw(self, screen):
+        ang_deg = -math.degrees(self.angle) + 90
+        sprite = pygame.transform.rotate(self.img, ang_deg)
+        r = sprite.get_rect(center=self.rect.center)
+        screen.blit(sprite, r)
+
+        # HP-Bar
+        w = self.rect.width
+        hw = int(w * (self.hp / self.max_hp))
+        pygame.draw.rect(screen, (60,60,60), (self.rect.centerx - w//2, self.rect.top-10, w, 6))
+        pygame.draw.rect(screen, (0,200,0), (self.rect.centerx - w//2, self.rect.top-10, hw, 6))
+
+
+class Explosion:
+    __slots__ = ("frames","index","done","rect","step")
+    def __init__(self, x, y, frames, step=EXP_FRAMES_PER_STEP):
+        self.frames = frames
+        self.index = 0
+        self.step = step
+        self.done = False
+        self.rect = self.frames[0].get_rect(center=(x, y))
+    def update(self):
+        self.index += self.step
+        if self.index >= len(self.frames):
+            self.done = True
+    def draw(self, screen):
+        if not self.done:
+            screen.blit(self.frames[int(self.index)], self.rect)
+
+
+class Flame:
+    def __init__(self, x, y, frames, fps=12, loop=True):
+        self.frames = frames
+        self.fps = fps          # wie schnell abgespielt wird
+        self.loop = loop
+        self.start = pygame.time.get_ticks()
+        self.rect = frames[0].get_rect(center=(x, y))
+        self.done = False
+        self._idx = 0
+
+    def update(self, new_pos=None):
+        # Animation fortschalten
+        if self.done:
+            return
+        idx = (pygame.time.get_ticks() - self.start) * self.fps // 1000
+        if idx >= len(self.frames):
+            if self.loop:
+                self.start = pygame.time.get_ticks()
+                idx = 0
+            else:
+                self.done = True
+                return
+        self._idx = int(idx)
+
+        # ggf. Position aktualisieren (z. B. hinter dem Player)
+        if new_pos:
+            self.rect.center = new_pos
+
+    def draw(self, screen):
+        if not self.done:
+            screen.blit(self.frames[self._idx], self.rect)
+
+class Rocket:
+    __slots__ = ("rect","vy","img", "accel")
+    def __init__(self, x, y, img):
+        self.img = img
+        self.rect = img.get_rect(midbottom=(x, y))
+        self.vy = ROCKET_SPEED
+        self.accel = -0.1
+    def update(self):
+        self.vy += self.accel
+        self.rect.y += int(self.vy)
+    def offscreen(self):
+        return self.rect.bottom < 0
+    def draw(self, screen):
+        screen.blit(self.img, self.rect)
+
+class Nuke:
+    __slots__ = ("rect","vy","img", "accel")
+    def __init__(self, x, y, img):
+        self.img = img
+        # fliegt nach oben: Spitze soll oben liegen → rect an der Spitze ausrichten
+        self.rect = img.get_rect(midtop=(x, y))   # statt midbottom
+        self.vy = NUKE_SPEED  # negativ für nach oben
+        self.accel = -0.5
+
+    def update(self, timescale=1.0):
+        self.vy += int(self.accel * timescale)
+        self.rect.y += int(self.vy * timescale)
+
+    def offscreen(self):
+        return self.rect.bottom < 0
+
+    def draw(self, screen):
+        screen.blit(self.img, self.rect)  # kein weiteres Rotieren hier

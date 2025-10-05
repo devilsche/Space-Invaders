@@ -1,0 +1,4 @@
+WIDTH     = 1920
+HEIGHT    = 1080
+FPS       = 60
+FONT_SIZE = 36
