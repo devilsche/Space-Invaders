@@ -77,7 +77,7 @@ def load_assets():
         # Bild
         base_img = _scaled(pcfg["img"], pcfg.get("size"))
         a[f"{w}_img"] = base_img
-        
+
         # Für Laser: Gelbe Version für Enemies erstellen
         if w == "laser":
             yellow_img = base_img.copy()
@@ -118,13 +118,13 @@ def load_assets():
     a["shield_duration"] = scfg.get("duration")
     a["shield_cooldown"] = scfg.get("cooldown")
     a["shield_scale"]    = scfg.get("scale")
-    
+
     # Shield-Hit-Sound laden (falls vorhanden)
     try:
         a["shield_hit_sound"] = pygame.mixer.Sound("assets/sound/shieldImpact.mp3")
     except Exception:
         a["shield_hit_sound"] = None
-    
+
     # Shield-Aktivierungs-Sound laden (falls vorhanden)
     try:
         a["shield_activate_sound"] = pygame.mixer.Sound("assets/sound/shieldActivate.mp3")

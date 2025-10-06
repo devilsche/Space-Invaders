@@ -1,9 +1,11 @@
 import pygame
+import random
 from assets.load_assets import load_assets
 from system.utils       import load_highscore, save_highscore
 from system.hud         import HUD
 from system.health_bar  import HealthBar
 from config             import *
+from config.powerup     import POWERUP_CONFIG
 from entities           import *
 
 class Game:
@@ -70,6 +72,13 @@ class Game:
         self._total_kills = 0
         self._boss_spawned = False
 
+        # Power-Up System
+        self.powerups = []
+
+        # Power-Up Shield System
+        self.powerup_shield = None
+        self.powerup_shield_until = 0
+
         self.player = Player(WIDTH, HEIGHT, self.assets)
         self.player.rect.center = self.spawn_pos
 
@@ -91,6 +100,65 @@ class Game:
                 pass
 
         # self._build_wave("alien")
+
+    # ---------------- Power-Up System ----------------
+    def _try_drop_powerup(self, x, y):
+        """Versucht ein Power-Up zu droppen mit konfigurierten Wahrscheinlichkeiten"""
+        # Nur droppen wenn Player verletzt ist
+        if self.player.get_health_percentage() >= 1.0:
+            return
+
+        for powerup_type, config in POWERUP_CONFIG.items():
+            if random.random() < config["drop_chance"]:
+                powerup = PowerUp(x, y, powerup_type, self.assets)
+                self.powerups.append(powerup)
+                break  # Nur ein Power-Up pro Enemy
+
+    def _update_powerups(self):
+        """Aktualisiert alle Power-Ups"""
+        for powerup in self.powerups[:]:
+            powerup.update()
+
+            # Entfernen wenn abgelaufen oder vom Bildschirm gefallen
+            if powerup.is_expired() or powerup.offscreen():
+                self.powerups.remove(powerup)
+                continue
+
+            # Kollision mit Player prüfen
+            if powerup.rect.colliderect(self.player.rect):
+                # Effekt anwenden
+                effect_result = powerup.apply_effect(self.player)
+
+                # Shield Power-Up spezielle Behandlung
+                if isinstance(effect_result, dict) and effect_result.get("type") == "shield":
+                    self._activate_powerup_shield(effect_result["duration"], effect_result["config"])
+                    print(f"Power-Up Shield activated for {effect_result['duration']/1000:.1f}s!")
+                else:
+                    print(f"Power-Up collected: {effect_result}")
+
+                # Punkte geben
+                self.score += powerup.get_points()
+                self.highscore = max(self.highscore, self.score)
+
+                # Power-Up entfernen
+                self.powerups.remove(powerup)
+
+    def _activate_powerup_shield(self, duration, shield_config):
+        """Aktiviert das gelbe Power-Up Shield"""
+        now = pygame.time.get_ticks()
+
+        # Power-Up Shield erstellen mit gleicher Skalierung wie normales Shield
+        frames = self.assets["shield_frames"]
+        fps = shield_config.get("fps", 20)
+        # Gleiche dynamische Skalierung wie beim normalen Q-Shield
+        scale = max(self.player.rect.w, self.player.rect.h) / frames[0].get_width() * self.assets["shield_scale"]
+
+        self.powerup_shield = Shield(
+            *self.player.rect.center, frames, fps=fps, scale=scale,
+            loop=True, player_health=self.player.max_health, is_powerup_shield=True,
+            shield_config=shield_config
+        )
+        self.powerup_shield_until = now + duration
 
     # ---------------- Wellen ----------------
     def _build_wave(self, enemy_type: str):
@@ -380,11 +448,21 @@ class Game:
                 self.fly_in_enemies.remove(enemy)
                 self._fly_in_spawn_count = max(0, self._fly_in_spawn_count - 1)  # Count dekrementieren
 
+        # Power-Ups aktualisieren
+        self._update_powerups()
+
         if self.shield:
             self.shield.set_center(self.player.rect.center)
             self.shield.update()
             if pygame.time.get_ticks() >= self.shield_until or self.shield.done:
                 self.shield = None
+
+        # Power-Up Shield Update
+        if self.powerup_shield:
+            self.powerup_shield.set_center(self.player.rect.center)
+            self.powerup_shield.update()
+            if pygame.time.get_ticks() >= self.powerup_shield_until or self.powerup_shield.done:
+                self.powerup_shield = None
 
         # Gegner bewegen + droppen am Rand
         if self.enemies:
@@ -498,6 +576,9 @@ class Game:
                 # Kill-Counter erhöhen
                 self._total_kills += 1
 
+                # Power-Up Drop-Chance prüfen
+                self._try_drop_powerup(hit_enemy.rect.centerx, hit_enemy.rect.centery)
+
                 frames = self.assets.get("expl_rocket", []) or self.assets.get("expl_laser", [])
                 fps    = self.assets.get("expl_rocket_fps", 24)
                 self.explosions.append(Explosion(hit_enemy.rect.centerx,
@@ -529,12 +610,15 @@ class Game:
         for p in self.enemy_shots:  p.draw(self.screen)
         for en in self.enemies:     en.draw(self.screen)
         for en in self.fly_in_enemies: en.draw(self.screen)  # Fly-In Enemies zeichnen
+        for powerup in self.powerups: powerup.draw(self.screen)  # Power-Ups zeichnen
         for ex in self.explosions:  ex.draw(self.screen)
 
         if not self.player_dead:
             self.player.draw(self.screen)
             if self.shield:
                 self.shield.draw(self.screen)
+            if self.powerup_shield:
+                self.powerup_shield.draw(self.screen)
 
         self.screen.blit(self.font.render(f"Score: {self.score}", True, (255,255,255)), (10, 10))
         self.screen.blit(self.font.render(f"High Score: {self.highscore}", True, (255,255,255)), (10, 50))

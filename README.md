@@ -5,10 +5,12 @@ Spannende Ideen für weitere Verbesserungen des Space Invaders Spiels:
 ## 🚀 Gameplay-Erweiterungen
 
 ### 1. Power-Up System
-- **Drop-Mechanik**: Items fallen von zerstörten Enemies
+- ~~**Drop-Mechanik**: Items fallen von zerstörten Enemies~~
+- ~~**Health Power-Up**: Heilt den Spieler prozentual~~
+- ~~**Repair Power-Up**: Kleinere Heilung~~
+- ~~**Shield Power-Up**: Extra gelbes Shield mit Timer~~
 - **Double Shot**: Doppelte Laser gleichzeitig
 - **Rapid Fire**: Reduzierte Cooldowns für alle Waffen
-- **Shield Boost**: Längere/stärkere Schilddauer
 - **Speed Boost**: Schnellere Bewegungsgeschwindigkeit
 
 ### 2. Combo-System
@@ -17,6 +19,8 @@ Spannende Ideen für weitere Verbesserungen des Space Invaders Spiels:
 - **Perfect Wave**: Spezial-Bonus für 100% Enemy-Eliminierung
 
 ### 3. Boss-Phasen
+- ~~**Boss System**: Starke End-Gegner~~
+- ~~**Individual Weapon Probabilities**: Boss hat eigene Waffen-Chancen~~
 - **Adaptive AI**: Boss ändert Verhalten bei 75%/50%/25% HP
 - **Pattern Evolution**: Verschiedene Angriffsmuster je Phase
 - **Desperate Phase**: Extrem aggressiv bei niedrigem HP
@@ -25,13 +29,25 @@ Spannende Ideen für weitere Verbesserungen des Space Invaders Spiels:
 
 ### 4. Neue Projektile
 
+- ~~**Laser**: Standard-Waffe~~
+- ~~**Rocket**: Explosions-Schaden~~
+- ~~**Homing Rocket**: Verfolgt nächsten Enemy~~
+- ~~**Nuke**: Großflächiger AoE-Schaden~~
+- ~~**Blaster**: Geführte Laser mit Enemy-Targeting~~
 - **Beam Laser**: Durchgehender Strahl für kurze Zeit
-- **Cluster Bomb**: Zerfällt in mehrere kleine Explosionen  
+- **Cluster Bomb**: Zerfällt in mehrere kleine Explosionen
 - **EMP Blast**: Deaktiviert Enemy-Waffen temporär
 - **Piercing Shot**: Durchdringt mehrere Enemies
 
 ### 5. Spezial-Enemies
 
+- ~~**Alien**: Standard-Enemy~~
+- ~~**Drone**: Schneller Enemy~~
+- ~~**Tank**: Starker Enemy~~
+- ~~**Sniper**: Präzise Schüsse~~
+- ~~**Boss**: Starker End-Gegner mit individuellen Waffen~~
+- ~~**Fly-In System**: Enemies fliegen dynamisch ins Spielfeld~~
+- ~~**Homing Enemy Rockets**: Enemies mit verfolgenden Raketen~~
 - **Healer**: Repariert andere Enemies
 - **Spawner**: Erstellt kleine Drohnen
 - **Mirror**: Reflektiert Spieler-Schüsse
@@ -39,8 +55,18 @@ Spannende Ideen für weitere Verbesserungen des Space Invaders Spiels:
 
 ## 🌟 Visuelle & Audio-Effekte
 
+### Audio-System
+- ~~**Sound Effects**: Laser, Explosion, Rocket Launch/Hit, Nuke~~
+- ~~**Multi-Channel Audio**: 32 Kanäle für gleichzeitige Sounds~~
+- ~~**Sound Cooldowns**: Verhindert Audio-Spam~~
+
 ### 6. Screen Effects
 
+- ~~**Explosion Animations**: Animierte Explosionen~~
+- ~~**Shield Animations**: Animierte Schild-Effekte~~
+- ~~**Visual Feedback**: Damage-Effekte bei Schilden~~
+- ~~**PowerUp Animations**: Schwebende, animierte PowerUps~~
+- ~~**Green Shield Tinting**: Visuelle Unterscheidung PowerUp-Shield~~
 - **Slow Motion**: Bei kritischen Treffern
 - **Screen Shake**: Intensiver bei großen Explosionen
 - **Particle Effects**: Funken, Rauch, Trümmer
@@ -48,6 +74,10 @@ Spannende Ideen für weitere Verbesserungen des Space Invaders Spiels:
 
 ### 7. HUD-Verbesserungen
 
+- ~~**Health Bar**: Zeigt Spieler-Gesundheit~~
+- ~~**Weapon Cooldown**: Animierte Cooldown-Anzeigen~~
+- ~~**Score & High Score**: Punkteanzeige~~
+- ~~**Stage Indicator**: Aktuelle Entwicklungsstufe~~
 - **Radar**: Zeigt Enemy-Positionen
 - **Threat Indicator**: Warnt vor gefährlichen Projektilen
 - **Weapon Preview**: Zeigt nächste verfügbare Waffe
@@ -57,6 +87,10 @@ Spannende Ideen für weitere Verbesserungen des Space Invaders Spiels:
 
 ### 8. Upgrade-System
 
+- ~~**Stage System**: Schiff entwickelt sich mit Kills weiter~~
+- ~~**Health Scaling**: Mehr HP in höheren Stages~~
+- ~~**Shield System**: Q-Taste für temporäre Schilde~~
+- ~~**Weapon Progression**: Neue Waffen in höheren Stages~~
 - **Permanente Verbesserungen**: Zwischen Levels
 - **Ship Upgrades**: Mehr HP, bessere Manövrierbarkeit
 - **Weapon Mods**: Größere Explosionen, schnellere Projektile
@@ -110,7 +144,7 @@ Ich kann gerne eine davon detailliert implementieren! Die Features sind nach Imp
 ### 🔥 Empfohlene Quick-Wins
 
 - **Power-Up System** - Sofort spürbare Verbesserung
-- **Screen Effects** - Visuelle Aufwertung mit wenig Aufwand  
+- **Screen Effects** - Visuelle Aufwertung mit wenig Aufwand
 - **Boss-Phasen** - Nutzt vorhandene Boss-Mechanik
 
 ### 🚀 Langfristige Ziele

@@ -92,20 +92,20 @@ class Enemy:
     def _update_fly_in(self):
         """Bewegung für 'fly_in' Typ - von oben reinfliegend mit individueller Laufbahn"""
         now = pygame.time.get_ticks()
-        
+
         # Zeit seit Spawn
         if not hasattr(self, '_spawn_time'):
             self._spawn_time = now
             self._target_y = self.move_cfg.get("target_y", 100)  # Ziel Y-Position
             self._path_type = self.move_cfg.get("path", "straight")  # Laufbahn-Typ
             self._speed = self.move_cfg.get("speed", 2)
-            
+
         elapsed = (now - self._spawn_time) / 1000.0  # Sekunden
-        
+
         # Phase 1: Von oben einfliegend
         if self.rect.y < self._target_y:
             self.rect.y += self._speed * 2  # Schneller von oben
-            
+
         # Phase 2: Horizontale Laufbahn
         else:
             if self._path_type == "straight":
@@ -127,7 +127,7 @@ class Enemy:
                 if not hasattr(self, '_center_x'):
                     self._center_x = center_x
                     self._center_y = center_y
-                
+
                 angle = elapsed * frequency + self._phase
                 self.rect.x = center_x + int(radius * math.cos(angle))
                 # Sehr kleine Y-Variation für sanfte Wellenbewegung
@@ -180,7 +180,7 @@ class Enemy:
     def offscreen(self):
         # Für fly_in Enemies: vollständige Bildschirmrand-Prüfung
         if self.move_cfg.get("type") == "fly_in":
-            return (self.rect.right < -50 or self.rect.left > WIDTH + 50 or 
+            return (self.rect.right < -50 or self.rect.left > WIDTH + 50 or
                     self.rect.bottom < -50 or self.rect.top > HEIGHT + 50)
         # Für normale Enemies: nur oben raus
         return self.rect.bottom < 0

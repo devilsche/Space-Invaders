@@ -5,10 +5,11 @@ class Shield:
     __slots__ = (
         "frames","center","fps","_t_last","_i","loop","done",
         "alpha","blend_add","radius_px","mask","mask_center","_last_hit_sound",
-        "max_health","current_health","damaged_until","_last_regen_time"
+        "max_health","current_health","damaged_until","_last_regen_time","is_powerup_shield",
+        "damage_reduction","regen_rate","min_health_percentage"
     )
 
-    def __init__(self, x, y, frames, fps=18, scale=1.0, loop=True, alpha=150, blend_add=False, use_mask=True, player_health=1000):
+    def __init__(self, x, y, frames, fps=18, scale=1.0, loop=True, alpha=150, blend_add=False, use_mask=True, player_health=1000, is_powerup_shield=False, shield_config=None):
         if not frames:
             blank = pygame.Surface((1,1), pygame.SRCALPHA)
             frames = [blank]
@@ -62,16 +63,45 @@ class Shield:
         self._last_hit_sound = 0
 
         # Schild-Health System basierend auf Config
-        from config.shield import SHIELD_CONFIG
-        shield_cfg = SHIELD_CONFIG[1]["shield"]  # Erstmal Stage 1 Config
+        if shield_config:
+            # Power-Up Shield Config verwenden
+            config = shield_config
+        else:
+            # Standard Shield Config laden
+            from config.shield import SHIELD_CONFIG
+            config = SHIELD_CONFIG[1]["shield"]  # Erstmal Stage 1 Config
 
-        health_percentage = shield_cfg.get("health_percentage", 0.5)
-        self.max_health = int(player_health * health_percentage)  # 50% der Spieler-Health
+        health_percentage = config.get("health_percentage", 0.5)
+        self.max_health = int(player_health * health_percentage)
         self.current_health = self.max_health
         self.damaged_until = 0  # Für visuellen Schaden-Effekt
 
+        # Config für Regeneration und Schadenssystem speichern
+        self.damage_reduction = config.get("damage_reduction", 0.9)
+        self.regen_rate = config.get("regen_rate", 0.1)
+        self.min_health_percentage = config.get("min_health_percentage", 0.3)
+
         # Für Health-Regeneration
         self._last_regen_time = pygame.time.get_ticks()
+
+        # Power-Up Shield Eigenschaften
+        self.is_powerup_shield = is_powerup_shield
+        if is_powerup_shield:
+            # Gelb färben für Power-Up Shield
+            self._apply_yellow_tint()
+
+    def _apply_yellow_tint(self):
+        """Färbt das Shield gelb für Power-Up Shields"""
+        yellow_tinted = []
+        for frame in self.frames:
+            # Kopie des Frames erstellen
+            tinted = frame.copy()
+            # Gelbe Färbung anwenden
+            yellow_overlay = pygame.Surface(frame.get_size(), pygame.SRCALPHA)
+            yellow_overlay.fill((255, 255, 0, 80))  # Gelb mit 80 Alpha
+            tinted.blit(yellow_overlay, (0, 0), special_flags=pygame.BLEND_MULT)
+            yellow_tinted.append(tinted)
+        self.frames = yellow_tinted
 
     def set_center(self, pos):
         self.center = (int(pos[0]), int(pos[1]))
