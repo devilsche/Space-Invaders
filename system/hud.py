@@ -3,32 +3,32 @@ import pygame
 
 class HUD:
     """HUD-System für Weapon/Power-Up Status-Anzeige"""
-    
+
     def __init__(self, screen_width, screen_height):
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.icon_size = 48  # Doppelt so groß: 48x48px
         self.icon_spacing = 8
         self.margin = 10
-        
+
         # Position unten links
         self.start_x = self.margin
         self.start_y = screen_height - self.icon_size - self.margin
-        
+
         # Icon-Positionen
         self.icons = {}
         self.icon_order = ["rocket", "homing_rocket", "nuke", "shield"]
-        
+
         for i, weapon in enumerate(self.icon_order):
             x = self.start_x + i * (self.icon_size + self.icon_spacing)
             y = self.start_y
             self.icons[weapon] = {
-                "pos": (x, y), 
-                "available": False, 
+                "pos": (x, y),
+                "available": False,
                 "cooldown_progress": 1.0,  # 1.0 = bereit, 0.0 = gerade verwendet
                 "last_used": 0
             }
-    
+
     def make_grayscale(self, surf):
         """Konvertiert Surface zu Graustufen - wie in test.py"""
         try:
@@ -49,7 +49,7 @@ class HUD:
             # Fallback: Pixel-für-Pixel Graustufen ohne numpy
             width, height = surf.get_size()
             gray_surf = pygame.Surface((width, height), pygame.SRCALPHA)
-            
+
             for x in range(width):
                 for y in range(height):
                     try:
@@ -68,7 +68,7 @@ class HUD:
         w, h = color.get_size()
         screen.blit(gray, pos)
         hh = int(h * p)
-        if hh <= 0: 
+        if hh <= 0:
             return
         # Vollfarbbereich
         core = max(0, hh - feather)
@@ -92,21 +92,21 @@ class HUD:
         """Lädt und skaliert die Icons"""
         self.icon_images = {}
         self.icon_images_gray = {}
-        
+
         icon_mapping = {
             "rocket": "rocket.png",
             "homing_rocket": "rocket.png",  # Gleiche Rakete, anders färben
-            "nuke": "nuke.png", 
+            "nuke": "nuke.png",
             "shield": "shield.png"
         }
-        
+
         for weapon, filename in icon_mapping.items():
             try:
                 icon_path = f"assets/images/icon/{filename}"
                 img = pygame.image.load(icon_path)
                 # Auf 48x48 skalieren
                 scaled_img = pygame.transform.smoothscale(img, (self.icon_size, self.icon_size))
-                
+
                 # Spezielle Färbung für verschiedene Waffen
                 if weapon == "homing_rocket":
                     # Homing Rocket: Rötlich
@@ -131,10 +131,10 @@ class HUD:
                     self.icon_images[weapon] = colored_img
                 else:
                     self.icon_images[weapon] = scaled_img
-                
+
                 # Graustufen-Version erstellen
                 self.icon_images_gray[weapon] = self.make_grayscale(self.icon_images[weapon])
-                
+
             except Exception as e:
                 print(f"Fehler beim Laden von {filename}: {e}")
                 # Fallback: Einfaches farbiges Rechteck
@@ -142,36 +142,36 @@ class HUD:
                 fallback.fill((100, 100, 100))
                 self.icon_images[weapon] = fallback
                 self.icon_images_gray[weapon] = fallback
-    
+
     def update_weapon_status(self, player, current_time, cooldowns):
         """Aktualisiert den Status der Waffen basierend auf Verfügbarkeit und Cooldowns"""
         from config.ship import SHIP_CONFIG
         from config.projectile import PROJECTILES_CONFIG
-        
+
         ship_config = SHIP_CONFIG.get(player.stage, {})
         weapons = ship_config.get("weapons", {})
-        
+
         # Rocket Status mit Cooldown
         self.icons["rocket"]["available"] = weapons.get("rocket", 0) > 0
         rocket_cooldown = PROJECTILES_CONFIG.get("rocket", {}).get("cooldown", 1000)
         rocket_last_used = cooldowns.get("rocket_last_used", 0)
         rocket_progress = min(1.0, (current_time - rocket_last_used) / rocket_cooldown) if rocket_cooldown > 0 else 1.0
         self.icons["rocket"]["cooldown_progress"] = rocket_progress
-        
+
         # Homing Rocket Status mit Cooldown
         self.icons["homing_rocket"]["available"] = weapons.get("homing_rocket", 0) > 0
         homing_cooldown = PROJECTILES_CONFIG.get("homing_rocket", {}).get("cooldown", 2000)
         homing_last_used = cooldowns.get("homing_rocket_last_used", 0)
         homing_progress = min(1.0, (current_time - homing_last_used) / homing_cooldown) if homing_cooldown > 0 else 1.0
         self.icons["homing_rocket"]["cooldown_progress"] = homing_progress
-        
+
         # Nuke Status mit Cooldown
         self.icons["nuke"]["available"] = weapons.get("nuke", 0) > 0
         nuke_cooldown = PROJECTILES_CONFIG.get("nuke", {}).get("cooldown", 5000)
         nuke_last_used = cooldowns.get("nuke_last_used", 0)
         nuke_progress = min(1.0, (current_time - nuke_last_used) / nuke_cooldown) if nuke_cooldown > 0 else 1.0
         self.icons["nuke"]["cooldown_progress"] = nuke_progress
-        
+
         # Shield Status mit Cooldown
         shield_available = ship_config.get("shield", 0) == 1
         shield_ready_at = cooldowns.get("shield_ready_at", 0)
@@ -187,11 +187,11 @@ class HUD:
         for weapon, data in self.icons.items():
             if weapon not in self.icon_images or weapon not in self.icon_images_gray:
                 continue
-                
+
             pos = data["pos"]
             available = data["available"]
             cooldown_progress = data["cooldown_progress"]
-            
+
             if not available:
                 # Waffe nicht verfügbar: Nur graues Icon zeigen
                 screen.blit(self.icon_images_gray[weapon], pos)

@@ -4,10 +4,11 @@ import pygame
 class Shield:
     __slots__ = (
         "frames","center","fps","_t_last","_i","loop","done",
-        "alpha","blend_add","radius_px","mask","mask_center","_last_hit_sound"
+        "alpha","blend_add","radius_px","mask","mask_center","_last_hit_sound",
+        "max_health","current_health","damaged_until","_last_regen_time"
     )
 
-    def __init__(self, x, y, frames, fps=18, scale=1.0, loop=True, alpha=150, blend_add=False, use_mask=True):
+    def __init__(self, x, y, frames, fps=18, scale=1.0, loop=True, alpha=150, blend_add=False, use_mask=True, player_health=1000):
         if not frames:
             blank = pygame.Surface((1,1), pygame.SRCALPHA)
             frames = [blank]
@@ -60,6 +61,18 @@ class Shield:
         # Sound-Cooldown initialisieren
         self._last_hit_sound = 0
 
+        # Schild-Health System basierend auf Config
+        from config.shield import SHIELD_CONFIG
+        shield_cfg = SHIELD_CONFIG[1]["shield"]  # Erstmal Stage 1 Config
+
+        health_percentage = shield_cfg.get("health_percentage", 0.5)
+        self.max_health = int(player_health * health_percentage)  # 50% der Spieler-Health
+        self.current_health = self.max_health
+        self.damaged_until = 0  # Für visuellen Schaden-Effekt
+
+        # Für Health-Regeneration
+        self._last_regen_time = pygame.time.get_ticks()
+
     def set_center(self, pos):
         self.center = (int(pos[0]), int(pos[1]))
 
@@ -103,6 +116,10 @@ class Shield:
     def update(self):
         if self.done: return
         now = pygame.time.get_ticks()
+
+        # Health-Regeneration über Zeit
+        self._regenerate_health(now)
+
         step = 1000 // self.fps
         while now - self._t_last >= step and not self.done:
             self._t_last += step
@@ -114,13 +131,56 @@ class Shield:
                     self._i = len(self.frames) - 1
                     self.done = True
 
+    def _regenerate_health(self, current_time):
+        """Regeneriert Schild-Health über Zeit"""
+        if self.current_health >= self.max_health:
+            return  # Schon bei voller Health
+
+        # Zeit seit letzter Regeneration
+        time_diff = current_time - self._last_regen_time
+        if time_diff < 100:  # Alle 100ms regenerieren (10 FPS Regeneration)
+            return
+
+        # Config laden
+        from config.shield import SHIELD_CONFIG
+        shield_cfg = SHIELD_CONFIG[1]["shield"]
+        regen_rate = shield_cfg.get("regen_rate", 0.2)  # 20% pro Sekunde
+
+        # Health pro Update berechnen (time_diff ist in Millisekunden)
+        regen_per_second = self.max_health * regen_rate
+        regen_amount = regen_per_second * (time_diff / 1000.0)
+
+        # Health hinzufügen
+        self.current_health = min(self.max_health, self.current_health + regen_amount)
+        self._last_regen_time = current_time
+
     def _current_rect(self):
         return self.frames[self._i].get_rect(center=self.center)
 
     def draw(self, screen):
         if self.done: return
         frame = self.frames[self._i]
-        frame.set_alpha(self.alpha)
+
+        # Alpha basierend auf Health anpassen
+        health_percentage = self.get_health_percentage()
+        base_alpha = self.alpha
+
+        # Schild wird transparenter bei weniger Health
+        alpha = int(base_alpha * (0.3 + 0.7 * health_percentage))
+
+        # Schaden-Effekt: Kurzzeitig rötlich blinken
+        now = pygame.time.get_ticks()
+        if now < self.damaged_until:
+            # Rötlicher Schaden-Effekt
+            damage_frame = frame.copy()
+            red_overlay = pygame.Surface(frame.get_size(), pygame.SRCALPHA)
+            red_overlay.fill((255, 100, 100, 100))
+            damage_frame.blit(red_overlay, (0, 0), special_flags=pygame.BLEND_MULT)
+            damage_frame.set_alpha(alpha)
+            frame = damage_frame
+        else:
+            frame.set_alpha(alpha)
+
         r = self._current_rect()
         if self.blend_add:
             screen.blit(frame, r, special_flags=pygame.BLEND_ADD)
@@ -153,6 +213,24 @@ class Shield:
             return self.hit_mask(projectile_rect.center)
 
         return True
+
+    def take_damage(self, damage):
+        """Schild nimmt Schaden und gibt zurück ob es noch aktiv ist"""
+        self.current_health -= damage
+        self.current_health = max(0, self.current_health)
+
+        # Visueller Schaden-Effekt für 200ms
+        self.damaged_until = pygame.time.get_ticks() + 200
+
+        return self.current_health > 0  # True wenn noch aktiv
+
+    def get_health_percentage(self):
+        """Gibt Schild-Health als Prozentsatz zurück"""
+        return self.current_health / self.max_health if self.max_health > 0 else 0.0
+
+    def is_broken(self):
+        """Prüft ob das Schild kaputt ist"""
+        return self.current_health <= 0
 
     def play_hit_sound(self, assets):
         """Spielt den Shield-Hit-Sound ab mit Cooldown"""

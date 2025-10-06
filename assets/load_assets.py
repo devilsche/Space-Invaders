@@ -40,7 +40,6 @@ def _slice(sheet, cols, rows, fw, fh, scale=1.0, colorkey_from=(0, 0)):
 def _slice_sheet(sheet, cols, rows, fw, fh, scale):
     """sheet: pygame.Surface"""
     frames = []
-    print("scale", scale)
     base = sheet.convert_alpha()
     tw, th = int(fw*scale), int(fh*scale)
     for row in range(rows):

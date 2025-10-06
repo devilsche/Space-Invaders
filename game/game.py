@@ -2,20 +2,21 @@ import pygame
 from assets.load_assets import load_assets
 from system.utils       import load_highscore, save_highscore
 from system.hud         import HUD
+from system.health_bar  import HealthBar
 from config             import *
 from entities           import *
 
 class Game:
     def __init__(self):
         pygame.init()
-        
+
         # Mehr Mixer-Kanäle für gleichzeitige Sounds
         pygame.mixer.set_num_channels(32)  # Erhöhe von 8 auf 32 Kanäle
-        
+
         # Reserviere Kanäle für wichtige Sounds
         self.shield_channel = pygame.mixer.Channel(30)  # Kanal 30 für Shield-Hits
         self.music_channel = pygame.mixer.Channel(31)   # Kanal 31 für Musik
-        
+
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("Space Invaders")
         self.clock = pygame.time.Clock()
@@ -54,12 +55,20 @@ class Game:
             "shield_ready_at": 0
         }
 
+        # Schild-Zerstörungs-Tracking
+        self._last_shield_destroyed = 0
+
         self.player = Player(WIDTH, HEIGHT, self.assets)
-        self.player.rect.center = self.spawn_pos  
+        self.player.rect.center = self.spawn_pos
 
         # HUD initialisieren
         self.hud = HUD(WIDTH, HEIGHT)
         self.hud.load_icons(self.assets)
+
+        # Health Bar initialisieren (oben links)
+        self.health_bar = HealthBar(10, 100, 200, 20)
+        # Schild Health Bar (oben links, unter Player Health)
+        self.shield_health_bar = HealthBar(10, 140, 200, 15)
 
         if "music_paths" in self.assets and "raining_bits" in self.assets["music_paths"]:
             try:
@@ -150,11 +159,11 @@ class Game:
                     from config.ship import SHIP_CONFIG
                     current_ship_config = SHIP_CONFIG.get(self.player.stage, {})
                     has_shield = current_ship_config.get("shield", 0) == 1
-                    
+
                     if not has_shield:
                         # Kein Schild verfügbar für dieses Schiff
                         break
-                    
+
                     if self.shield:
                         self.shield = None
                         break
@@ -164,10 +173,25 @@ class Game:
                         fps    = self.assets["shield_fps"]
 
                         scale = max(self.player.rect.w, self.player.rect.h) / frames[0].get_width() * self.assets["shield_scale"]
-                        self.shield = Shield( *self.player.rect.center, frames, fps=fps, scale=scale, loop=True )
+                        new_shield = Shield( *self.player.rect.center, frames, fps=fps, scale=scale, loop=True,
+                                           player_health=self.player.max_health )
+
+                        # Schild sollte mit reduzierter Health starten wenn es kürzlich zerstört wurde
+                        from config.shield import SHIELD_CONFIG
+                        shield_cfg = SHIELD_CONFIG[1]["shield"]
+                        regen_rate = shield_cfg.get("regen_rate", 0.2)  # 20% pro Sekunde
+                        min_health_percent = shield_cfg.get("min_health_percentage", 0.3)   # Mindestens 30% der Schild-Health
+                        min_health = int(new_shield.max_health * min_health_percent)
+
+                        time_since_last_shield = max(0, now - getattr(self, '_last_shield_destroyed', 0))
+                        regen_time_seconds = time_since_last_shield / 1000.0
+                        health_regen = min(new_shield.max_health, new_shield.max_health * regen_rate * regen_time_seconds)
+                        new_shield.current_health = max(min_health, int(health_regen))
+
+                        self.shield = new_shield
                         self.shield_until     = now + self.assets["shield_duration"]
                         self._shield_ready_at = now + self.assets["shield_cooldown"]
-                        
+
                         # Shield-Aktivierungs-Sound abspielen
                         if self.assets.get("shield_activate_sound"):
                             from config import MASTER_VOLUME, SFX_VOLUME
@@ -184,6 +208,10 @@ class Game:
         # HUD mit aktuellen Weapon-Status aktualisieren
         self.weapon_cooldowns["shield_ready_at"] = self._shield_ready_at
         self.hud.update_weapon_status(self.player, now, self.weapon_cooldowns)
+
+        # Health Bar aktualisieren
+        if not self.player_dead:
+            self.health_bar.update(self.player.get_health_percentage())
 
         # während tot: kein Input, keine Kollisionen
         if self.player_dead:
@@ -242,11 +270,20 @@ class Game:
         # ---- Kollision: Gegner-Projektil -> Spieler ----
         if not self.player_dead:
             for p in self.enemy_shots[:]:
-                # Schild fängt ab
-                if self.shield and self.shield.hit_by_projectile(p.rect):
+                # Schild-Kollision prüfen (wenn Schild aktiv ist)
+                hit_shield = False
+                if self.shield and not self.shield.is_broken() and self.shield.hit_by_projectile(p.rect):
+                    # Schild nimmt Schaden
+                    damage = getattr(p, "dmg", 100)
+                    shield_still_active = self.shield.take_damage(damage)
+
                     self.shield.play_hit_sound(self.assets)
-                    self.enemy_shots.remove(p)
-                    continue
+                    hit_shield = True
+
+                    # Wenn Schild zerstört wird, entferne es
+                    if not shield_still_active:
+                        self._last_shield_destroyed = now  # Zeitpunkt der Zerstörung tracken
+                        self.shield = None
 
                 if p.rect.colliderect(self.player.rect):
                     # Unverwundbarkeit nach Respawn beachten
@@ -255,17 +292,28 @@ class Game:
                         continue
 
                     self.enemy_shots.remove(p)
-                    if hasattr(p, "on_hit"): p.on_hit(self, self.player.rect.center)
 
-                    frames = self.assets.get("expl_laser", [])
-                    fps    = self.assets.get("expl_laser_fps", 24)
-                    self.explosions.append(Explosion(self.player.rect.centerx,
-                                                    self.player.rect.centery,
-                                                    frames, fps=fps, scale=2.5))
+                    # Schaden berechnen (verschiedene Projektile machen unterschiedlich viel Schaden)
+                    damage = getattr(p, "dmg", 100)  # Standard-Schaden 100
 
-                    self.player_dead       = True
-                    self._respawn_ready_at = now + self.lives_cooldown
-                    # self._build_wave("alien")  # falls gewollt, sonst entfernen
+                    # Schild-Schutz: Reduzierter Schaden wenn Schild aktiv ist (auch wenn es getroffen wurde)
+                    has_shield = hit_shield or (self.shield is not None and not self.shield.is_broken())
+                    player_destroyed = self.player.take_damage(damage, has_shield)
+
+                    if hasattr(p, "on_hit"):
+                        p.on_hit(self, self.player.rect.center)
+
+                    # Explosion nur bei Zerstörung
+                    if player_destroyed:
+                        frames = self.assets.get("expl_laser", [])
+                        fps    = self.assets.get("expl_laser_fps", 24)
+                        self.explosions.append(Explosion(self.player.rect.centerx,
+                                                        self.player.rect.centery,
+                                                        frames, fps=fps, scale=2.5))
+
+                        self.player_dead       = True
+                        self._respawn_ready_at = now + self.lives_cooldown
+
                     break
 
 
@@ -331,10 +379,29 @@ class Game:
 
         self.screen.blit(self.font.render(f"Score: {self.score}", True, (255,255,255)), (10, 10))
         self.screen.blit(self.font.render(f"High Score: {self.highscore}", True, (255,255,255)), (10, 50))
-        
+
+        # Health Bar zeichnen (nur wenn Spieler lebt)
+        if not self.player_dead:
+            self.health_bar.draw(self.screen, self.player.get_health_percentage(),
+                               self.player.current_health, self.player.max_health)
+
+            # Schild Health Bar (nur wenn aktiv)
+            if self.shield and not self.shield.is_broken():
+                # Schild-Health Bar mit blauer Farbe
+                old_colors = self.shield_health_bar.health_colors.copy()
+                self.shield_health_bar.health_colors = {
+                    "high": (0, 150, 255),     # Blau
+                    "medium": (100, 200, 255), # Hellblau
+                    "low": (255, 150, 0),      # Orange
+                    "critical": (255, 0, 0)    # Rot
+                }
+                self.shield_health_bar.draw(self.screen, self.shield.get_health_percentage(),
+                                          self.shield.current_health, self.shield.max_health, "SHIELD")
+                self.shield_health_bar.health_colors = old_colors
+
         # HUD zeichnen
         self.hud.draw(self.screen)
-        
+
         pygame.display.flip()
 
 
@@ -376,12 +443,12 @@ class Game:
             self.clock.tick(FPS)
         save_highscore(self.highscore)
         pygame.quit()
-    
+
     def _update_shield_scale(self):
         """Aktualisiert die Schild-Skalierung basierend auf der aktuellen Spielergröße"""
         if self.shield:
             base_frames = self.assets["shield_frames"]
             base_scale_factor = self.assets["shield_scale"]
-            
+
             # Shield-Objekt die neue Skalierung durchführen lassen
             self.shield.rescale_for_player(self.player.rect, base_frames, base_scale_factor)

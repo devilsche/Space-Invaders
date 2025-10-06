@@ -19,6 +19,10 @@ class Player:
 
         cfg = SHIP_CONFIG[self.stage]
         self.speed = cfg.get("speed", 5)
+        
+        # Health-System
+        self.max_health = cfg.get("health", 1000)
+        self.current_health = self.max_health
 
         img = self.assets.get(f"player_stage{self.stage}")
         if img is None:
@@ -46,7 +50,6 @@ class Player:
 
     def _angles(self, weapon: str, amount: int):
         angs = SHIP_CONFIG[self.stage].get("angle", {}).get(weapon, []) or [0]
-        print( angs )
         i = 0
         out = []
         while len(out) < amount:
@@ -64,6 +67,12 @@ class Player:
         self.stage = stage
         cfg = SHIP_CONFIG[self.stage]
         self.speed = cfg.get("speed", self.speed)
+        
+        # Health-System aktualisieren
+        old_health_percentage = self.get_health_percentage()
+        self.max_health = cfg.get("health", 1000)
+        # Behalte den Prozentsatz der Health
+        self.current_health = int(self.max_health * old_health_percentage)
 
         img = self.assets.get(f"player_stage{self.stage}")
         if img is None:
@@ -109,7 +118,6 @@ class Player:
         coords = self._muzzles(weapon, amount)
         angles = self._angles(weapon, amount)
         for (mx, my), ang in zip(coords, angles):
-            print( ang )
             shots.append(WEAPON_CLS[weapon].create(mx, my, self.assets, owner="player", angle_deg=ang))
         self._last_shots[weapon] = now
         return shots
@@ -125,3 +133,29 @@ class Player:
         rotated = pygame.transform.rotate(img, -self.tilt_deg)
         r = rotated.get_rect(center=self.rect.center)
         screen.blit(rotated, r)
+    
+    def take_damage(self, damage, has_shield=False):
+        """Nimmt Schaden und gibt zurück, ob das Schiff zerstört wurde"""
+        # Schild reduziert Schaden basierend auf Config
+        if has_shield:
+            from config.shield import SHIELD_CONFIG
+            shield_cfg = SHIELD_CONFIG[1]["shield"]
+            damage_reduction = shield_cfg.get("damage_reduction", 0.9)
+            damage = int(damage * (1.0 - damage_reduction))  # z.B. 90% Reduktion
+        
+        self.current_health -= damage
+        self.current_health = max(0, self.current_health)
+        
+        return self.current_health <= 0  # True wenn zerstört
+    
+    def heal(self, amount):
+        """Heilt das Schiff"""
+        self.current_health = min(self.max_health, self.current_health + amount)
+    
+    def get_health_percentage(self):
+        """Gibt Health als Prozentsatz zurück (0.0 - 1.0)"""
+        return self.current_health / self.max_health if self.max_health > 0 else 0.0
+    
+    def is_critical_health(self):
+        """Prüft ob Health unter 25% ist"""
+        return self.get_health_percentage() < 0.25
