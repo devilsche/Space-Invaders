@@ -2,9 +2,9 @@
 import pygame
 from config.ship import SHIP_CONFIG
 from config.projectile import PROJECTILES_CONFIG
-from entities.projectile import Laser, Rocket, Nuke, HomingRocket
+from entities.projectile import Laser, Rocket, Nuke, HomingRocket, Blaster
 
-WEAPON_CLS = {"laser": Laser, "rocket": Rocket, "homing_rocket": HomingRocket, "nuke": Nuke}
+WEAPON_CLS = {"laser": Laser, "rocket": Rocket, "homing_rocket": HomingRocket, "nuke": Nuke, "blaster": Blaster}
 
 MAX_TILT_DEG = 8          # Rotationsgrenze
 TILT_LERP    = 0.25       # Annäherung pro Frame

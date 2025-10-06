@@ -183,7 +183,7 @@ class Blaster(Projectile):
         self.course_corrections = 0
 
     @classmethod
-    def create(cls, x, y, assets, owner="enemy", angle_deg=0):
+    def create(cls, x, y, assets, owner="player", angle_deg=0):
         cfg = PROJECTILES_CONFIG["blaster"]
         speed = cfg.get("enemy_speed", cfg["speed"]) if owner=="enemy" else cfg["speed"]
         accel = cfg.get("enemy_accel", cfg.get("accel",1.0)) if owner=="enemy" else cfg.get("accel",1.0)
@@ -198,14 +198,58 @@ class Blaster(Projectile):
         return cls(x, y, vx, vy, img, cfg["dmg"], owner, radius=0, kind="blaster", accel=accel)
 
     def _find_nearest_target(self, game):
-        """Findet das nächste Ziel (nur Player für Enemy-Laser)"""
-        if self.owner == "enemy" and hasattr(game, 'player') and not getattr(game, 'player_dead', False):
-            return game.player
+        """Findet das nächste Ziel für Blaster"""
+        if self.owner == "player":
+            # Player-Blaster suchen Enemies - alle Listen prüfen
+            all_enemies = []
+
+            # Normale Enemies
+            if hasattr(game, 'enemies') and game.enemies:
+                all_enemies.extend(game.enemies)
+
+            # Fly-in Enemies
+            if hasattr(game, 'fly_in_enemies') and game.fly_in_enemies:
+                all_enemies.extend(game.fly_in_enemies)
+
+            # Boss
+            if hasattr(game, 'boss') and game.boss:
+                all_enemies.append(game.boss)
+
+            if not all_enemies:
+                return None
+
+            closest_enemy = None
+            closest_dist = float('inf')
+            mx, my = self.rect.center
+
+            for enemy in all_enemies:
+                if hasattr(enemy, 'rect'):
+                    ex, ey = enemy.rect.center
+                    dist = math.hypot(ex - mx, ey - my)
+                    if dist < closest_dist:
+                        closest_dist = dist
+                        closest_enemy = enemy
+
+            return closest_enemy
+        elif self.owner == "enemy":
+            # Enemy-Blaster suchen Player
+            if hasattr(game, 'player') and not getattr(game, 'player_dead', False):
+                return game.player
         return None
 
     def _is_target_valid(self, target, game):
         """Prüft ob das Ziel noch gültig ist"""
-        if self.owner == "enemy":
+        if self.owner == "player":
+            # Prüfe alle Enemy-Listen
+            all_enemies = []
+            if hasattr(game, 'enemies'):
+                all_enemies.extend(game.enemies)
+            if hasattr(game, 'fly_in_enemies'):
+                all_enemies.extend(game.fly_in_enemies)
+            if hasattr(game, 'boss') and game.boss:
+                all_enemies.append(game.boss)
+            return target in all_enemies
+        elif self.owner == "enemy":
             return target == getattr(game, 'player', None) and not getattr(game, 'player_dead', False)
         return False
 
@@ -214,21 +258,21 @@ class Blaster(Projectile):
         if self.accel != 1.0:
             self._speed *= self.accel
 
-        # Lenkung nur für Enemy-Laser
-        if self.homing and game and self.owner == "enemy":
+        # Lenkung für alle Blaster (Player und Enemy)
+        if self.homing and game:
             now = pygame.time.get_ticks()
 
             # Prüfe ob Lenkung noch aktiv sein soll
             time_since_launch = now - self.launch_time
-            
+
             # Kurze Verzögerung vor Lenkbeginn
             if time_since_launch < self.homing_delay:
                 self.vx = self._dir[0] * self._speed
                 self.vy = self._dir[1] * self._speed
             # Lenkung nur für begrenzte Zeit und begrenzte Korrekturen
-            elif (time_since_launch < self.homing_delay + self.homing_duration and 
+            elif (time_since_launch < self.homing_delay + self.homing_duration and
                   self.course_corrections < self.max_course_corrections):
-                
+
                 target = None
 
                 # Aktuelles Ziel prüfen
@@ -277,16 +321,15 @@ class Blaster(Projectile):
                     self.vx = self._dir[0] * self._speed
                     self.vy = self._dir[1] * self._speed
             else:
-                # Lenkzeit abgelaufen oder zu viele Korrekturen -> geradeaus weiter
-                self.homing = False  # Lenkung deaktivieren
+                # Nach Homing-Zeit oder max Korrekturen -> geradeaus
                 self.vx = self._dir[0] * self._speed
                 self.vy = self._dir[1] * self._speed
         else:
-            # Normale Bewegung
+            # Kein Game-Context -> geradeaus
             self.vx = self._dir[0] * self._speed
             self.vy = self._dir[1] * self._speed
 
-        # Position aktualisieren
+        # Bewegung ausführen (von Basisklasse)
         self.rect.x += int(self.vx)
         self.rect.y += int(self.vy)
 
@@ -358,7 +401,7 @@ class HomingRocket(Projectile):
                     nearest_target = enemy
 
             return nearest_target
-        
+
         elif self.owner == "enemy":
             # Enemy-Raketen zielen auf Player
             if hasattr(game, 'player') and not getattr(game, 'player_dead', False):
@@ -369,7 +412,7 @@ class HomingRocket(Projectile):
         """Prüft ob das aktuelle Ziel noch existiert"""
         if target is None:
             return False
-        
+
         if self.owner == "player":
             # Prüfe sowohl normale Enemies als auch Fly-In Enemies
             if hasattr(game, 'enemies') and target in game.enemies:
@@ -377,11 +420,11 @@ class HomingRocket(Projectile):
             if hasattr(game, 'fly_in_enemies') and target in game.fly_in_enemies:
                 return True
             return False
-        
+
         elif self.owner == "enemy":
             # Prüfe ob Player noch lebt
             return target == getattr(game, 'player', None) and not getattr(game, 'player_dead', False)
-    
+
     def update(self, game=None):
         # Normale Beschleunigung
         if self.accel != 1.0:

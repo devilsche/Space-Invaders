@@ -30,11 +30,12 @@ SHIP_CONFIG = {
         "size": (55, 55),
         "health": 4000,
         "speed": 7,
-        "weapons": {"laser": 3, "rocket": 2, "homing_rocket": 1, "nuke": 1},
+        "weapons": {"laser": 3, "rocket": 2, "homing_rocket": 1, "blaster": 1, "nuke": 1},
         "muzzles": {
             "laser":  [(-17, 24), (0, 5), (16, 24)],
             "rocket": [(-15, 24), (15, 24)],
             "homing_rocket": [(0, 8)],
+            "blaster": [(0, 15)],
             "nuke":   [(0, 5)]
         },
         "angle": {
@@ -47,16 +48,18 @@ SHIP_CONFIG = {
         "size": (70, 70),
         "health": 10000,
         "speed": 10,
-        "weapons": {"laser": 5, "rocket": 4, "homing_rocket": 2, "nuke": 1},
+        "weapons": {"laser": 5, "rocket": 4, "homing_rocket": 2, "blaster": 2, "nuke": 1},
         "muzzles": {
-            "laser":  [(-12, 4), (-8, 4), (6, 4), (10, 4),(27, 20)],
-            "rocket": [(-25, 50), (-8, 45), (8, 45), (25, 50)],
+            "laser"        : [(-12, 4), (-8, 4), (6, 4), (10, 4),(27, 20)],
+            "rocket"       : [(-25, 50), (-8, 45), (8, 45), (25, 50)],
             "homing_rocket": [(-10, 30), (10, 30)],
-            "nuke":   [(0, 10)]
+            "blaster"      : [(-10, 35), (10, 35)],
+            "nuke"         : [(0, 10)]
         },
         "angle": {
             "laser":[ -10, -7, 7, 10, 0 ],
             "rocket":[ -7, -5, 5, 7 ],
+            "blaster":[ -10, 10 ]
         },
         "shield": 1,
     }

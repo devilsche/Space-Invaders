@@ -51,6 +51,7 @@ class Game:
         self.weapon_cooldowns = {
             "rocket_last_used": 0,
             "homing_rocket_last_used": 0,
+            "blaster_last_used": 0,
             "nuke_last_used": 0,
             "shield_ready_at": 0
         }
@@ -261,6 +262,12 @@ class Game:
                         self.player_shots.extend(shots)
                         current_time = pygame.time.get_ticks()
                         self.weapon_cooldowns["homing_rocket_last_used"] = current_time
+                elif e.key == pygame.K_b and not self.paused and not self.player_dead:
+                    shots = self.player.shoot_weapon("blaster")
+                    if shots:  # Nur wenn tatsächlich geschossen wurde
+                        self.player_shots.extend(shots)
+                        current_time = pygame.time.get_ticks()
+                        self.weapon_cooldowns["blaster_last_used"] = current_time
                 elif e.key == pygame.K_e and not self.paused and not self.player_dead:
                     shots = self.player.shoot_weapon("nuke")
                     if shots:  # Nur wenn tatsächlich geschossen wurde
