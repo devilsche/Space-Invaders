@@ -1,7 +1,7 @@
 import pygame
 import random
 from assets.load_assets import load_assets
-from system.utils       import load_highscore, save_highscore
+from system.utils       import load_highscore, save_highscore, scale, scale_pos, scale_size
 from system.hud         import HUD
 from system.health_bar  import HealthBar
 from config             import *
@@ -23,6 +23,9 @@ class Game:
         pygame.display.set_caption("Space Invaders")
         self.clock = pygame.time.Clock()
         self.font  = pygame.font.Font(None, FONT_SIZE)
+        
+        # Vollbild-Status
+        self.is_fullscreen = False
 
         self.assets = load_assets()
 
@@ -79,6 +82,11 @@ class Game:
         self.powerup_shield = None
         self.powerup_shield_until = 0
 
+        # Kill Counter Display System
+        self.kill_display_text = ""
+        self.kill_display_timer = 0
+        self.kill_display_duration = 2000  # 2 Sekunden
+
         self.player = Player(WIDTH, HEIGHT, self.assets)
         self.player.rect.center = self.spawn_pos
 
@@ -86,10 +94,27 @@ class Game:
         self.hud = HUD(WIDTH, HEIGHT)
         self.hud.load_icons(self.assets)
 
-        # Health Bar initialisieren (oben links)
-        self.health_bar = HealthBar(10, 100, 200, 20)
-        # Schild Health Bar (oben links, unter Player Health)
-        self.shield_health_bar = HealthBar(10, 140, 200, 15)
+        # Health Bar initialisieren (oben rechts)
+        health_bar_width = scale(200)
+        health_bar_height = scale(20)
+        health_bar_x = WIDTH - health_bar_width - scale(70)  # 20px vom rechten Rand
+        health_bar_y = scale(20)  # 20px von oben
+        self.health_bar = HealthBar(health_bar_x, health_bar_y, health_bar_width, health_bar_height)
+        
+        # Schild Health Bar (oben rechts, unter Player Health)
+        shield_bar_width = scale(200)
+        shield_bar_height = scale(15)
+        shield_bar_x = WIDTH - shield_bar_width - scale(70)
+        shield_bar_y = scale(50)  # Unter der Health Bar
+        self.shield_health_bar = HealthBar(shield_bar_x, shield_bar_y, shield_bar_width, shield_bar_height)
+    
+    def _show_kill_counter(self):
+        """Zeigt den Kill-Counter kurz in der Bildschirmmitte an"""
+        if self._total_kills < 50:
+            self.kill_display_text = f"Kill {self._total_kills}/50"
+        else:
+            self.kill_display_text = f"Kill {self._total_kills}"
+        self.kill_display_timer = pygame.time.get_ticks()
 
         if "music_paths" in self.assets and "raining_bits" in self.assets["music_paths"]:
             try:
@@ -100,6 +125,48 @@ class Game:
                 pass
 
         # self._build_wave("alien")
+
+    def toggle_fullscreen(self):
+        """Wechselt zwischen Vollbild und Fenster-Modus"""
+        if self.is_fullscreen:
+            # Zu Fenster-Modus wechseln
+            self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+            self.is_fullscreen = False
+            print("Switched to windowed mode")
+        else:
+            # Zu Vollbild wechseln
+            self.screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
+            self.is_fullscreen = True
+            print("Switched to fullscreen mode")
+        
+        # Nach Auflösungs-Wechsel: HUD und andere UI-Elemente neu initialisieren
+        self._reinitialize_ui()
+    
+    def _reinitialize_ui(self):
+        """Initialisiert UI-Elemente nach Auflösungs-Wechsel neu"""
+        # HUD mit neuer Bildschirmgröße neu erstellen
+        current_width, current_height = self.screen.get_size()
+        self.hud = HUD(current_width, current_height)
+        self.hud.load_icons(self.assets)
+        
+        # HealthBar neu skalieren (oben rechts)
+        health_bar_width = scale(200)
+        health_bar_height = scale(20)
+        health_bar_x = current_width - health_bar_width - scale(70)
+        health_bar_y = scale(20)
+        self.health_bar = HealthBar(health_bar_x, health_bar_y, health_bar_width, health_bar_height)
+        
+        # Shield Health Bar (oben rechts, unter Player Health)
+        shield_bar_width = scale(200)
+        shield_bar_height = scale(15)
+        shield_bar_x = current_width - shield_bar_width - scale(70)
+        shield_bar_y = scale(50)
+        self.shield_health_bar = HealthBar(shield_bar_x, shield_bar_y, shield_bar_width, shield_bar_height)
+        
+        print(f"UI re-initialized for resolution: {current_width}x{current_height}")
+        from system.utils import get_current_scale_factors
+        scale_factor, scale_x, scale_y = get_current_scale_factors()
+        print(f"New scale factors: {scale_factor:.2f}, {scale_x:.2f}, {scale_y:.2f}")
 
     # ---------------- Power-Up System ----------------
     def _try_drop_powerup(self, x, y):
@@ -166,8 +233,8 @@ class Game:
         form = ENEMY_CONFIG[enemy_type]["formation"]
         for r in range(form["rows"]):
             for c in range(form["cols"]):
-                x = c * form["h_spacing"] + form["margin_x"]
-                y = r * form["v_spacing"] + form["margin_y"]
+                x = c * scale(form["h_spacing"]) + scale(form["margin_x"])
+                y = r * scale(form["v_spacing"]) + scale(form["margin_y"])
                 self.enemies.append(Enemy(enemy_type, self.assets, x, y))
         base = ENEMY_CONFIG[enemy_type]["move"]["speed_start"]
         self.enemy_speed = base
@@ -291,6 +358,9 @@ class Game:
                         pass
                 elif e.key == pygame.K_F11:
                     pygame.display.toggle_fullscreen()
+                elif e.key == pygame.K_RETURN and (pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]):
+                    # Alt+Enter für Vollbild-Toggle
+                    self.toggle_fullscreen()
                 elif e.key == pygame.K_1:
                     self.player.set_stage(1)
                     self._update_shield_scale()
@@ -575,6 +645,9 @@ class Game:
 
                 # Kill-Counter erhöhen
                 self._total_kills += 1
+                
+                # Kill-Display aktivieren
+                self._show_kill_counter()
 
                 # Power-Up Drop-Chance prüfen
                 self._try_drop_powerup(hit_enemy.rect.centerx, hit_enemy.rect.centery)
@@ -623,16 +696,15 @@ class Game:
         self.screen.blit(self.font.render(f"Score: {self.score}", True, (255,255,255)), (10, 10))
         self.screen.blit(self.font.render(f"High Score: {self.highscore}", True, (255,255,255)), (10, 50))
 
-        # Kill-Counter anzeigen
-        if self._total_kills < 50:
-            kill_text = f"Kills: {self._total_kills}/50"
-        elif self._boss_spawned:
-            kill_text = "BOSS BATTLE!"
-        elif len(self.fly_in_enemies) > 0:
-            kill_text = f"Clear remaining enemies ({len(self.fly_in_enemies)} left)"
-        else:
-            kill_text = "Boss incoming..."
-        self.screen.blit(self.font.render(kill_text, True, (255,255,0)), (WIDTH - 200, 10))
+        # Temporärer Kill-Counter in der Mitte (nur kurz nach Kill)
+        current_time = pygame.time.get_ticks()
+        if (self.kill_display_timer > 0 and 
+            current_time - self.kill_display_timer < self.kill_display_duration):
+            
+            # Kill-Text in der Bildschirmmitte anzeigen
+            kill_surface = self.font.render(self.kill_display_text, True, (255, 255, 0))
+            kill_rect = kill_surface.get_rect(center=(WIDTH // 2, scale(100)))
+            self.screen.blit(kill_surface, kill_rect)
 
         # Health Bar zeichnen (nur wenn Spieler lebt)
         if not self.player_dead:
