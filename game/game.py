@@ -58,6 +58,17 @@ class Game:
         # Schild-Zerstörungs-Tracking
         self._last_shield_destroyed = 0
 
+        # Fly-In Enemy Spawning System
+        self.fly_in_enemies = []  # Separate Liste für einfliegende Gegner
+        self._last_fly_in_spawn = 0
+        self._fly_in_spawn_interval = 3000  # 3 Sekunden zwischen Spawns
+        self._fly_in_spawn_count = 0
+        self._max_fly_in_enemies = 20  # Maximal 20 einfliegende Gegner
+
+        # Kill-Tracking für Boss-Spawn
+        self._total_kills = 0
+        self._boss_spawned = False
+
         self.player = Player(WIDTH, HEIGHT, self.assets)
         self.player.rect.center = self.spawn_pos
 
@@ -93,6 +104,109 @@ class Game:
         self.enemy_speed = base
         self.enemy_dir = 1
         self.wave_num += 1
+
+    def _spawn_fly_in_enemy(self):
+        """Spawnt einen einfliegenden Gegner von oben"""
+        if self._fly_in_spawn_count >= self._max_fly_in_enemies:
+            return  # Maximale Anzahl erreicht
+
+        import random
+
+        # Zufällige X-Position am oberen Bildschirmrand
+        spawn_x = random.randint(50, WIDTH - 50)
+        spawn_y = -50  # Über dem Bildschirm
+
+        # Zufällige Laufbahn wählen (weniger Kreisbewegung für weniger Wackeln)
+        path_types = ["straight", "straight", "sine", "sine", "circle"]  # Gewichtung
+        path = random.choice(path_types)
+
+        # Zufälligen Enemy-Typ wählen (außer boss)
+        enemy_types = ["alien", "drone", "tank", "sniper"]
+        enemy_type = random.choice(enemy_types)
+
+        # Enemy erstellen mit dynamischer Konfiguration
+        enemy = Enemy(enemy_type, self.assets, spawn_x, spawn_y)
+
+        # Fly-In Bewegung aktivieren (überschreibt die normale Konfiguration)
+        enemy.move_cfg = enemy.move_cfg.copy()  # Kopie erstellen
+        enemy.move_cfg["type"] = "fly_in"
+
+        # Bewegungsparameter anpassen
+        enemy.move_cfg["path"] = path
+        if path == "sine":
+            enemy.move_cfg["amplitude"] = random.randint(30, 50)  # Kleinere Amplitude
+            enemy.move_cfg["frequency"] = random.uniform(0.8, 1.5)  # Höhere Frequenz
+        elif path == "circle":
+            enemy.move_cfg["radius"] = random.randint(25, 40)  # Viel kleinerer Radius
+            enemy.move_cfg["frequency"] = random.uniform(0.6, 1.0)  # Höhere Frequenz
+        elif path == "straight":
+            # Zufällige Richtung für gerade Bewegung
+            enemy._phase = random.choice([-1, 1]) * random.uniform(0.5, 2.0)
+
+        # Zufällige Ziel-Y-Position
+        enemy.move_cfg["target_y"] = random.randint(80, 150)
+
+        self.fly_in_enemies.append(enemy)
+        self._fly_in_spawn_count += 1
+
+    def _spawn_boss_group(self):
+        """Spawnt 2 Boss-Enemies nach 50 Kills"""
+        import random
+
+        for i in range(2):
+            spawn_x = random.randint(100, WIDTH - 100)
+            spawn_y = -80  # Höher über dem Bildschirm für Boss
+
+            # Boss erstellen
+            boss = Enemy("boss", self.assets, spawn_x, spawn_y)
+
+            # Fly-In Bewegung für Boss (langsamer und majestätischer)
+            boss.move_cfg = boss.move_cfg.copy()
+            boss.move_cfg["type"] = "fly_in"
+            boss.move_cfg["target_y"] = random.randint(100, 140)  # Höhere Position
+            boss.move_cfg["path"] = "sine"  # Sanfte Bewegung für Boss
+            boss.move_cfg["speed"] = 1.5  # Langsamer
+            boss.move_cfg["amplitude"] = 30  # Kleine Bewegung
+            boss.move_cfg["frequency"] = 0.5  # Langsame Frequenz
+
+            self.fly_in_enemies.append(boss)
+            self._fly_in_spawn_count += 1
+
+        self._boss_spawned = True
+        # Spawning komplett stoppen nach Boss-Spawn
+        self._max_fly_in_enemies = len(self.fly_in_enemies)
+
+    def _update_fly_in_spawning(self):
+        """Updated das Spawning-System für einfliegende Gegner"""
+        now = pygame.time.get_ticks()
+
+        # Prüfe ob Boss gespawnt werden soll
+        if (self._total_kills >= 50 and
+            not self._boss_spawned and
+            len(self.fly_in_enemies) == 0):  # Nur wenn alle normalen Enemies weg sind
+            print(f"DEBUG: Spawning boss! Kills: {self._total_kills}, Boss spawned: {self._boss_spawned}, Enemies left: {len(self.fly_in_enemies)}")
+            self._spawn_boss_group()
+            return
+
+        # Stoppe normales Spawning nach 50 Kills
+        if self._total_kills >= 50:
+            return
+
+        # Spawne neue Gegner basierend auf Intervall
+        if (now - self._last_fly_in_spawn > self._fly_in_spawn_interval and
+            self._fly_in_spawn_count < self._max_fly_in_enemies):
+
+            # Spawne 2-4 Gegner gleichzeitig in einer Gruppe
+            import random
+            group_size = random.randint(2, 4)
+            for i in range(group_size):
+                if self._fly_in_spawn_count < self._max_fly_in_enemies:
+                    self._spawn_fly_in_enemy()
+
+            self._last_fly_in_spawn = now
+
+            # Intervall leicht variieren für natürlicheres Spawning
+            self._fly_in_spawn_interval = random.randint(4000, 6000)  # Längere Pause zwischen Gruppen
 
     # ---------------- Events ----------------
     def _handle_events(self):
@@ -205,6 +319,9 @@ class Game:
         keys = pygame.key.get_pressed()
         now  = pygame.time.get_ticks()
 
+        # Fly-In Enemy Spawning System
+        self._update_fly_in_spawning()
+
         # HUD mit aktuellen Weapon-Status aktualisieren
         self.weapon_cooldowns["shield_ready_at"] = self._shield_ready_at
         self.hud.update_weapon_status(self.player, now, self.weapon_cooldowns)
@@ -234,13 +351,27 @@ class Game:
             if p.offscreen():
                 self.player_shots.remove(p)
         for p in self.enemy_shots[:]:
-            p.update()
+            # GuidedLaser braucht Zugriff auf das Game-Objekt für Lenkung
+            if hasattr(p, 'homing') and p.homing:
+                p.update(self)
+            else:
+                p.update()
             if p.offscreen():
                 self.enemy_shots.remove(p)
 
         for e in self.enemies[:]:
             if e.offscreen():
                 self.enemies.remove(e)
+
+        # Update Fly-In Enemies
+        for enemy in self.fly_in_enemies[:]:
+            enemy.update()
+            # Entferne Enemies die den Bildschirm verlassen haben
+            if (enemy.rect.y > HEIGHT + 50 or
+                enemy.rect.x < -100 or
+                enemy.rect.x > WIDTH + 100):
+                self.fly_in_enemies.remove(enemy)
+                self._fly_in_spawn_count = max(0, self._fly_in_spawn_count - 1)  # Count dekrementieren
 
         if self.shield:
             self.shield.set_center(self.player.rect.center)
@@ -265,6 +396,12 @@ class Game:
                 for w, amt in en.weapons.items():
                     if amt > 0:
                         self.enemy_shots.extend(en.shoot_weapon(w, amt))
+
+        # Fly-In Enemies schießen lassen
+        for en in self.fly_in_enemies:
+            for w, amt in en.weapons.items():
+                if amt > 0:
+                    self.enemy_shots.extend(en.shoot_weapon(w, amt))
 
 
         # ---- Kollision: Gegner-Projektil -> Spieler ----
@@ -317,13 +454,20 @@ class Game:
                     break
 
 
-        # Kollision: Spieler-Projektile -> Gegner
+        # Kollision: Spieler-Projektile -> Gegner (normale Enemies + Fly-In Enemies)
         for p in self.player_shots[:]:
             hit_enemy = None
+            # Prüfe normale Enemies
             for en in self.enemies:
                 if p.rect.colliderect(en.rect):
                     hit_enemy = en
                     break
+            # Prüfe Fly-In Enemies
+            if not hit_enemy:
+                for en in self.fly_in_enemies:
+                    if p.rect.colliderect(en.rect):
+                        hit_enemy = en
+                        break
             if not hit_enemy:
                 continue
 
@@ -335,7 +479,7 @@ class Game:
                 p.on_hit(self, hit_enemy.rect.center)
 
             # Wenn der eben getroffene Gegner durch AoE schon entfernt wurde -> weiter
-            if hit_enemy not in self.enemies:
+            if hit_enemy not in self.enemies and hit_enemy not in self.fly_in_enemies:
                 continue
 
             # Direkt-Schaden anwenden und ggf. entfernen
@@ -343,6 +487,10 @@ class Game:
             if dead:
                 self.score += hit_enemy.points
                 self.highscore = max(self.highscore, self.score)
+
+                # Kill-Counter erhöhen
+                self._total_kills += 1
+
                 frames = self.assets.get("expl_rocket", []) or self.assets.get("expl_laser", [])
                 fps    = self.assets.get("expl_rocket_fps", 24)
                 self.explosions.append(Explosion(hit_enemy.rect.centerx,
@@ -351,6 +499,9 @@ class Game:
                 # Entfernen nur, wenn noch vorhanden
                 if hit_enemy in self.enemies:
                     self.enemies.remove(hit_enemy)
+                elif hit_enemy in self.fly_in_enemies:
+                    self.fly_in_enemies.remove(hit_enemy)
+                    self._fly_in_spawn_count = max(0, self._fly_in_spawn_count - 1)  # Count dekrementieren
 
 
         # Explosionen updaten
@@ -370,6 +521,7 @@ class Game:
         for p in self.player_shots: p.draw(self.screen)
         for p in self.enemy_shots:  p.draw(self.screen)
         for en in self.enemies:     en.draw(self.screen)
+        for en in self.fly_in_enemies: en.draw(self.screen)  # Fly-In Enemies zeichnen
         for ex in self.explosions:  ex.draw(self.screen)
 
         if not self.player_dead:
@@ -379,6 +531,17 @@ class Game:
 
         self.screen.blit(self.font.render(f"Score: {self.score}", True, (255,255,255)), (10, 10))
         self.screen.blit(self.font.render(f"High Score: {self.highscore}", True, (255,255,255)), (10, 50))
+
+        # Kill-Counter anzeigen
+        if self._total_kills < 50:
+            kill_text = f"Kills: {self._total_kills}/50"
+        elif self._boss_spawned:
+            kill_text = "BOSS BATTLE!"
+        elif len(self.fly_in_enemies) > 0:
+            kill_text = f"Clear remaining enemies ({len(self.fly_in_enemies)} left)"
+        else:
+            kill_text = "Boss incoming..."
+        self.screen.blit(self.font.render(kill_text, True, (255,255,0)), (WIDTH - 200, 10))
 
         # Health Bar zeichnen (nur wenn Spieler lebt)
         if not self.player_dead:

@@ -7,7 +7,7 @@ def _expl_frames(game, key):
     return game.assets.get(key, []), game.assets.get(f"{key}_fps", 24)
 
 def _apply_aoe(game, cx, cy, radius, max_damage, expl_key: str, expl_scale: float = 1.0):
-    # Feinde
+    # Normale Feinde
     for en in game.enemies[:]:
         ex, ey = en.rect.center
         dist = math.hypot(ex - cx, ey - cy)
@@ -16,10 +16,34 @@ def _apply_aoe(game, cx, cy, radius, max_damage, expl_key: str, expl_scale: floa
             if dmg > 0 and en.take_damage(dmg):
                 game.score += en.points
                 game.highscore = max(game.highscore, game.score)
+                # Kill-Counter erhöhen
+                if hasattr(game, '_total_kills'):
+                    game._total_kills += 1
                 frames, fps = _expl_frames(game, expl_key)
                 game.explosions.append(Explosion(ex, ey, frames, fps=fps, scale=expl_scale))
                 if en in game.enemies:
                     game.enemies.remove(en)
+
+    # Fly-In Feinde
+    if hasattr(game, 'fly_in_enemies'):
+        for en in game.fly_in_enemies[:]:
+            ex, ey = en.rect.center
+            dist = math.hypot(ex - cx, ey - cy)
+            if dist <= radius:
+                dmg = int(max_damage * (1 - dist / radius))
+                if dmg > 0 and en.take_damage(dmg):
+                    game.score += en.points
+                    game.highscore = max(game.highscore, game.score)
+                    # Kill-Counter erhöhen
+                    if hasattr(game, '_total_kills'):
+                        game._total_kills += 1
+                    frames, fps = _expl_frames(game, expl_key)
+                    game.explosions.append(Explosion(ex, ey, frames, fps=fps, scale=expl_scale))
+                    if en in game.fly_in_enemies:
+                        game.fly_in_enemies.remove(en)
+                        # Count dekrementieren
+                        if hasattr(game, '_fly_in_spawn_count'):
+                            game._fly_in_spawn_count = max(0, game._fly_in_spawn_count - 1)
     # Boss optional
     if getattr(game, "boss", None):
         bx, by = game.boss.rect.center
@@ -86,7 +110,7 @@ class Laser(Projectile):
             img = assets["laser_yellow_img"]  # Gelbe Version für Enemies
         else:
             img = assets["laser_img"]         # Normale Version für Player
-        
+
         if owner=="player" and assets.get("laser_sound_start"):
             assets["laser_sound_start"].set_volume(MASTER_VOLUME * SFX_VOLUME)
             assets["laser_sound_start"].play()
@@ -122,6 +146,17 @@ class Rocket(Projectile):
             assets["rocket_sound_start"].play()
         return cls(x, y, vx, vy, img, cfg["dmg"], owner, radius=cfg.get("radius",0), kind="rocket", accel=accel)
 
+    def draw(self, screen):
+        # Raketen rotieren basierend auf ihrer Bewegungsrichtung
+        angle_rad = math.atan2(-self.vx, -self.vy)  # Beide negativ für korrekte Orientierung
+        angle_deg = math.degrees(angle_rad)
+
+        # Rakete rotieren
+        rotated_img = pygame.transform.rotate(self.img, angle_deg)
+        rotated_rect = rotated_img.get_rect(center=self.rect.center)
+
+        screen.blit(rotated_img, rotated_rect)
+
     def on_hit(self, game, hit_pos):
         cx, cy = hit_pos
         if game.assets.get("rocket_sound_hit"):
@@ -131,18 +166,153 @@ class Rocket(Projectile):
         frames, fps = _expl_frames(game, "expl_rocket")
         game.explosions.append(Explosion(cx, cy, frames, fps=fps, scale=1.4))
 
+class Blaster(Projectile):
+    kind = "blaster"
+
+    def __init__(self, x, y, vx, vy, img, dmg, owner="enemy", radius=0, kind="blaster", accel=1.0):
+        super().__init__(x, y, vx, vy, img, dmg, owner, radius, kind, accel)
+        self.homing = True
+        self.homing_strength  = 0.12  # Noch schwächere Lenkung
+        self.max_turn_rate    = 0.06  # Sehr begrenzte Wendegeschwindigkeit
+        self.launch_time      = pygame.time.get_ticks()
+        self.homing_delay     = 200   # Kurze Verzögerung
+        self.homing_duration  = 4000  # Nur 2 Sekunden lang lenken
+        self.current_target   = None
+        self.target_lost_time = 0
+        self.max_course_corrections = 10  # Maximal 8 Richtungsänderungen
+        self.course_corrections = 0
+
+    @classmethod
+    def create(cls, x, y, assets, owner="enemy", angle_deg=0):
+        cfg = PROJECTILES_CONFIG["blaster"]
+        speed = cfg.get("enemy_speed", cfg["speed"]) if owner=="enemy" else cfg["speed"]
+        accel = cfg.get("enemy_accel", cfg.get("accel",1.0)) if owner=="enemy" else cfg.get("accel",1.0)
+        base = -1 if owner=="player" else +1
+        rad = math.radians(angle_deg)
+        vx = speed * math.sin(rad)
+        vy = base * speed * math.cos(rad)
+
+        # Blaster-Bild verwenden
+        img = assets["blaster_img"]
+
+        return cls(x, y, vx, vy, img, cfg["dmg"], owner, radius=0, kind="blaster", accel=accel)
+
+    def _find_nearest_target(self, game):
+        """Findet das nächste Ziel (nur Player für Enemy-Laser)"""
+        if self.owner == "enemy" and hasattr(game, 'player') and not getattr(game, 'player_dead', False):
+            return game.player
+        return None
+
+    def _is_target_valid(self, target, game):
+        """Prüft ob das Ziel noch gültig ist"""
+        if self.owner == "enemy":
+            return target == getattr(game, 'player', None) and not getattr(game, 'player_dead', False)
+        return False
+
+    def update(self, game=None):
+        # Normale Beschleunigung
+        if self.accel != 1.0:
+            self._speed *= self.accel
+
+        # Lenkung nur für Enemy-Laser
+        if self.homing and game and self.owner == "enemy":
+            now = pygame.time.get_ticks()
+
+            # Prüfe ob Lenkung noch aktiv sein soll
+            time_since_launch = now - self.launch_time
+            
+            # Kurze Verzögerung vor Lenkbeginn
+            if time_since_launch < self.homing_delay:
+                self.vx = self._dir[0] * self._speed
+                self.vy = self._dir[1] * self._speed
+            # Lenkung nur für begrenzte Zeit und begrenzte Korrekturen
+            elif (time_since_launch < self.homing_delay + self.homing_duration and 
+                  self.course_corrections < self.max_course_corrections):
+                
+                target = None
+
+                # Aktuelles Ziel prüfen
+                if self._is_target_valid(self.current_target, game):
+                    target = self.current_target
+                else:
+                    # Neues Ziel suchen
+                    target = self._find_nearest_target(game)
+                    if target:
+                        self.current_target = target
+
+                if target:
+                    # Richtung zum Player berechnen
+                    tx, ty = target.rect.center
+                    mx, my = self.rect.center
+                    target_dx = tx - mx
+                    target_dy = ty - my
+                    target_dist = math.hypot(target_dx, target_dy)
+
+                    if target_dist > 0:
+                        # Normalisierte Zielrichtung
+                        target_dir_x = target_dx / target_dist
+                        target_dir_y = target_dy / target_dist
+
+                        # Prüfe ob eine Richtungsänderung nötig ist
+                        angle_diff = abs(math.atan2(target_dir_y, target_dir_x) - math.atan2(self._dir[1], self._dir[0]))
+                        if angle_diff > 0.1:  # Nur bei signifikantem Richtungsunterschied
+                            # Sanfte Lenkung - sehr schwach
+                            blend_factor = min(self.homing_strength, self.max_turn_rate)
+                            new_dir_x = self._dir[0] + (target_dir_x - self._dir[0]) * blend_factor
+                            new_dir_y = self._dir[1] + (target_dir_y - self._dir[1]) * blend_factor
+
+                            # Richtung normalisieren
+                            new_dir_len = math.hypot(new_dir_x, new_dir_y)
+                            if new_dir_len > 0:
+                                self._dir = (new_dir_x / new_dir_len, new_dir_y / new_dir_len)
+                                self.vx = self._dir[0] * self._speed
+                                self.vy = self._dir[1] * self._speed
+                                self.course_corrections += 1  # Korrekturen zählen
+                        else:
+                            # Geradeaus wenn Richtung passt
+                            self.vx = self._dir[0] * self._speed
+                            self.vy = self._dir[1] * self._speed
+                else:
+                    # Kein Ziel -> geradeaus
+                    self.vx = self._dir[0] * self._speed
+                    self.vy = self._dir[1] * self._speed
+            else:
+                # Lenkzeit abgelaufen oder zu viele Korrekturen -> geradeaus weiter
+                self.homing = False  # Lenkung deaktivieren
+                self.vx = self._dir[0] * self._speed
+                self.vy = self._dir[1] * self._speed
+        else:
+            # Normale Bewegung
+            self.vx = self._dir[0] * self._speed
+            self.vy = self._dir[1] * self._speed
+
+        # Position aktualisieren
+        self.rect.x += int(self.vx)
+        self.rect.y += int(self.vy)
+
+    def on_hit(self, game, hit_pos):
+        frames, fps = _expl_frames(game, "expl_laser")
+        ex = Explosion(hit_pos[0], hit_pos[1], frames, fps=fps)
+        if game.assets.get("laser_sound_destroy"):
+            game.assets["laser_sound_destroy"].set_volume(MASTER_VOLUME * SFX_VOLUME)
+            game.assets["laser_sound_destroy"].play()
+        keep = game.assets.get("expl_laser_keep")
+        if keep:
+            ex.frames = ex.frames[:keep]
+        game.explosions.append(ex)
+
 class HomingRocket(Projectile):
     kind = "homing_rocket"
 
     def __init__(self, x, y, vx, vy, img, dmg, owner="player", radius=0, kind="homing_rocket", accel=1.0):
         super().__init__(x, y, vx, vy, img, dmg, owner, radius, kind, accel)
         self.homing = True
-        self.homing_strength = 0.3  # Stärkere Lenkung als normale Raketen
-        self.max_turn_rate = 0.05   # Maximale Wendegeschwindigkeit pro Frame
-        self.launch_time = pygame.time.get_ticks()  # Zeitpunkt des Abschusses
-        self.homing_delay = 500  # Millisekunden geradeaus fliegen bevor Suche beginnt
-        self.current_target = None  # Aktuelles Ziel
-        self.target_lost_time = 0  # Wann das letzte Ziel verloren wurde
+        self.homing_strength  = 0.3                     # Stärkere      Lenkung              als normale Raketen
+        self.max_turn_rate    = 0.25                    # Maximale      Wendegeschwindigkeit pro Frame
+        self.launch_time      = pygame.time.get_ticks() # Zeitpunkt     des                  Abschusses
+        self.homing_delay     = 300                     # Millisekunden geradeaus            fliegen bevor Suche beginnt
+        self.current_target   = None                    # Aktuelles     Ziel
+        self.target_lost_time = 0                       # Wann          das                  letzte Ziel verloren wurde
 
     @classmethod
     def create(cls, x, y, assets, owner="player", angle_deg=0):
@@ -159,39 +329,66 @@ class HomingRocket(Projectile):
             assets["rocket_sound_start"].play()
         return cls(x, y, vx, vy, img, cfg["dmg"], owner, radius=cfg.get("radius",0), kind="homing_rocket", accel=accel)
 
-    def _find_nearest_enemy(self, game, exclude_current=False):
-        """Findet das nächstgelegene Enemy zum aktuellen Raketenzentrum"""
-        if not hasattr(game, 'enemies') or not game.enemies:
+    def _find_nearest_target(self, game, exclude_current=False):
+        """Findet das nächste Ziel basierend auf dem Owner"""
+        if self.owner == "player":
+            # Player-Raketen zielen auf Enemies
+            all_enemies = []
+            if hasattr(game, 'enemies') and game.enemies:
+                all_enemies.extend(game.enemies)
+            if hasattr(game, 'fly_in_enemies') and game.fly_in_enemies:
+                all_enemies.extend(game.fly_in_enemies)
+
+            if not all_enemies:
+                return None
+
+            my_center = self.rect.center
+            nearest_target = None
+            min_distance = float('inf')
+
+            for enemy in all_enemies:
+                # Aktuelles Ziel ausschließen wenn gewünscht
+                if exclude_current and enemy == self.current_target:
+                    continue
+
+                enemy_center = enemy.rect.center
+                distance = math.hypot(enemy_center[0] - my_center[0], enemy_center[1] - my_center[1])
+                if distance < min_distance:
+                    min_distance = distance
+                    nearest_target = enemy
+
+            return nearest_target
+        
+        elif self.owner == "enemy":
+            # Enemy-Raketen zielen auf Player
+            if hasattr(game, 'player') and not getattr(game, 'player_dead', False):
+                return game.player
             return None
-
-        my_center = self.rect.center
-        nearest_enemy = None
-        min_distance = float('inf')
-
-        for enemy in game.enemies:
-            # Aktuelles Ziel ausschließen wenn gewünscht
-            if exclude_current and enemy == self.current_target:
-                continue
-
-            enemy_center = enemy.rect.center
-            distance = math.hypot(enemy_center[0] - my_center[0], enemy_center[1] - my_center[1])
-            if distance < min_distance:
-                min_distance = distance
-                nearest_enemy = enemy
-
-        return nearest_enemy
 
     def _is_target_valid(self, target, game):
         """Prüft ob das aktuelle Ziel noch existiert"""
-        return target is not None and hasattr(game, 'enemies') and target in game.enemies
-
+        if target is None:
+            return False
+        
+        if self.owner == "player":
+            # Prüfe sowohl normale Enemies als auch Fly-In Enemies
+            if hasattr(game, 'enemies') and target in game.enemies:
+                return True
+            if hasattr(game, 'fly_in_enemies') and target in game.fly_in_enemies:
+                return True
+            return False
+        
+        elif self.owner == "enemy":
+            # Prüfe ob Player noch lebt
+            return target == getattr(game, 'player', None) and not getattr(game, 'player_dead', False)
+    
     def update(self, game=None):
         # Normale Beschleunigung
         if self.accel != 1.0:
             self._speed *= self.accel
 
-        # Wärmelenkung nur für Spieler-Raketen
-        if self.homing and game and self.owner == "player":
+        # Wärmelenkung für beide Player- und Enemy-Raketen
+        if self.homing and game:
             now = pygame.time.get_ticks()
 
             # Erst nach Verzögerung mit der Suche beginnen
@@ -213,7 +410,7 @@ class HomingRocket(Projectile):
                         self.current_target = None
 
                     # Neues Ziel suchen
-                    target = self._find_nearest_enemy(game)
+                    target = self._find_nearest_target(game)
                     if target:
                         self.current_target = target
 

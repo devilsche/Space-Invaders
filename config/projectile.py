@@ -45,7 +45,7 @@ PROJECTILES_CONFIG = {
         }
     },
     "homing_rocket": {
-        "dmg": 250,
+        "dmg": 150,
         "size": (12, 24),
         "radius": 140,
         "cooldown": 1200,
@@ -63,6 +63,30 @@ PROJECTILES_CONFIG = {
             "fw": 64, "fh": 64,
             "scale": 1.6,
             "fps": 24
+        }
+    },
+    "blaster": {
+        "dmg": 80,
+        "size": (15, 15),
+        "radius": 0,
+        "cooldown": 300,  # Längerer Cooldown wegen Lenkfähigkeit
+        "amount": -1,
+        "speed": 13,      # Mittlere Geschwindigkeit
+        "accel": 1.02,    # Leichte Beschleunigung
+        "enemy_speed": 11, # Enemy-Version
+        "img": "assets/images/weapon/blaster.png",  # Neue Blaster-Grafik
+        "sound_start": "assets/sound/laser_shoot.wav",
+        "sound_hit": "assets/sound/laser_explosion.wav",
+        "sound_destroy": "assets/sound/laser_explosion.wav",
+        "explosion": {
+            "sheet": "assets/images/exp2.png",
+            "cols": 4,
+            "rows": 4,
+            "fw": 64,
+            "fh": 64,
+            "scale": 0.9,
+            "fps": 12,
+            "keep": 4
         }
     },
     "nuke": {

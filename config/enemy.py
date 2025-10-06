@@ -6,7 +6,7 @@ ENEMY_CONFIG = {
         "hp"    : 100,
         "points": 10,
         "move"  : {
-            "type"       : "grid", # bewegt sich im Schwarm
+            "type"       : "grid",
             "amp_frac"   : 0.0,
             "hz"         : 0.0,
             "drop_px"    : 30,
@@ -119,10 +119,10 @@ ENEMY_CONFIG = {
             "margin_y" : 50
         },
         "shoot": {
-            "prob"        : 0.015
+            "prob"        : 0.003   # Etwas seltener schießen wegen höherer Genauigkeit
         },
         "weapons": [
-            "laser"
+            "blaster"  # Blaster statt normale Laser
         ],
         "spawn": {
             "y": 60
@@ -155,15 +155,58 @@ ENEMY_CONFIG = {
             "rotate_deg_per_s": 0.0
         },
         "shoot": {
-            "prob": 0.0,
+            "prob": 0.001,  # Fallback für nicht definierte Waffen
+            "weapon_probs": {
+                "laser": 0.008,    # Häufigste Waffe
+                "blaster": 0.006,  # Zweit-häufigste (gelenkte Laser)
+                "rocket": 0.003,   # Seltenere Raketen
+                "nuke": 0.001,      # Sehr seltene Nukes
+                "homing_rocket": 0.001 # Gelegentliche gelenkte Raketen
+            }
         },
         "weapons": [
             "laser",
+            "blaster",
             "rocket",
-            "nuke"
+            "nuke",
+            "homing_rocket"
         ],
         "spawn": {
             "y": 140
+        }
+    },
+
+    # --- Einfliegende Gegner von oben ---
+    "interceptor": {
+        "img"   : "assets/images/enemy/drone.png",
+        "size"  : (35, 35),
+        "hp"    : 75,
+        "points": 25,
+        "move": {
+            "type"       : "fly_in",
+            "target_y"   : 120,
+            "path"       : "sine",
+            "speed"      : 3,
+            "amplitude"  : 40,       # Kleinere Amplitude für weniger Wackeln
+            "frequency"  : 1.2,      # Höhere Frequenz für schnellere, aber sanftere Bewegung
+            "radius"     : 35        # Kleinerer Radius für Kreisbewegung
+        },
+        "formation": {
+            "cols"     : 1,
+            "rows"     : 1,
+            "h_spacing": 0,
+            "v_spacing": 0,
+            "margin_x" : 0,
+            "margin_y" : -50
+        },
+        "shoot": {
+            "prob": 0.01
+        },
+        "weapons": [
+            "laser"
+        ],
+        "spawn": {
+            "y": -50
         }
     }
 }

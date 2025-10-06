@@ -3,9 +3,9 @@ import math, random, pygame
 from config import WIDTH, HEIGHT
 from config.enemy import ENEMY_CONFIG
 
-from entities.projectile import Laser, Rocket, Nuke
+from entities.projectile import Laser, Rocket, Nuke, Blaster, HomingRocket
 
-KIND2CLS = {"laser": Laser, "rocket": Rocket, "nuke": Nuke}
+KIND2CLS = {"laser": Laser, "rocket": Rocket, "nuke": Nuke, "blaster": Blaster, "homing_rocket": HomingRocket}
 
 BAR_W = 40
 BAR_H = 5
@@ -85,6 +85,53 @@ class Enemy:
             hz  = float(self.move_cfg.get("hz", 0.25))
             offset = int(math.sin(pygame.time.get_ticks()*hz*0.001 + self._phase) * amp)
             self.rect.x = WIDTH//2 + offset - self.rect.width//2
+        elif self.move_cfg["type"] == "fly_in":
+            # Fliegt von oben rein und folgt dann einer Laufbahn
+            self._update_fly_in()
+
+    def _update_fly_in(self):
+        """Bewegung für 'fly_in' Typ - von oben reinfliegend mit individueller Laufbahn"""
+        now = pygame.time.get_ticks()
+        
+        # Zeit seit Spawn
+        if not hasattr(self, '_spawn_time'):
+            self._spawn_time = now
+            self._target_y = self.move_cfg.get("target_y", 100)  # Ziel Y-Position
+            self._path_type = self.move_cfg.get("path", "straight")  # Laufbahn-Typ
+            self._speed = self.move_cfg.get("speed", 2)
+            
+        elapsed = (now - self._spawn_time) / 1000.0  # Sekunden
+        
+        # Phase 1: Von oben einfliegend
+        if self.rect.y < self._target_y:
+            self.rect.y += self._speed * 2  # Schneller von oben
+            
+        # Phase 2: Horizontale Laufbahn
+        else:
+            if self._path_type == "straight":
+                self.rect.x += self._speed * (1 if self._phase > 0 else -1)
+            elif self._path_type == "sine":
+                # Sinusförmige Bewegung
+                amp = self.move_cfg.get("amplitude", 50)
+                frequency = self.move_cfg.get("frequency", 0.5)
+                base_x = getattr(self, '_base_x', self.rect.x)
+                if not hasattr(self, '_base_x'):
+                    self._base_x = base_x
+                self.rect.x = base_x + int(amp * math.sin(elapsed * frequency + self._phase))
+            elif self._path_type == "circle":
+                # Kreisförmige Bewegung (sanfter)
+                radius = self.move_cfg.get("radius", 40)  # Kleinerer Radius
+                frequency = self.move_cfg.get("frequency", 0.8)  # Schnellere Frequenz
+                center_x = getattr(self, '_center_x', self.rect.x)
+                center_y = getattr(self, '_center_y', self.rect.y)
+                if not hasattr(self, '_center_x'):
+                    self._center_x = center_x
+                    self._center_y = center_y
+                
+                angle = elapsed * frequency + self._phase
+                self.rect.x = center_x + int(radius * math.cos(angle))
+                # Sehr kleine Y-Variation für sanfte Wellenbewegung
+                self.rect.y = center_y + int(radius * math.sin(angle) * 0.2)
 
     def drop(self, dy):
         self.rect.y += dy
@@ -102,7 +149,11 @@ class Enemy:
             return []
 
         # 2) Probability check (aus ENEMY_CONFIG)
-        prob = float(self.cfg.get("shoot", {}).get("prob", 0.0))
+        # Erst individuelle Waffen-Wahrscheinlichkeit prüfen, dann fallback auf globale
+        shoot_cfg = self.cfg.get("shoot", {})
+        weapon_probs = shoot_cfg.get("weapon_probs", {})
+        prob = weapon_probs.get(weapon) or shoot_cfg.get("prob", 0.0)
+        prob = float(prob)
         if prob <= 0.0 or random.random() >= prob:
             return []
 
@@ -127,8 +178,12 @@ class Enemy:
         return shots
 
     def offscreen(self):
+        # Für fly_in Enemies: vollständige Bildschirmrand-Prüfung
+        if self.move_cfg.get("type") == "fly_in":
+            return (self.rect.right < -50 or self.rect.left > WIDTH + 50 or 
+                    self.rect.bottom < -50 or self.rect.top > HEIGHT + 50)
+        # Für normale Enemies: nur oben raus
         return self.rect.bottom < 0
-        # return (self.rect.right < 0 or self.rect.left > WIDTH or self.rect.bottom < 0 or self.rect.top > HEIGHT)
 
     # --- Treffer/HP ---
     def take_damage(self, dmg: int) -> bool:
