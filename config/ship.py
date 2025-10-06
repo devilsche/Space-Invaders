@@ -9,7 +9,8 @@ SHIP_CONFIG = {
             "laser":  [(0, 5)],
             "rocket": [(0, 5)],
             "nuke":   [(0, 5)]
-        }
+        },
+        "shield": 0,
     },
     2: {
         "img": "assets/images/player/stage2.png",
@@ -21,7 +22,8 @@ SHIP_CONFIG = {
             "laser":  [(-12, 20), (12, 20)],
             "rocket": [(0, 12)],
             "nuke":   [(0, 14)]
-        }
+        },
+        "shield": 1,
     },
     3: {
         "img": "assets/images/player/stage3.png",
@@ -37,7 +39,8 @@ SHIP_CONFIG = {
         },
         "angle": {
             "laser":[ -5, 0, 5 ]
-        }
+        },
+        "shield": 1,
     },
     4: {
         "img": "assets/images/player/millennium_falcon.png",
@@ -54,6 +57,7 @@ SHIP_CONFIG = {
         "angle": {
             "laser":[ -10, -7, 7, 10, 0 ],
             "rocket":[ -7, -5, 5, 7 ],
-        }
+        },
+        "shield": 1,
     }
 }

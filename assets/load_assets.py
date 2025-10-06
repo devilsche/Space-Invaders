@@ -76,7 +76,16 @@ def load_assets():
 
     for w, pcfg in PROJECTILES_CONFIG.items():
         # Bild
-        a[f"{w}_img"] = _scaled(pcfg["img"], pcfg.get("size"))
+        base_img = _scaled(pcfg["img"], pcfg.get("size"))
+        a[f"{w}_img"] = base_img
+        
+        # Für Laser: Gelbe Version für Enemies erstellen
+        if w == "laser":
+            yellow_img = base_img.copy()
+            yellow_overlay = pygame.Surface(base_img.get_size(), pygame.SRCALPHA)
+            yellow_overlay.fill((255, 255, 100, 200))  # Helles Gelb mit guter Sichtbarkeit
+            yellow_img.blit(yellow_overlay, (0, 0), special_flags=pygame.BLEND_MULT)
+            a["laser_yellow_img"] = yellow_img
 
         # Sounds nach standardisierten Keys
         if pcfg.get("sound_start"):   a[f"{w}_sound_start"]   = _try_sound(pcfg["sound_start"])
@@ -110,6 +119,18 @@ def load_assets():
     a["shield_duration"] = scfg.get("duration")
     a["shield_cooldown"] = scfg.get("cooldown")
     a["shield_scale"]    = scfg.get("scale")
+    
+    # Shield-Hit-Sound laden (falls vorhanden)
+    try:
+        a["shield_hit_sound"] = pygame.mixer.Sound("assets/sound/shieldImpact.mp3")
+    except Exception:
+        a["shield_hit_sound"] = None
+    
+    # Shield-Aktivierungs-Sound laden (falls vorhanden)
+    try:
+        a["shield_activate_sound"] = pygame.mixer.Sound("assets/sound/shieldActivate.mp3")
+    except Exception:
+        a["shield_activate_sound"] = None
 
     return a
 

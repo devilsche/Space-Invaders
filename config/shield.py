@@ -3,7 +3,7 @@ SHIELD_CONFIG = {
         "shield": {
             "sheet": "assets/images/shield2.png",
             "duration": 5000,
-            "cooldown": 100,
+            "cooldown": 7000,
             "cols": 4,
             "rows": 4,
             "fw": 256,

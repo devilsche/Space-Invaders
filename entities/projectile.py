@@ -81,7 +81,12 @@ class Laser(Projectile):
         rad    = math.radians(angle_deg)
         vx     =  speed * math.sin(rad)
         vy     =  base  * speed * math.cos(rad)
-        img    = assets["laser_img"]
+        # Unterschiedliche Bilder für Player und Enemy
+        if owner == "enemy":
+            img = assets["laser_yellow_img"]  # Gelbe Version für Enemies
+        else:
+            img = assets["laser_img"]         # Normale Version für Player
+        
         if owner=="player" and assets.get("laser_sound_start"):
             assets["laser_sound_start"].set_volume(MASTER_VOLUME * SFX_VOLUME)
             assets["laser_sound_start"].play()

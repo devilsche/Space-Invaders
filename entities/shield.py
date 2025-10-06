@@ -4,10 +4,10 @@ import pygame
 class Shield:
     __slots__ = (
         "frames","center","fps","_t_last","_i","loop","done",
-        "alpha","blend_add","radius_px","mask","mask_center"
+        "alpha","blend_add","radius_px","mask","mask_center","_last_hit_sound"
     )
 
-    def __init__(self, x, y, frames, fps=18, scale=1.0, loop=True, alpha=150, blend_add=False, use_mask=False):
+    def __init__(self, x, y, frames, fps=18, scale=1.0, loop=True, alpha=150, blend_add=False, use_mask=True):
         if not frames:
             blank = pygame.Surface((1,1), pygame.SRCALPHA)
             frames = [blank]
@@ -57,8 +57,48 @@ class Shield:
             self.mask = None
             self.mask_center = None
 
+        # Sound-Cooldown initialisieren
+        self._last_hit_sound = 0
+
     def set_center(self, pos):
         self.center = (int(pos[0]), int(pos[1]))
+
+    def rescale_for_player(self, player_rect, base_frames, base_scale_factor):
+        """Skaliert das Schild basierend auf der Spielergröße neu"""
+        # Neue Skalierung basierend auf Spielergröße berechnen
+        new_scale = max(player_rect.w, player_rect.h) / base_frames[0].get_width() * base_scale_factor
+
+        # Frames neu skalieren
+        if new_scale != 1.0:
+            w, h = base_frames[0].get_width(), base_frames[0].get_height()
+            tw, th = int(w * new_scale), int(h * new_scale)
+            new_frames = [pygame.transform.smoothscale(f, (tw, th)) for f in base_frames]
+        else:
+            new_frames = base_frames.copy()
+
+        # Alle Frames auf einheitliche Größe bringen
+        fw, fh = new_frames[0].get_width(), new_frames[0].get_height()
+        eq_frames = []
+        for f in new_frames:
+            if f.get_size() != (fw, fh):
+                pad = pygame.Surface((fw, fh), pygame.SRCALPHA)
+                pad.blit(f, f.get_rect(center=(fw//2, fh//2)))
+                eq_frames.append(pad)
+            else:
+                eq_frames.append(f)
+
+        # Frames und Radius aktualisieren
+        self.frames = eq_frames
+        self.radius_px = min(fw, fh) // 2
+
+        # Maske neu erstellen falls verwendet
+        if self.mask is not None:
+            self.mask = pygame.mask.from_surface(self.frames[0])
+            try:
+                cx, cy = self.mask.centroid()
+            except AttributeError:
+                cx, cy = self.mask.get_bounding_rect().center
+            self.mask_center = (cx, cy)
 
     def update(self):
         if self.done: return
@@ -101,3 +141,28 @@ class Shield:
         if lx < 0 or ly < 0 or lx >= r.width or ly >= r.height:
             return False
         return self.mask.get_at((lx, ly)) != 0
+
+    def hit_by_projectile(self, projectile_rect):
+        """Prüft ob ein Projektil das Schild trifft (sowohl Circle als auch Mask)"""
+        # Erst Circle-Check für Performance
+        if not self.hit_circle(projectile_rect.center):
+            return False
+
+        # Dann präziseren Mask-Check falls verfügbar
+        if self.mask:
+            return self.hit_mask(projectile_rect.center)
+
+        return True
+
+    def play_hit_sound(self, assets):
+        """Spielt den Shield-Hit-Sound ab mit Cooldown"""
+        now = pygame.time.get_ticks()
+        # Sound-Cooldown: maximal alle 100ms einen Shield-Hit-Sound
+        if now - self._last_hit_sound < 100:
+            return
+
+        if assets.get("shield_hit_sound"):
+            from config import MASTER_VOLUME, SFX_VOLUME
+            assets["shield_hit_sound"].set_volume(MASTER_VOLUME * SFX_VOLUME)
+            assets["shield_hit_sound"].play()
+            self._last_hit_sound = now

@@ -1,12 +1,21 @@
 import pygame
 from assets.load_assets import load_assets
 from system.utils       import load_highscore, save_highscore
+from system.hud         import HUD
 from config             import *
 from entities           import *
 
 class Game:
     def __init__(self):
         pygame.init()
+        
+        # Mehr Mixer-Kanäle für gleichzeitige Sounds
+        pygame.mixer.set_num_channels(32)  # Erhöhe von 8 auf 32 Kanäle
+        
+        # Reserviere Kanäle für wichtige Sounds
+        self.shield_channel = pygame.mixer.Channel(30)  # Kanal 30 für Shield-Hits
+        self.music_channel = pygame.mixer.Channel(31)   # Kanal 31 für Musik
+        
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("Space Invaders")
         self.clock = pygame.time.Clock()
@@ -37,9 +46,20 @@ class Game:
         self._respawn_ready_at  = 0
         self.spawn_pos          = (WIDTH // 2, HEIGHT - 80)   # NEU: feste Spawn-Position
 
+        # Weapon Cooldown Tracking
+        self.weapon_cooldowns = {
+            "rocket_last_used": 0,
+            "homing_rocket_last_used": 0,
+            "nuke_last_used": 0,
+            "shield_ready_at": 0
+        }
+
         self.player = Player(WIDTH, HEIGHT, self.assets)
         self.player.rect.center = self.spawn_pos  
 
+        # HUD initialisieren
+        self.hud = HUD(WIDTH, HEIGHT)
+        self.hud.load_icons(self.assets)
 
         if "music_paths" in self.assets and "raining_bits" in self.assets["music_paths"]:
             try:
@@ -81,12 +101,16 @@ class Game:
                     pygame.display.toggle_fullscreen()
                 elif e.key == pygame.K_1:
                     self.player.set_stage(1)
+                    self._update_shield_scale()
                 elif e.key == pygame.K_2:
                     self.player.set_stage(2)
+                    self._update_shield_scale()
                 elif e.key == pygame.K_3:
                     self.player.set_stage(3)
+                    self._update_shield_scale()
                 elif e.key == pygame.K_4:
                     self.player.set_stage(4)
+                    self._update_shield_scale()
                 elif e.key == pygame.K_F1:
                     self._build_wave( 'alien' )
                 elif e.key == pygame.K_F2:
@@ -103,13 +127,34 @@ class Game:
                 elif e.key == pygame.K_SPACE and not self.paused and not self.player_dead:
                     self.player_shots.extend(self.player.shoot_weapon("laser"))
                 elif e.key == pygame.K_r and not self.paused and not self.player_dead:
-                    self.player_shots.extend(self.player.shoot_weapon("rocket"))
+                    shots = self.player.shoot_weapon("rocket")
+                    if shots:  # Nur wenn tatsächlich geschossen wurde
+                        self.player_shots.extend(shots)
+                        current_time = pygame.time.get_ticks()
+                        self.weapon_cooldowns["rocket_last_used"] = current_time
                 elif e.key == pygame.K_t and not self.paused and not self.player_dead:
-                    self.player_shots.extend(self.player.shoot_weapon("homing_rocket"))
+                    shots = self.player.shoot_weapon("homing_rocket")
+                    if shots:  # Nur wenn tatsächlich geschossen wurde
+                        self.player_shots.extend(shots)
+                        current_time = pygame.time.get_ticks()
+                        self.weapon_cooldowns["homing_rocket_last_used"] = current_time
                 elif e.key == pygame.K_e and not self.paused and not self.player_dead:
-                    self.player_shots.extend(self.player.shoot_weapon("nuke"))
+                    shots = self.player.shoot_weapon("nuke")
+                    if shots:  # Nur wenn tatsächlich geschossen wurde
+                        self.player_shots.extend(shots)
+                        current_time = pygame.time.get_ticks()
+                        self.weapon_cooldowns["nuke_last_used"] = current_time
 
                 elif e.key == pygame.K_q and not self.paused and not self.player_dead:
+                    # Prüfen, ob das aktuelle Schiff einen Schild hat
+                    from config.ship import SHIP_CONFIG
+                    current_ship_config = SHIP_CONFIG.get(self.player.stage, {})
+                    has_shield = current_ship_config.get("shield", 0) == 1
+                    
+                    if not has_shield:
+                        # Kein Schild verfügbar für dieses Schiff
+                        break
+                    
                     if self.shield:
                         self.shield = None
                         break
@@ -122,6 +167,12 @@ class Game:
                         self.shield = Shield( *self.player.rect.center, frames, fps=fps, scale=scale, loop=True )
                         self.shield_until     = now + self.assets["shield_duration"]
                         self._shield_ready_at = now + self.assets["shield_cooldown"]
+                        
+                        # Shield-Aktivierungs-Sound abspielen
+                        if self.assets.get("shield_activate_sound"):
+                            from config import MASTER_VOLUME, SFX_VOLUME
+                            self.assets["shield_activate_sound"].set_volume(MASTER_VOLUME * SFX_VOLUME)
+                            self.assets["shield_activate_sound"].play()
 
 
 
@@ -129,6 +180,10 @@ class Game:
     def _update(self):
         keys = pygame.key.get_pressed()
         now  = pygame.time.get_ticks()
+
+        # HUD mit aktuellen Weapon-Status aktualisieren
+        self.weapon_cooldowns["shield_ready_at"] = self._shield_ready_at
+        self.hud.update_weapon_status(self.player, now, self.weapon_cooldowns)
 
         # während tot: kein Input, keine Kollisionen
         if self.player_dead:
@@ -185,10 +240,11 @@ class Game:
 
 
         # ---- Kollision: Gegner-Projektil -> Spieler ----
-        if not self.player_dead and not self.shield:
+        if not self.player_dead:
             for p in self.enemy_shots[:]:
                 # Schild fängt ab
-                if self.shield and self.shield.hit_circle(p.rect.center):
+                if self.shield and self.shield.hit_by_projectile(p.rect):
+                    self.shield.play_hit_sound(self.assets)
                     self.enemy_shots.remove(p)
                     continue
 
@@ -275,6 +331,10 @@ class Game:
 
         self.screen.blit(self.font.render(f"Score: {self.score}", True, (255,255,255)), (10, 10))
         self.screen.blit(self.font.render(f"High Score: {self.highscore}", True, (255,255,255)), (10, 50))
+        
+        # HUD zeichnen
+        self.hud.draw(self.screen)
+        
         pygame.display.flip()
 
 
@@ -316,3 +376,12 @@ class Game:
             self.clock.tick(FPS)
         save_highscore(self.highscore)
         pygame.quit()
+    
+    def _update_shield_scale(self):
+        """Aktualisiert die Schild-Skalierung basierend auf der aktuellen Spielergröße"""
+        if self.shield:
+            base_frames = self.assets["shield_frames"]
+            base_scale_factor = self.assets["shield_scale"]
+            
+            # Shield-Objekt die neue Skalierung durchführen lassen
+            self.shield.rescale_for_player(self.player.rect, base_frames, base_scale_factor)
