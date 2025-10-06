@@ -1,6 +1,6 @@
 import pygame
 from assets.load_assets import load_assets
-from utils              import load_highscore, save_highscore
+from system.utils       import load_highscore, save_highscore
 from config             import *
 from entities           import *
 
@@ -44,7 +44,7 @@ class Game:
         if "music_paths" in self.assets and "raining_bits" in self.assets["music_paths"]:
             try:
                 pygame.mixer.music.load(self.assets["music_paths"]["raining_bits"])
-                pygame.mixer.music.set_volume(0.1)
+                pygame.mixer.music.set_volume(MASTER_VOLUME * MUSIC_VOLUME)
                 pygame.mixer.music.play(-1)
             except pygame.error:
                 pass
@@ -53,7 +53,7 @@ class Game:
 
     # ---------------- Wellen ----------------
     def _build_wave(self, enemy_type: str):
-        self.enemies.clear()
+        # self.enemies.clear()
         form = ENEMY_CONFIG[enemy_type]["formation"]
         for r in range(form["rows"]):
             for c in range(form["cols"]):
@@ -61,7 +61,7 @@ class Game:
                 y = r * form["v_spacing"] + form["margin_y"]
                 self.enemies.append(Enemy(enemy_type, self.assets, x, y))
         base = ENEMY_CONFIG[enemy_type]["move"]["speed_start"]
-        self.enemy_speed = base + max(0, self.wave_num)
+        self.enemy_speed = base
         self.enemy_dir = 1
         self.wave_num += 1
 
@@ -104,6 +104,8 @@ class Game:
                     self.player_shots.extend(self.player.shoot_weapon("laser"))
                 elif e.key == pygame.K_r and not self.paused and not self.player_dead:
                     self.player_shots.extend(self.player.shoot_weapon("rocket"))
+                elif e.key == pygame.K_t and not self.paused and not self.player_dead:
+                    self.player_shots.extend(self.player.shoot_weapon("homing_rocket"))
                 elif e.key == pygame.K_e and not self.paused and not self.player_dead:
                     self.player_shots.extend(self.player.shoot_weapon("nuke"))
 
@@ -136,13 +138,16 @@ class Game:
         if not self.player_dead:
             self.player.handle_input(keys, WIDTH, HEIGHT)
 
-
         if keys[pygame.K_SPACE] and not self.paused and not self.player_dead:
-            self.player_shots.extend(self.player.shoot_weapon("laser")) 
+            self.player_shots.extend(self.player.shoot_weapon("laser"))
 
         # Projektile bewegen
         for p in self.player_shots[:]:
-            p.update()
+            # Wärmelenkraketen brauchen Zugriff auf das Game-Objekt
+            if hasattr(p, 'homing') and p.homing:
+                p.update(self)
+            else:
+                p.update()
             if p.offscreen():
                 self.player_shots.remove(p)
         for p in self.enemy_shots[:]:
@@ -152,7 +157,7 @@ class Game:
 
         for e in self.enemies[:]:
             if e.offscreen():
-                e.remove()
+                self.enemies.remove(e)
 
         if self.shield:
             self.shield.set_center(self.player.rect.center)

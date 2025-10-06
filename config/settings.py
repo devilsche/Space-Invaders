@@ -5,3 +5,6 @@ FONT_SIZE          = 36
 LIVES              = -1
 LIVES_COOLDOWN     = 1000
 RESPAWN_PROTECTION = 3000
+MASTER_VOLUME      = 0.1
+MUSIC_VOLUME       = 0.3
+SFX_VOLUME         = 0.5

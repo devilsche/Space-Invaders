@@ -44,6 +44,27 @@ PROJECTILES_CONFIG = {
             "fps": 24
         }
     },
+    "homing_rocket": {
+        "dmg": 250,
+        "size": (12, 24),
+        "radius": 140,
+        "cooldown": 1200,
+        "amount": 4,
+        "speed": 6,
+        "accel": 1.02,
+        "img": "assets/images/weapon/homingRocket.png",
+        "sound_start": "assets/sound/rocket_launch.wav",
+        "sound_fly": "assets/sound/rocket_zisch.wav",
+        "sound_hit": "assets/sound/rocket_hit.wav",
+        "sound_destroy": "assets/sound/rocket_explosion.wav",
+        "explosion": {
+            "sheet": "assets/images/exp2.png",
+            "cols": 4, "rows": 4,
+            "fw": 64, "fh": 64,
+            "scale": 1.6,
+            "fps": 24
+        }
+    },
     "nuke": {
         "dmg": 600,
         "size": (20, 36),

@@ -7,8 +7,7 @@ class Shield:
         "alpha","blend_add","radius_px","mask","mask_center"
     )
 
-    def __init__(self, x, y, frames, fps=18, scale=1.0,
-                 loop=True, alpha=100, blend_add=False, use_mask=False):
+    def __init__(self, x, y, frames, fps=18, scale=1.0, loop=True, alpha=150, blend_add=False, use_mask=False):
         if not frames:
             blank = pygame.Surface((1,1), pygame.SRCALPHA)
             frames = [blank]

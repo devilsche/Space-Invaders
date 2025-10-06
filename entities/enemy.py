@@ -127,8 +127,8 @@ class Enemy:
         return shots
 
     def offscreen(self):
-        return (self.rect.right < 0 or self.rect.left > WIDTH or
-                self.rect.bottom < 0 or self.rect.top > HEIGHT)
+        return self.rect.bottom < 0
+        # return (self.rect.right < 0 or self.rect.left > WIDTH or self.rect.bottom < 0 or self.rect.top > HEIGHT)
 
     # --- Treffer/HP ---
     def take_damage(self, dmg: int) -> bool:
