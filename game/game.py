@@ -41,6 +41,8 @@ class Game:
         self.score              = 0
         self.highscore          = load_highscore()
         self.paused             = False
+        self.pause_start_time   = 0
+        self.total_pause_time   = 0
         self.running            = True
         self.shield             = None
         self.shield_until       = 0
@@ -81,6 +83,10 @@ class Game:
         # Power-Up Shield System
         self.powerup_shield = None
         self.powerup_shield_until = 0
+
+        # DoubleLaser Power-Up System
+        self.double_laser_active = False
+        self.double_laser_until = 0
 
         # Kill Counter Display System
         self.kill_display_text = ""
@@ -200,6 +206,9 @@ class Game:
                 if isinstance(effect_result, dict) and effect_result.get("type") == "shield":
                     self._activate_powerup_shield(effect_result["duration"], effect_result["config"])
                     print(f"Power-Up Shield activated for {effect_result['duration']/1000:.1f}s!")
+                elif isinstance(effect_result, dict) and effect_result.get("type") == "double_laser":
+                    self._activate_double_laser(effect_result["duration"])
+                    print(f"Double Laser activated for {effect_result['duration']/1000:.1f}s!")
                 else:
                     print(f"Power-Up collected: {effect_result}")
 
@@ -212,7 +221,7 @@ class Game:
 
     def _activate_powerup_shield(self, duration, shield_config):
         """Aktiviert das gelbe Power-Up Shield"""
-        now = pygame.time.get_ticks()
+        now = self.get_game_time()
 
         # Power-Up Shield erstellen mit gleicher Skalierung wie normales Shield
         frames = self.assets["shield_frames"]
@@ -227,18 +236,93 @@ class Game:
         )
         self.powerup_shield_until = now + duration
 
+    def _activate_double_laser(self, duration):
+        """Aktiviert den DoubleLaser Power-Up Modus"""
+        now = self.get_game_time()
+        self.double_laser_active = True
+        self.double_laser_until = now + duration
+
+    # ---------------- Enemy Bewegung ----------------
+    def _update_wave_enemies(self):
+        """Aktualisiert Wave-Enemies mit gruppenbasierter Bewegung"""
+        if not hasattr(self, 'wave_movements'):
+            return
+        
+        # Gruppiere Enemies nach Wave-ID
+        wave_groups = {}
+        for enemy in self.enemies:
+            if hasattr(enemy, 'movement_type') and enemy.movement_type == "wave":
+                wave_id = getattr(enemy, 'wave_id', 'default')
+                if wave_id not in wave_groups:
+                    wave_groups[wave_id] = []
+                wave_groups[wave_id].append(enemy)
+        
+        # Bewege jede Wave separat
+        for wave_id, enemies in wave_groups.items():
+            if not enemies or wave_id not in self.wave_movements:
+                continue
+                
+            wave_data = self.wave_movements[wave_id]
+            direction = wave_data["direction"]
+            speed = wave_data["speed"]
+            
+            dx = direction * max(1, int(speed))
+            left = min(en.rect.left for en in enemies)
+            right = max(en.rect.right for en in enemies)
+            
+            # Richtungsänderung bei Bildschirmrand
+            if (direction == 1 and right + dx >= WIDTH) or (direction == -1 and left - dx <= 0):
+                wave_data["direction"] *= -1
+                # Drop distance aus Config holen
+                enemy_type = wave_data["enemy_type"]
+                move_cfg = ENEMY_CONFIG[enemy_type]["move"]
+                drop_px = move_cfg.get("drop_px", 20)
+                for en in enemies:
+                    en.drop(drop_px)
+            else:
+                for en in enemies:
+                    en.update(dx)
+
+    def _update_fly_in_enemies(self):
+        """Aktualisiert Fly-in Enemies mit individueller Bewegung"""
+        for enemy in self.enemies[:]:
+            if hasattr(enemy, 'movement_type') and enemy.movement_type == "fly_in":
+                enemy.update()  # Individuelle Bewegung
+                
+                # Prüfe, ob Enemy den Bildschirm verlassen hat und zurückkommen soll
+                if enemy.rect.right < 0 or enemy.rect.left > WIDTH:
+                    # Enemy ist seitlich raus - zurückbringen
+                    if enemy.rect.right < 0:
+                        enemy.rect.x = WIDTH  # Von rechts reinkommen
+                    else:
+                        enemy.rect.x = -enemy.rect.width  # Von links reinkommen
+
     # ---------------- Wellen ----------------
     def _build_wave(self, enemy_type: str):
         # self.enemies.clear()
         form = ENEMY_CONFIG[enemy_type]["formation"]
+        wave_id = f"wave_{self.wave_num}"
+        
         for r in range(form["rows"]):
             for c in range(form["cols"]):
                 x = c * scale(form["h_spacing"]) + scale(form["margin_x"])
                 y = r * scale(form["v_spacing"]) + scale(form["margin_y"])
-                self.enemies.append(Enemy(enemy_type, self.assets, x, y))
+                enemy = Enemy(enemy_type, self.assets, x, y)
+                enemy.wave_id = wave_id  # Wave-ID zuweisen
+                enemy.movement_type = "wave"  # Bewegungstyp
+                self.enemies.append(enemy)
+        
+        # Wave-spezifische Bewegungsdaten initialisieren
+        if not hasattr(self, 'wave_movements'):
+            self.wave_movements = {}
+        
         base = ENEMY_CONFIG[enemy_type]["move"]["speed_start"]
-        self.enemy_speed = base
-        self.enemy_dir = 1
+        self.wave_movements[wave_id] = {
+            "speed": base,
+            "direction": 1,  # Jede Wave startet nach rechts
+            "enemy_type": enemy_type
+        }
+        
         self.wave_num += 1
 
     def _spawn_fly_in_enemy(self):
@@ -262,6 +346,10 @@ class Game:
 
         # Enemy erstellen mit dynamischer Konfiguration
         enemy = Enemy(enemy_type, self.assets, spawn_x, spawn_y)
+        
+        # Fly-in spezifische Eigenschaften
+        enemy.wave_id = f"fly_in_{self._fly_in_spawn_count}"
+        enemy.movement_type = "fly_in"
 
         # Fly-In Bewegung aktivieren (überschreibt die normale Konfiguration)
         enemy.move_cfg = enemy.move_cfg.copy()  # Kopie erstellen
@@ -344,6 +432,17 @@ class Game:
             # Intervall leicht variieren für natürlicheres Spawning
             self._fly_in_spawn_interval = random.randint(4000, 6000)  # Längere Pause zwischen Gruppen
 
+    def get_game_time(self):
+        """Gibt die echte Spielzeit zurück (ohne Pause-Zeit)"""
+        current_time = pygame.time.get_ticks()
+        if self.paused:
+            # Während Pause: Pause-Zeit bis jetzt nicht mitzählen
+            pause_time_so_far = current_time - self.pause_start_time
+            return current_time - self.total_pause_time - pause_time_so_far
+        else:
+            # Normal: Nur die gesamte bisherige Pause-Zeit abziehen
+            return current_time - self.total_pause_time
+
     # ---------------- Events ----------------
     def _handle_events(self):
         for e in pygame.event.get():
@@ -351,6 +450,13 @@ class Game:
                 self.running = False
             elif e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_ESCAPE:
+                    if self.paused:
+                        # Resume: Pause-Zeit zu total_pause_time hinzufügen
+                        self.total_pause_time += pygame.time.get_ticks() - self.pause_start_time
+                    else:
+                        # Pause: Pause-Start-Zeit merken
+                        self.pause_start_time = pygame.time.get_ticks()
+                    
                     self.paused = not self.paused
                     try:
                         pygame.mixer.music.pause() if self.paused else pygame.mixer.music.unpause()
@@ -387,7 +493,19 @@ class Game:
                     self.enemies = []
 
                 elif e.key == pygame.K_SPACE and not self.paused and not self.player_dead:
-                    self.player_shots.extend(self.player.shoot_weapon("laser"))
+                    # Immer Laser schießen, aber mit DoubleLaser-Geschossen wenn Power-Up aktiv
+                    shots = self.player.shoot_weapon("laser")
+                    if self.double_laser_active and shots:
+                        # Laser-Geschosse durch DoubleLaser-Geschosse ersetzen
+                        enhanced_shots = []
+                        for shot in shots:
+                            # DoubleLaser mit gleicher Position und Geschwindigkeit erstellen
+                            double_shot = DoubleLaser.create(shot.rect.centerx, shot.rect.centery, 
+                                                           self.assets, owner="player", angle_deg=0)
+                            enhanced_shots.append(double_shot)
+                        self.player_shots.extend(enhanced_shots)
+                    else:
+                        self.player_shots.extend(shots)
                 elif e.key == pygame.K_r and not self.paused and not self.player_dead:
                     shots = self.player.shoot_weapon("rocket")
                     if shots:  # Nur wenn tatsächlich geschossen wurde
@@ -470,6 +588,13 @@ class Game:
         # HUD mit aktuellen Weapon-Status aktualisieren
         self.weapon_cooldowns["shield_ready_at"] = self._shield_ready_at
         self.hud.update_weapon_status(self.player, now, self.weapon_cooldowns)
+        
+        # Power-Up Status aktualisieren - mit Spielzeit (ohne Pause)
+        game_time = self.get_game_time()
+        super_shield_active = self.powerup_shield is not None
+        super_shield_until = self.powerup_shield_until if super_shield_active else 0
+        self.hud.update_powerup_status(self.double_laser_active, self.double_laser_until, 
+                                     super_shield_active, super_shield_until, game_time)
 
         # Health Bar aktualisieren
         if not self.player_dead:
@@ -484,7 +609,19 @@ class Game:
             self.player.handle_input(keys, WIDTH, HEIGHT)
 
         if keys[pygame.K_SPACE] and not self.paused and not self.player_dead:
-            self.player_shots.extend(self.player.shoot_weapon("laser"))
+            # Immer Laser schießen, aber mit DoubleLaser-Geschossen wenn Power-Up aktiv
+            shots = self.player.shoot_weapon("laser")
+            if self.double_laser_active and shots:
+                # Laser-Geschosse durch DoubleLaser-Geschosse ersetzen
+                enhanced_shots = []
+                for shot in shots:
+                    # DoubleLaser mit gleicher Position und Geschwindigkeit erstellen
+                    double_shot = DoubleLaser.create(shot.rect.centerx, shot.rect.centery, 
+                                                   self.assets, owner="player", angle_deg=0)
+                    enhanced_shots.append(double_shot)
+                self.player_shots.extend(enhanced_shots)
+            else:
+                self.player_shots.extend(shots)
 
         # Projektile bewegen
         for p in self.player_shots[:]:
@@ -531,29 +668,20 @@ class Game:
         if self.powerup_shield:
             self.powerup_shield.set_center(self.player.rect.center)
             self.powerup_shield.update()
-            if pygame.time.get_ticks() >= self.powerup_shield_until or self.powerup_shield.done:
+            if self.get_game_time() >= self.powerup_shield_until or self.powerup_shield.done:
                 self.powerup_shield = None
 
-        # Gegner bewegen + droppen am Rand
-        if self.enemies:
-            dx = self.enemy_dir * max(1, int(self.enemy_speed))
-            left  = min(en.rect.left  for en in self.enemies)
-            right = max(en.rect.right for en in self.enemies)
-            move_cfg = self.enemies[0].cfg["move"]
-            if (self.enemy_dir == 1 and right + dx >= WIDTH) or (self.enemy_dir == -1 and left - dx <= 0):
-                self.enemy_dir *= -1
-                for en in self.enemies: en.drop(move_cfg["drop_px"])
-            else:
-                for en in self.enemies: en.update(dx)
+        # DoubleLaser Power-Up Update
+        if self.double_laser_active:
+            if self.get_game_time() >= self.double_laser_until:
+                self.double_laser_active = False
 
-            # Gegner feuern: nur shoot_weapon
-            for en in self.enemies:
-                for w, amt in en.weapons.items():
-                    if amt > 0:
-                        self.enemy_shots.extend(en.shoot_weapon(w, amt))
+        # Gegner bewegen - getrennt nach Bewegungstyp
+        self._update_wave_enemies()
+        self._update_fly_in_enemies()
 
-        # Fly-In Enemies schießen lassen
-        for en in self.fly_in_enemies:
+        # Alle Gegner schießen lassen
+        for en in self.enemies:
             for w, amt in en.weapons.items():
                 if amt > 0:
                     self.enemy_shots.extend(en.shoot_weapon(w, amt))
@@ -564,6 +692,9 @@ class Game:
             for p in self.enemy_shots[:]:
                 # Schild-Kollision prüfen (wenn Schild aktiv ist)
                 hit_shield = False
+                hit_powerup_shield = False
+                
+                # Normales Schild prüfen
                 if self.shield and not self.shield.is_broken() and self.shield.hit_by_projectile(p.rect):
                     # Schild nimmt Schaden
                     damage = getattr(p, "dmg", 100)
@@ -577,6 +708,23 @@ class Game:
                         self._last_shield_destroyed = now  # Zeitpunkt der Zerstörung tracken
                         self.shield = None
 
+                # PowerUp-Schild prüfen (hat Priorität und absorbiert 100% des Schadens)
+                if self.powerup_shield and not self.powerup_shield.is_broken() and self.powerup_shield.hit_by_projectile(p.rect):
+                    # PowerUp-Schild nimmt Schaden
+                    damage = getattr(p, "dmg", 100)
+                    shield_still_active = self.powerup_shield.take_damage(damage)
+
+                    self.powerup_shield.play_hit_sound(self.assets)
+                    hit_powerup_shield = True
+
+                    # Wenn PowerUp-Schild zerstört wird, entferne es
+                    if not shield_still_active:
+                        self.powerup_shield = None
+
+                    # PowerUp-Schild blockiert das Projektil vollständig
+                    self.enemy_shots.remove(p)
+                    continue
+
                 if p.rect.colliderect(self.player.rect):
                     # Unverwundbarkeit nach Respawn beachten
                     if now < getattr(self.player, "invincible_until", 0):
@@ -588,9 +736,17 @@ class Game:
                     # Schaden berechnen (verschiedene Projektile machen unterschiedlich viel Schaden)
                     damage = getattr(p, "dmg", 100)  # Standard-Schaden 100
 
-                    # Schild-Schutz: Reduzierter Schaden wenn Schild aktiv ist (auch wenn es getroffen wurde)
-                    has_shield = hit_shield or (self.shield is not None and not self.shield.is_broken())
-                    player_destroyed = self.player.take_damage(damage, has_shield)
+                    # Schild-Schutz: Reduzierter Schaden wenn Schild aktiv ist
+                    # PowerUp-Shield hat Priorität und blockiert 100% (sollte aber schon oben abgefangen worden sein)
+                    has_powerup_shield = hit_powerup_shield or (self.powerup_shield is not None and not self.powerup_shield.is_broken())
+                    has_normal_shield = hit_shield or (self.shield is not None and not self.shield.is_broken())
+                    
+                    # Wenn PowerUp-Shield aktiv ist, sollte diese Stelle nie erreicht werden
+                    # Aber als Backup: PowerUp-Shield blockiert 100% des Schadens
+                    if has_powerup_shield:
+                        player_destroyed = False  # Kein Schaden
+                    else:
+                        player_destroyed = self.player.take_damage(damage, has_normal_shield)
 
                     if hasattr(p, "on_hit"):
                         p.on_hit(self, self.player.rect.center)

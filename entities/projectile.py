@@ -129,6 +129,37 @@ class Laser(Projectile):
 
         game.explosions.append(ex)
 
+class DoubleLaser(Projectile):
+    kind = "double_laser"
+    @classmethod
+    def create(cls, x, y, assets, owner="player", angle_deg=0):
+        cfg    = PROJECTILES_CONFIG["double_laser"]
+        speed  = cfg.get("enemy_speed", cfg["speed"]) if owner=="enemy" else cfg["speed"]
+        accel  = cfg.get("enemy_accel", cfg.get("accel",1.0)) if owner=="enemy" else cfg.get("accel",1.0)
+        base   = -1 if owner=="player" else +1
+        rad    = math.radians(angle_deg)
+        vx     =  speed * math.sin(rad)
+        vy     =  base  * speed * math.cos(rad)
+        
+        # Double Laser Bild
+        img = assets.get("double_laser_img", assets.get("laser_img"))  # Fallback auf normalen Laser
+
+        if owner=="player" and assets.get("laser_sound_start"):
+            assets["laser_sound_start"].set_volume(MASTER_VOLUME * SFX_VOLUME)
+            assets["laser_sound_start"].play()
+        return cls(x, y, vx, vy, img, cfg["dmg"], owner, radius=0, kind="double_laser", accel=accel)
+
+    def on_hit(self, game, hit_pos):
+        frames, fps = _expl_frames(game, "expl_laser")
+        ex = Explosion(hit_pos[0], hit_pos[1], frames, fps=fps)
+        if game.assets.get("laser_sound_destroy"):
+            game.assets["laser_sound_destroy"].set_volume(MASTER_VOLUME * SFX_VOLUME)
+            game.assets["laser_sound_destroy"].play()
+        keep = game.assets.get("expl_laser_keep")
+        if keep:
+            ex.frames = ex.frames[:keep]
+        game.explosions.append(ex)
+
 class Rocket(Projectile):
     kind = "rocket"
     @classmethod

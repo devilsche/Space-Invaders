@@ -24,5 +24,14 @@ POWERUP_CONFIG = {
         "fall_speed": 2,
         "duration": 8000,         # PowerUp Item Dauer (wie lange es am Boden liegt)
         "points": 75,
+    },
+    "double_laser": {
+        "img": "assets/images/icon/doubleLaser.png",
+        "size": (70, 70),         # Größe für Power-Up Icon
+        "drop_chance": 0.05,      # 5% Chance bei Enemy-Tod (seltener)
+        "fall_speed": 2,
+        "duration": 10000,        # 10 Sekunden bis Verschwinden
+        "points": 100,            # Mehr Punkte für seltenes Power-Up
+        "weapon_duration": 15000, # 15 Sekunden DoubleLaser-Modus
     }
 }

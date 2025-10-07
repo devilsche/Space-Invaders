@@ -23,6 +23,29 @@ PROJECTILES_CONFIG = {
             "keep": 4
         }
     },
+    "double_laser": {
+        "dmg": 50,
+        "size": (10, 18),  # Etwas breiter als normaler Laser
+        "radius": 0,
+        "cooldown": 200,   # Etwas langsamer als normaler Laser
+        "amount": -1,
+        "speed": 15,
+        "accel": 1,
+        "img": "assets/images/weapon/laser_vertical.png",
+        "sound_start": "assets/sound/laser_shoot.wav",
+        "sound_hit": "assets/sound/laser_explosion.wav",
+        "sound_destroy": "assets/sound/laser_explosion.wav",
+        "explosion": {
+            "sheet": "assets/images/exp2.png",
+            "cols": 4,
+            "rows": 4,
+            "fw": 64,
+            "fh": 64,
+            "scale": 0.8,
+            "fps": 10,
+            "keep": 4
+        }
+    },
     "rocket": {
         "dmg": 200,
         "size": (12, 24),

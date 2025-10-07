@@ -17,7 +17,7 @@ class HUD:
 
         # Icon-Positionen
         self.icons = {}
-        self.icon_order = ["rocket", "homing_rocket", "nuke", "shield"]
+        self.icon_order = ["rocket", "homing_rocket", "blaster", "nuke", "shield"]
 
         for i, weapon in enumerate(self.icon_order):
             x = self.start_x + i * (self.icon_size + self.icon_spacing)
@@ -27,6 +27,29 @@ class HUD:
                 "available": False,
                 "cooldown_progress": 1.0,  # 1.0 = bereit, 0.0 = gerade verwendet
                 "last_used": 0
+            }
+
+        # Power-Up Status (unten rechts)
+        self.powerup_icons = {}
+        self.powerup_order = ["double_laser", "super_shield"]
+        self.powerup_icon_size = 48
+        self.powerup_spacing = 8
+        
+        # Position unten rechts
+        powerup_start_x = screen_width - self.margin - self.powerup_icon_size
+        powerup_start_y = screen_height - self.powerup_icon_size - self.margin
+        
+        for i, powerup in enumerate(self.powerup_order):
+            x = powerup_start_x - i * (self.powerup_icon_size + self.powerup_spacing)
+            y = powerup_start_y
+            # Standard-Werte, werden später überschrieben
+            total_time = 15000 if powerup == "double_laser" else 8000  # Shield hat 8s
+            self.powerup_icons[powerup] = {
+                "pos": (x, y),
+                "active": False,
+                "remaining_time": 0,
+                "total_time": total_time,
+                "duration_progress": 0.0  # 1.0 = gerade gestartet, 0.0 = fast abgelaufen
             }
 
     def make_grayscale(self, surf):
@@ -92,10 +115,12 @@ class HUD:
         """Lädt und skaliert die Icons"""
         self.icon_images = {}
         self.icon_images_gray = {}
+        self.powerup_images = {}
 
         icon_mapping = {
             "rocket": "rocket.png",
-            "homing_rocket": "rocket.png",  # Gleiche Rakete, anders färben
+            "homing_rocket": "homingRocket.png",  # Eigenes Homing Rocket Icon
+            "blaster": "blaster.png",  # Eigenes Blaster Icon
             "nuke": "nuke.png",
             "shield": "shield.png"
         }
@@ -107,15 +132,8 @@ class HUD:
                 # Auf 48x48 skalieren
                 scaled_img = pygame.transform.smoothscale(img, (self.icon_size, self.icon_size))
 
-                # Spezielle Färbung für verschiedene Waffen
-                if weapon == "homing_rocket":
-                    # Homing Rocket: Rötlich
-                    colored_img = scaled_img.copy()
-                    red_overlay = pygame.Surface(scaled_img.get_size(), pygame.SRCALPHA)
-                    red_overlay.fill((255, 100, 100, 100))
-                    colored_img.blit(red_overlay, (0, 0), special_flags=pygame.BLEND_MULT)
-                    self.icon_images[weapon] = colored_img
-                elif weapon == "nuke":
+                # Spezielle Färbung für verschiedene Waffen (nur noch für Nuke und Shield)
+                if weapon == "nuke":
                     # Nuke: Gelblich
                     colored_img = scaled_img.copy()
                     yellow_overlay = pygame.Surface(scaled_img.get_size(), pygame.SRCALPHA)
@@ -130,6 +148,7 @@ class HUD:
                     colored_img.blit(blue_overlay, (0, 0), special_flags=pygame.BLEND_MULT)
                     self.icon_images[weapon] = colored_img
                 else:
+                    # Verwende das Original-Icon ohne Farbüberlagerung
                     self.icon_images[weapon] = scaled_img
 
                 # Graustufen-Version erstellen
@@ -142,6 +161,40 @@ class HUD:
                 fallback.fill((100, 100, 100))
                 self.icon_images[weapon] = fallback
                 self.icon_images_gray[weapon] = fallback
+
+        # Power-Up Icons laden
+        powerup_mapping = {
+            "double_laser": "doubleLaser.png",
+            "super_shield": "shield.png"
+        }
+
+        for powerup, filename in powerup_mapping.items():
+            try:
+                icon_path = f"assets/images/icon/{filename}"
+                img = pygame.image.load(icon_path)
+                # Auf 48x48 skalieren
+                scaled_img = pygame.transform.smoothscale(img, (self.powerup_icon_size, self.powerup_icon_size))
+                
+                # Spezielle Färbung für Power-Ups
+                if powerup == "double_laser":
+                    # DoubleLaser: Original-Farben behalten
+                    self.powerup_images[powerup] = scaled_img
+                elif powerup == "super_shield":
+                    # Super Shield: Leicht gelbliche Färbung
+                    colored_img = scaled_img.copy()
+                    yellow_overlay = pygame.Surface(scaled_img.get_size(), pygame.SRCALPHA)
+                    yellow_overlay.fill((255, 255, 100, 50))  # Dezente gelbe Färbung
+                    colored_img.blit(yellow_overlay, (0, 0), special_flags=pygame.BLEND_MULT)
+                    self.powerup_images[powerup] = colored_img
+                else:
+                    self.powerup_images[powerup] = scaled_img
+
+            except Exception as e:
+                print(f"Fehler beim Laden des Power-Up Icons {filename}: {e}")
+                # Fallback: Goldenes Rechteck
+                fallback = pygame.Surface((self.powerup_icon_size, self.powerup_icon_size))
+                fallback.fill((255, 215, 0))
+                self.powerup_images[powerup] = fallback
 
     def update_weapon_status(self, player, current_time, cooldowns):
         """Aktualisiert den Status der Waffen basierend auf Verfügbarkeit und Cooldowns"""
@@ -165,6 +218,13 @@ class HUD:
         homing_progress = min(1.0, (current_time - homing_last_used) / homing_cooldown) if homing_cooldown > 0 else 1.0
         self.icons["homing_rocket"]["cooldown_progress"] = homing_progress
 
+        # Blaster Status mit Cooldown
+        self.icons["blaster"]["available"] = weapons.get("blaster", 0) > 0
+        blaster_cooldown = PROJECTILES_CONFIG.get("blaster", {}).get("cooldown", 300)
+        blaster_last_used = cooldowns.get("blaster_last_used", 0)
+        blaster_progress = min(1.0, (current_time - blaster_last_used) / blaster_cooldown) if blaster_cooldown > 0 else 1.0
+        self.icons["blaster"]["cooldown_progress"] = blaster_progress
+
         # Nuke Status mit Cooldown
         self.icons["nuke"]["available"] = weapons.get("nuke", 0) > 0
         nuke_cooldown = PROJECTILES_CONFIG.get("nuke", {}).get("cooldown", 5000)
@@ -181,6 +241,32 @@ class HUD:
             shield_progress = 1.0
         self.icons["shield"]["available"] = shield_available
         self.icons["shield"]["cooldown_progress"] = shield_progress
+
+    def update_powerup_status(self, double_laser_active, double_laser_until, super_shield_active, super_shield_until, current_time):
+        """Aktualisiert Power-Up Status"""
+        # DoubleLaser Power-Up
+        if double_laser_active and double_laser_until > current_time:
+            remaining_time = double_laser_until - current_time
+            self.powerup_icons["double_laser"]["active"] = True
+            self.powerup_icons["double_laser"]["remaining_time"] = remaining_time
+            # Duration progress: 1.0 = gerade gestartet, 0.0 = fast abgelaufen
+            self.powerup_icons["double_laser"]["duration_progress"] = remaining_time / self.powerup_icons["double_laser"]["total_time"]
+        else:
+            self.powerup_icons["double_laser"]["active"] = False
+            self.powerup_icons["double_laser"]["remaining_time"] = 0
+            self.powerup_icons["double_laser"]["duration_progress"] = 0.0
+
+        # Super Shield Power-Up
+        if super_shield_active and super_shield_until > current_time:
+            remaining_time = super_shield_until - current_time
+            self.powerup_icons["super_shield"]["active"] = True
+            self.powerup_icons["super_shield"]["remaining_time"] = remaining_time
+            # Duration progress: 1.0 = gerade gestartet, 0.0 = fast abgelaufen  
+            self.powerup_icons["super_shield"]["duration_progress"] = remaining_time / self.powerup_icons["super_shield"]["total_time"]
+        else:
+            self.powerup_icons["super_shield"]["active"] = False
+            self.powerup_icons["super_shield"]["remaining_time"] = 0
+            self.powerup_icons["super_shield"]["duration_progress"] = 0.0
 
     def draw(self, screen):
         """Zeichnet das HUD mit Cooldown-Animation"""
@@ -200,3 +286,33 @@ class HUD:
                 color_icon = self.icon_images[weapon]
                 gray_icon = self.icon_images_gray[weapon]
                 self.blit_color_from_bottom_feather(screen, color_icon, gray_icon, pos, cooldown_progress)
+
+        # Power-Up Icons unten rechts zeichnen
+        self._draw_powerup_icons(screen)
+
+    def _draw_powerup_icons(self, screen):
+        """Zeichnet Power-Up Icons unten rechts mit Duration-Animation"""
+        for powerup, data in self.powerup_icons.items():
+            if not data["active"] or powerup not in self.powerup_images:
+                continue
+
+            pos = data["pos"]
+            duration_progress = data["duration_progress"]
+            remaining_time = data["remaining_time"]
+            
+            # Power-Up Icon mit Duration-Animation (von voll zu verschwunden)
+            powerup_icon = self.powerup_images[powerup]
+            
+            # Power-Up Icon ohne Fading - immer voll sichtbar
+            screen.blit(powerup_icon, pos)
+            
+            # Zeit-Text ÜBER dem Icon - nur ganze Sekunden
+            remaining_sec = int(remaining_time / 1000.0)  # Ganze Sekunden
+            if remaining_sec > 0:  # Nur anzeigen wenn Zeit übrig
+                font = pygame.font.Font(None, 28)
+                time_text = font.render(f"{remaining_sec}", True, (255, 255, 255))  # Weiß
+                text_rect = time_text.get_rect()
+                text_x = pos[0] + (self.powerup_icon_size - text_rect.width) // 2
+                text_y = pos[1] - text_rect.height - 5  # ÜBER dem Icon
+                
+                screen.blit(time_text, (text_x, text_y))

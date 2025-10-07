@@ -75,6 +75,10 @@ class PowerUp:
             shield_config = SHIELD_CONFIG[2]["shield"]
             duration = shield_config["duration_by_stage"].get(player.stage, 8000)
             return {"type": "shield", "duration": duration, "config": shield_config}
+        elif self.type == "double_laser":
+            # DoubleLaser temporär aktivieren
+            duration = self.config["weapon_duration"]
+            return {"type": "double_laser", "duration": duration}
 
         return "Power-Up!"
 
