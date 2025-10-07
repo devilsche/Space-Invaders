@@ -48,6 +48,15 @@ class Game:
         self.score              = 0
         self.highscore          = load_highscore()
         self.paused             = False
+        
+        # Game States
+        self.game_state = "menu"  # "menu", "playing", "paused", "game_over"
+        
+        # Menu System
+        from system.menu import GameMenu
+        self.menu = GameMenu()
+        self.menu.load_assets()
+        self.menu.set_pause_mode(False)  # Initialize with start menu
         self.pause_start_time   = 0
         self.total_pause_time   = 0
         self.running            = True
@@ -653,18 +662,17 @@ class Game:
                 self.running = False
             elif e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_ESCAPE:
-                    if self.paused:
-                        # Resume: Pause-Zeit zu total_pause_time hinzufügen
-                        self.total_pause_time += pygame.time.get_ticks() - self.pause_start_time
-                    else:
+                    # ESC aktiviert das Pause-Menü
+                    if not self.paused:
                         # Pause: Pause-Start-Zeit merken
                         self.pause_start_time = pygame.time.get_ticks()
-                    
-                    self.paused = not self.paused
-                    try:
-                        pygame.mixer.music.pause() if self.paused else pygame.mixer.music.unpause()
-                    except pygame.error:
-                        pass
+                        self.paused = True
+                        self.game_state = "paused"
+                        self.menu.set_pause_mode(True)  # Set pause menu when entering pause state
+                        try:
+                            pygame.mixer.music.pause()
+                        except pygame.error:
+                            pass
                 elif e.key == pygame.K_F11:
                     self.toggle_maximize()  # F11 für maximiertes Fenster mit 16:9
                 elif e.key == pygame.K_RETURN and (pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]):
@@ -1189,13 +1197,96 @@ class Game:
     # ---------------- Loop ----------------
     def run(self):
         while self.running:
-            self._handle_events()
-            if not self.paused:
-                self._update()
-            self._draw()
+            if self.game_state == "menu":
+                self._handle_menu()
+            elif self.game_state == "playing":
+                self._handle_events()
+                if not self.paused:
+                    self._update()
+                self._draw()
+            elif self.game_state == "paused":
+                self._handle_pause_menu()
+            elif self.game_state == "game_over":
+                # TODO: Game Over Screen implementieren
+                self.game_state = "menu"
+            
             self.clock.tick(FPS)
         save_highscore(self.highscore)
         pygame.quit()
+    
+    def _handle_menu(self):
+        """Handle Start Menu"""
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+                return
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    self.running = False
+                    return
+                elif event.key == pygame.K_F11:
+                    self.toggle_maximize()  # F11 für maximiertes Fenster mit 16:9
+                elif event.key == pygame.K_RETURN and (pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]):
+                    # Alt+Enter für echtes Vollbild
+                    self.toggle_fullscreen()
+                else:
+                    # Menü-Navigation (nur wenn keine Vollbild-Taste gedrückt wurde)
+                    action = self.menu.handle_input(event)
+                    if action == "start_game":
+                        self.game_state = "playing"
+                        self._start_new_game()
+                    elif action == "quit_game":
+                        self.running = False
+        
+        # Menü zeichnen
+        self.menu.draw(self.screen)
+        pygame.display.flip()
+    
+    def _handle_pause_menu(self):
+        """Handle Pause Menu"""
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+                return
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    self.game_state = "playing"
+                    self.paused = False
+                    return
+                elif event.key == pygame.K_F11:
+                    self.toggle_maximize()  # F11 für maximiertes Fenster mit 16:9
+                elif event.key == pygame.K_RETURN and (pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]):
+                    # Alt+Enter für echtes Vollbild
+                    self.toggle_fullscreen()
+                else:
+                    # Pause-Menü-Navigation (nur wenn keine Vollbild-Taste gedrückt wurde)
+                    action = self.menu.handle_input(event)
+                    if action == "resume":
+                        self.game_state = "playing"
+                        self.paused = False
+                    elif action == "quit_to_menu":
+                        self.game_state = "menu"
+                        self.paused = False
+                        self.menu.set_pause_mode(False)  # Set start menu when returning to main menu
+                        self._reset_game()
+        
+        # Pause-Menü zeichnen
+        self.menu.draw(self.screen)
+        pygame.display.flip()
+    
+    def _start_new_game(self):
+        """Starte ein neues Spiel"""
+        # Game-Zustand zurücksetzen aber Score/Highscore behalten
+        self.paused = False
+        # Hier können weitere Initialisierungen kommen
+        print("Starting new game!")
+    
+    def _reset_game(self):
+        """Setze das Spiel komplett zurück (für zurück zum Menü)"""
+        # Hier könnten wir das Spiel komplett zurücksetzen
+        # Erstmal nur Pause-Status
+        self.paused = False
+        print("Returning to main menu!")
 
     def _update_shield_scale(self):
         """Aktualisiert die Schild-Skalierung basierend auf der aktuellen Spielergröße"""

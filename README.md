@@ -5,11 +5,20 @@ Ein hochperformantes Space Invaders Spiel mit modernen Optimierungen und spannen
 ## 📋 **Patch Notes & Updates**
 
 **📁 [Detailed Patch Notes](patch-notes/)** - Complete changelog with technical details  
-**🔄 Current Version**: v0.1.1 (October 7, 2025)  
-**🎯 Latest Changes**: Complete display system overhaul, native resolution support, adaptive UI scaling  
-**✅ Stable Release**: Core gameplay fully functional with comprehensive display support
+**🔄 Current Version**: v1.2.0 (October 7, 2025)  
+**🎯 Latest Changes**: Complete menu system overhaul with animated glow effects, fullscreen scaling support  
+**✅ Stable Release**: Core gameplay and professional menu system fully functional
 
-### 🖥️ **NEW: Display & Scaling Overhaul**
+### 🎨 **NEW: Professional Menu System**
+
+- **Animated Title Effects**: "SPACE INVADERS" with multi-layered pulsating blue glow
+- **Smart Scaling**: All menu elements scale perfectly across resolutions
+- **Intuitive Navigation**: UP/DOWN arrows with animated selection highlighting
+- **Fullscreen Support**: F11 maximize, Alt+Enter fullscreen in all menu states
+- **Professional Typography**: Large, readable fonts with shadow effects
+
+### 🖥️ **Display & Scaling System**
+
 - **Native Resolution Support**: Works with any monitor resolution including ultrawide
 - **Adaptive UI Scaling**: All elements scale beautifully from 1080p to 4K
 - **Advanced Window Management**: F11 for maximize, Alt+Enter for fullscreen
