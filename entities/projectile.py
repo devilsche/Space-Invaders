@@ -1,6 +1,6 @@
 import math, pygame
 from config import WIDTH, HEIGHT, MASTER_VOLUME, MUSIC_VOLUME, SFX_VOLUME
-from config.projectile import PROJECTILES_CONFIG
+from config.weapon import PROJECTILES_CONFIG
 from entities.explosion import Explosion
 
 def _expl_frames(game, key):
@@ -9,7 +9,7 @@ def _expl_frames(game, key):
 def _apply_aoe(game, cx, cy, radius, max_damage, expl_key: str, expl_scale: float = 1.0):
     # Sammle alle zu zerstörenden Gegner zuerst (Performance-Optimierung)
     enemies_to_destroy = []
-    
+
     # Normale Feinde
     for en in game.enemies[:]:
         ex, ey = en.rect.center
@@ -25,7 +25,7 @@ def _apply_aoe(game, cx, cy, radius, max_damage, expl_key: str, expl_scale: floa
                 # Power-Up Drop-Chance prüfen
                 game._try_drop_powerup(ex, ey)
                 enemies_to_destroy.append((en, ex, ey, "enemies"))
-    
+
     # Batch-Entfernung und Explosion-Erstellung
     frames, fps = _expl_frames(game, expl_key)
     for en, ex, ey, list_type in enemies_to_destroy:
@@ -50,7 +50,7 @@ def _apply_aoe(game, cx, cy, radius, max_damage, expl_key: str, expl_scale: floa
                     # Power-Up Drop-Chance prüfen
                     game._try_drop_powerup(ex, ey)
                     fly_in_enemies_to_destroy.append((en, ex, ey))
-        
+
         # Batch-Entfernung für Fly-In Enemies
         for en, ex, ey in fly_in_enemies_to_destroy:
             game.explosion_manager.add_explosion(ex, ey, frames, fps=fps, scale=expl_scale)
@@ -148,7 +148,7 @@ class Laser(Projectile):
         keep = game.assets.get("expl_laser_keep")
         if keep:
             frames = frames[:keep]
-        
+
         game.explosion_manager.add_explosion(hit_pos[0], hit_pos[1], frames, fps=fps)
 
 class DoubleLaser(Projectile):
@@ -162,7 +162,7 @@ class DoubleLaser(Projectile):
         rad    = math.radians(angle_deg)
         vx     =  speed * math.sin(rad)
         vy     =  base  * speed * math.cos(rad)
-        
+
         # Double Laser Bild
         img = assets.get("double_laser_img", assets.get("laser_img"))  # Fallback auf normalen Laser
 

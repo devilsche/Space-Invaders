@@ -1,7 +1,7 @@
 # entities/player.py
 import pygame
 from config.ship import SHIP_CONFIG
-from config.projectile import PROJECTILES_CONFIG
+from config.weapon import PROJECTILES_CONFIG
 from entities.projectile import Laser, Rocket, Nuke, HomingRocket, Blaster, DoubleLaser
 
 WEAPON_CLS = {"laser": Laser, "rocket": Rocket, "homing_rocket": HomingRocket, "nuke": Nuke, "blaster": Blaster}

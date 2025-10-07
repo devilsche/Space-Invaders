@@ -98,6 +98,12 @@ class Game:
         # Speed Boost Power-Up System
         self.speed_boost_active = False
         self.speed_boost_until = 0
+        
+        # EMP System
+        from entities.emp import EMPPowerUp
+        self.emp_powerup = EMPPowerUp()
+        # EMP startet mit 0 Ladungen - muss durch Power-Ups gesammelt werden
+        self.emp_waves = []  # Aktive EMP-Wellen
         self.speed_boost_multiplier = 1.0
         self.original_player_speed = None
 
@@ -387,6 +393,9 @@ class Game:
                 elif isinstance(effect_result, dict) and effect_result.get("type") == "speed_boost":
                     self._activate_speed_boost(effect_result["duration"], effect_result["multiplier"])
                     print(f"Speed Boost activated for {effect_result['duration']/1000:.1f}s! ({effect_result['multiplier']}x speed)")
+                elif isinstance(effect_result, dict) and effect_result.get("type") == "emp":
+                    self.emp_powerup.add_charge()
+                    print(f"EMP charge added! Charges: {self.emp_powerup.charges}/{self.emp_powerup.max_charges}")
                 else:
                     print(f"Power-Up collected: {effect_result}")
 
@@ -783,6 +792,9 @@ class Game:
         self.weapon_cooldowns["shield_ready_at"] = self._shield_ready_at
         self.hud.update_weapon_status(self.player, now, self.weapon_cooldowns)
         
+        # EMP-Status für HUD aktualisieren
+        self.hud.update_emp_status(self.emp_powerup, now)
+        
         # Power-Up Status aktualisieren - mit Spielzeit (ohne Pause)
         game_time = self.get_game_time()
         super_shield_active = self.powerup_shield is not None
@@ -820,6 +832,13 @@ class Game:
                 self.player_shots.extend(enhanced_shots)
             else:
                 self.player_shots.extend(shots)
+        
+        # EMP-Aktivierung mit V-Taste (V für "Volt" oder "EMP")
+        if keys[pygame.K_v] and not self.paused and not self.player_dead:
+            if self.emp_powerup.can_use(now):
+                if self.emp_powerup.use(self, self.player.rect.center, now):
+                    # Erfolgreiche EMP-Aktivierung - visuelles Feedback
+                    pass
 
         # Projektile bewegen
         for p in self.player_shots[:]:
@@ -839,13 +858,27 @@ class Game:
             if p.offscreen():
                 self.enemy_shots.remove(p)
 
+        # Update EMP-Effekte auf Gegnern
+        dt = self.clock.get_time() / 1000.0  # Delta time in Sekunden
+        for enemy in self.enemies:
+            if hasattr(enemy, 'update_emp_effects'):
+                enemy.update_emp_effects(dt)
+
         for e in self.enemies[:]:
             if e.offscreen():
                 self.enemies.remove(e)
+                
+        # Update EMP-Wellen
+        for emp_wave in self.emp_waves[:]:
+            if not emp_wave.update(dt, self):
+                self.emp_waves.remove(emp_wave)
 
         # Update Fly-In Enemies
         for enemy in self.fly_in_enemies[:]:
             enemy.update()
+            # Update EMP-Effekte auch für fly_in_enemies
+            if hasattr(enemy, 'update_emp_effects'):
+                enemy.update_emp_effects(dt)
             # Entferne Enemies die den Bildschirm verlassen haben
             if (enemy.rect.y > HEIGHT + 50 or
                 enemy.rect.x < -100 or
@@ -1065,6 +1098,10 @@ class Game:
         for en in self.fly_in_enemies: en.draw(self.screen)  # Fly-In Enemies zeichnen
         for powerup in self.powerups: powerup.draw(self.screen)  # Power-Ups zeichnen
         self.explosion_manager.draw(self.screen)  # Optimiertes Explosion-Drawing
+        
+        # EMP-Wellen zeichnen
+        for emp_wave in self.emp_waves:
+            emp_wave.draw(self.screen)
 
         if not self.player_dead:
             self.player.draw(self.screen)

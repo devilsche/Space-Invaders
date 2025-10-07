@@ -75,6 +75,42 @@ class Enemy:
 
         # HP-Bar Timer
         self._show_hp_until = 0
+        
+        # EMP-Effekte
+        self.emp_disable_timer = 0     # Waffen disabled
+        self.emp_movement_timer = 0    # Bewegung gestört
+        self.emp_effect_timer = 0      # Visuelle Störung
+        self.can_shoot = True          # Schießfähigkeit
+        self.original_movement_speed = self.move_cfg.get("speed", 2)
+
+    # --- EMP-Effekte verwalten ---
+    def update_emp_effects(self, dt):
+        """Update EMP-Timers"""
+        if self.emp_disable_timer > 0:
+            self.emp_disable_timer -= dt
+            self.can_shoot = False
+        else:
+            self.can_shoot = True
+            
+        if self.emp_movement_timer > 0:
+            self.emp_movement_timer -= dt
+            # Bewegung verlangsamt - für alle Bewegungstypen
+            from config.weapon import EMP_CONFIG
+            speed_factor = EMP_CONFIG["movement_speed_factor"]
+            
+            if hasattr(self, 'move_cfg') and "speed" in self.move_cfg:
+                self.move_cfg["speed"] = self.original_movement_speed * speed_factor
+            if hasattr(self, '_speed'):
+                self._speed = self.original_movement_speed * speed_factor
+        else:
+            # Normale Bewegungsgeschwindigkeit wiederherstellen
+            if hasattr(self, 'move_cfg') and "speed" in self.move_cfg:
+                self.move_cfg["speed"] = self.original_movement_speed
+            if hasattr(self, '_speed'):
+                self._speed = self.original_movement_speed
+                
+        if self.emp_effect_timer > 0:
+            self.emp_effect_timer -= dt
 
     # --- Bewegung ---
     def update(self, dx=0):
@@ -109,6 +145,9 @@ class Enemy:
             self._target_y = self.move_cfg.get("target_y", 100)  # Ziel Y-Position
             self._path_type = self.move_cfg.get("path", "straight")  # Laufbahn-Typ
             self._speed = self.move_cfg.get("speed", 2)
+            # Original-Speed für EMP-Effekte speichern falls noch nicht gesetzt
+            if not hasattr(self, 'original_movement_speed'):
+                self.original_movement_speed = self._speed
 
         elapsed = (now - self._spawn_time) / 1000.0  # Sekunden
 
@@ -149,7 +188,11 @@ class Enemy:
     # --- Schießen (nur shoot_weapon) ---
     def shoot_weapon(self, weapon: str, amount: int = 1):
         import pygame, random
-        from config.projectile import PROJECTILES_CONFIG
+        from config.weapon import PROJECTILES_CONFIG
+
+        # EMP-Check: Kann nicht schießen wenn EMP-disabled
+        if not self.can_shoot:
+            return []
 
         # 1) Cooldown check
         now = pygame.time.get_ticks()
@@ -221,6 +264,37 @@ class Enemy:
         pygame.draw.rect(screen, (0, 0, 0), (x, top, BAR_W, BAR_H), 1)
 
     def draw(self, screen):
+        # Basis-Sprite normal zeichnen (kein Flackern mehr)
         screen.blit(self.img, self.rect)
+            
+        # HP-Bar zeichnen
         if pygame.time.get_ticks() < self._show_hp_until:
             self._draw_hp_bar(screen)
+            
+        # EMP-Status-Indikator
+        if self.emp_disable_timer > 0 or self.emp_movement_timer > 0:
+            self._draw_emp_indicator(screen)
+    
+    def _draw_emp_indicator(self, screen):
+        """Kleiner EMP-Indikator über dem Gegner"""
+        center_x = self.rect.centerx
+        indicator_y = self.rect.top - 15
+        
+        # Kleiner blinkender Punkt
+        if int(pygame.time.get_ticks() / 200) % 2:
+            pygame.draw.circle(screen, (0, 150, 255), (center_x, indicator_y), 3)
+            pygame.draw.circle(screen, (255, 255, 255), (center_x, indicator_y), 1)
+    
+    def apply_emp_effect(self):
+        """Wende EMP-Effekte auf diesen Gegner an"""
+        from config.weapon import EMP_CONFIG
+        
+        # Waffen temporär deaktivieren
+        self.can_shoot = False
+        self.emp_disable_timer = EMP_CONFIG["weapon_disable_duration"]
+        
+        # Bewegung stören
+        self.emp_movement_timer = EMP_CONFIG["movement_disable_duration"]
+        
+        # Visuelle Störung hinzufügen
+        self.emp_effect_timer = EMP_CONFIG["visual_effect_duration"]

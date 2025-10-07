@@ -1,5 +1,8 @@
-# config/projectiles.py
-PROJECTILES_CONFIG = {
+# config/weapon.py - Konsolidierte Waffen- und EMP-Konfiguration
+# Ersetzt: config/projectile.py und config/emp.py
+
+# Projektil/Waffen-Konfiguration (für Player und Enemy Waffen)
+WEAPON_CONFIG = {
     "laser": {
         "dmg": 50,
         "size": (5, 18),
@@ -132,5 +135,47 @@ PROJECTILES_CONFIG = {
             "scale": 2.5,
             "fps": 20
         }
+    },
+    "emp": {
+        "dmg": 0,                    # Kein direkter Schaden
+        "size": (64, 64),            # Start-Größe (entspricht start_diameter)
+        "radius": 800,               # Maximum-Reichweite (entspricht max_diameter)
+        "cooldown": 5000,            # 5 Sekunden zwischen EMP-Einsätzen
+        "amount": 0,                 # Keine Startladungen - nur via Power-Up
+        "speed": 1600,               # Expansions-Geschwindigkeit: 800px in 0.5s = 1600px/s
+        "accel": 1.0,                # Konstante Expansion
+        "type": "emp_pulse",         # Spezieller EMP-Typ
+        "img": "assets/images/shield3.png",  # 1024x1024 4x4 Spritesheet
+        
+        # EMP-spezifische Eigenschaften (nutzen bestehende Felder kreativ)
+        "weapon_disable_duration": 10.0,     # Sekunden ohne Schießen
+        "movement_disable_duration": 7.0,    # Sekunden gestörte Bewegung  
+        "movement_speed_factor": 0.1,        # 10% der normalen Geschwindigkeit (90% Verlangsamung)
+        "visual_effect_duration": 10.0,      # Sekunden für blauen Indikator
+        "score_bonus": 50,                   # Punkte pro betroffenem Gegner
+        "charges_max": 99,                   # Maximum 99 EMP-Ladungen
+        "charges_per_powerup": 1,            # +1 Ladung pro Power-Up (nicht 3)
+        "drop_chance": 0.05,                 # 5% Chance bei Enemy-Tod
+        "activation_key": "V",               # V-Taste für EMP-Aktivierung
+        
+        # Sound & Explosion wie andere Waffen strukturiert
+        "sound_start": "assets/sound/laser_shoot.wav",  # Placeholder
+        "sound_hit": "assets/sound/laser_explosion.wav", # Placeholder
+        "explosion": {
+            "sheet": "assets/images/exp2.png",
+            "cols": 4,
+            "rows": 4,
+            "fw": 64,
+            "fh": 64,
+            "scale": 1.0,
+            "fps": 16,
+            "keep": 4
+        }
     }
 }
+
+# Alias für Rückwärtskompatibilität
+PROJECTILES_CONFIG = WEAPON_CONFIG
+
+# EMP-Konfiguration als Alias für einheitliche Nutzung
+EMP_CONFIG = WEAPON_CONFIG["emp"]

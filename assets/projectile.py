@@ -1,7 +1,7 @@
 # assets/projectiles.py
 import pygame
 import os
-from config.projectile import PROJECTILES_CONFIG
+from config.weapon import PROJECTILES_CONFIG
 
 
 def load_projectile_assets():

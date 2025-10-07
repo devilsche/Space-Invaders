@@ -84,6 +84,9 @@ class PowerUp:
             duration = self.config["speed_duration"]
             multiplier = self.config["speed_multiplier"]
             return {"type": "speed_boost", "duration": duration, "multiplier": multiplier}
+        elif self.type == "emp":
+            # EMP-Ladung hinzufügen
+            return {"type": "emp"}
 
         return "Power-Up!"
 

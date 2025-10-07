@@ -22,7 +22,7 @@ class HUD:
 
         # Icon-Positionen
         self.icons = {}
-        self.icon_order = ["rocket", "homing_rocket", "blaster", "nuke", "shield"]
+        self.icon_order = ["rocket", "homing_rocket", "blaster", "nuke", "shield", "emp"]
 
         for i, weapon in enumerate(self.icon_order):
             x = self.start_x + i * (self.icon_size + self.icon_spacing)
@@ -135,7 +135,8 @@ class HUD:
             "homing_rocket": "homingRocket.png",  # Eigenes Homing Rocket Icon
             "blaster": "blaster.png",  # Eigenes Blaster Icon
             "nuke": "nuke.png",
-            "shield": "shield.png"
+            "shield": "shield.png",
+            "emp": "shield.png"  # Verwende shield.png für EMP (wird blau eingefärbt)
         }
 
         for weapon, filename in icon_mapping.items():
@@ -159,6 +160,13 @@ class HUD:
                     blue_overlay = pygame.Surface(scaled_img.get_size(), pygame.SRCALPHA)
                     blue_overlay.fill((100, 150, 255, 100))
                     colored_img.blit(blue_overlay, (0, 0), special_flags=pygame.BLEND_MULT)
+                    self.icon_images[weapon] = colored_img
+                elif weapon == "emp":
+                    # EMP: Elektrisches Blau-Weiß
+                    colored_img = scaled_img.copy()
+                    emp_overlay = pygame.Surface(scaled_img.get_size(), pygame.SRCALPHA)
+                    emp_overlay.fill((50, 200, 255, 120))
+                    colored_img.blit(emp_overlay, (0, 0), special_flags=pygame.BLEND_MULT)
                     self.icon_images[weapon] = colored_img
                 else:
                     # Verwende das Original-Icon ohne Farbüberlagerung
@@ -220,7 +228,7 @@ class HUD:
     def update_weapon_status(self, player, current_time, cooldowns):
         """Aktualisiert den Status der Waffen basierend auf Verfügbarkeit und Cooldowns"""
         from config.ship import SHIP_CONFIG
-        from config.projectile import PROJECTILES_CONFIG
+        from config.weapon import PROJECTILES_CONFIG
 
         ship_config = SHIP_CONFIG.get(player.stage, {})
         weapons = ship_config.get("weapons", {})
@@ -262,6 +270,17 @@ class HUD:
             shield_progress = 1.0
         self.icons["shield"]["available"] = shield_available
         self.icons["shield"]["cooldown_progress"] = shield_progress
+        
+        # EMP Status (immer verfügbar, aber mit Cooldown)
+        self.icons["emp"]["available"] = True  # EMP ist immer verfügbar
+        self.icons["emp"]["cooldown_progress"] = 1.0  # Wird vom Game-Update gesetzt
+
+    def update_emp_status(self, emp_powerup, current_time):
+        """Aktualisiert EMP-Status für HUD"""
+        self.icons["emp"]["available"] = emp_powerup.charges > 0
+        self.icons["emp"]["cooldown_progress"] = emp_powerup.get_cooldown_progress(current_time)
+        # Zeige Anzahl der verfügbaren Ladungen
+        self.icons["emp"]["charges"] = emp_powerup.charges
 
     def update_powerup_status(self, double_laser_active, double_laser_until, super_shield_active, super_shield_until, speed_boost_active, speed_boost_until, current_time):
         """Aktualisiert Power-Up Status"""
@@ -319,6 +338,16 @@ class HUD:
                 color_icon = self.icon_images[weapon]
                 gray_icon = self.icon_images_gray[weapon]
                 self.blit_color_from_bottom_feather(screen, color_icon, gray_icon, pos, cooldown_progress)
+                
+                # EMP: Zeige Ladungsanzahl
+                if weapon == "emp" and "charges" in data:
+                    charges = data["charges"]
+                    if charges > 0:
+                        # Kleine Zahl in der Ecke
+                        font = pygame.font.Font(None, 24)
+                        charge_text = font.render(str(charges), True, (255, 255, 255))
+                        charge_pos = (pos[0] + self.icon_size - 15, pos[1] + 5)
+                        screen.blit(charge_text, charge_pos)
 
         # Power-Up Icons unten rechts zeichnen
         self._draw_powerup_icons(screen)

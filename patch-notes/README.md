@@ -1,6 +1,41 @@
 # 📋 Space Invaders - Patch Notes Overview
 
-This directory contains detailed patch notes for all Space Invaders releases.
+# 📋 Space Invaders - Patch Notes
+
+Release history and detailed change logs for the Space Invaders game.
+
+## 🚀 Version History
+
+### [v1.1.0 - EMP System Overhaul](v1.1.0_2025-10-07_emp-system-overhaul.md) 
+**October 7, 2025** - *"Electromagnetic Warfare"*
+- ⚡ **NEW**: EMP Weapon System with area-of-effect enemy disable
+- 📦 Configuration system consolidation (weapon.py unified)  
+- 🎯 Progressive EMP collection system (0-99 charges)
+- 🐛 Key conflict resolution and movement fixes
+
+### [v1.0.0 - Display & Scaling Overhaul](v1.0.0_2025-10-07.md)
+**October 7, 2025** - *"Resolution Independence"*
+- 🖥️ **MAJOR**: Variable resolution support and ultrawide compatibility
+- ⚡ Power-up drop system rebalancing
+- 🛡️ Shield scaling and damage logic fixes
+- 🎮 Enhanced gameplay mechanics
+
+---
+
+## 📖 Reading the Patch Notes
+
+Each patch note includes:
+- **🚀 Major Features** - New gameplay systems and mechanics
+- **🔧 Technical Improvements** - Performance and architecture updates  
+- **🐛 Bug Fixes** - Resolved issues and behavioral corrections
+- **⚖️ Balance Changes** - Gameplay tuning and difficulty adjustments
+- **📋 Configuration Changes** - Settings and parameter updates
+
+## 🎯 Quick Navigation
+
+- **Latest Version**: v1.1.0 (EMP System)
+- **Stable Version**: v1.0.0 (Display Overhaul)
+- **Development Focus**: Advanced weapon systems and tactical gameplay
 
 ## 📁 **File Naming Convention**
 

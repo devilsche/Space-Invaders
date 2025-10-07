@@ -43,5 +43,14 @@ POWERUP_CONFIG = {
         "points": 75,             # Bonus-Punkte beim Aufsammeln
         "speed_duration": 10000,  # 10 Sekunden Speed Boost
         "speed_multiplier": 1.75, # 75% schneller
+    },
+    "emp": {
+        "img": "assets/images/icon/nuke.png",  # Nutze Nuke-Icon für EMP (oder erstelle eigenes)
+        "size": (70, 70),         # Größe für Power-Up Icon
+        "drop_chance": 0.05,      # 5% Chance bei Enemy-Tod (seltenes Power-Up)
+        "fall_speed": 2,
+        "duration": 10000,        # 10 Sekunden bis Verschwinden
+        "points": 150,            # Hohe Punkte für mächtiges Power-Up
+        "min_stage": 1,           # Ab Stage 1 verfügbar
     }
 }
