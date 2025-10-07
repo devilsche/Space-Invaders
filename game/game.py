@@ -4,8 +4,10 @@ from assets.load_assets import load_assets
 from system.utils       import load_highscore, save_highscore, scale, scale_pos, scale_size
 from system.hud         import HUD
 from system.health_bar  import HealthBar
+from system.explosion_manager import ExplosionManager
 from config             import *
 from config.powerup     import POWERUP_CONFIG
+from config.shield      import SHIELD_CONFIG
 from entities           import *
 
 class Game:
@@ -32,7 +34,7 @@ class Game:
         self.player_shots = []
         self.enemy_shots  = []
         self.enemies      = []
-        self.explosions   = []
+        self.explosion_manager = ExplosionManager(max_explosions=25)  # Optimierter Explosion-Manager
 
         self.enemy_dir   = 1
         self.enemy_speed = 0.0
@@ -87,6 +89,12 @@ class Game:
         # DoubleLaser Power-Up System
         self.double_laser_active = False
         self.double_laser_until = 0
+
+        # Speed Boost Power-Up System
+        self.speed_boost_active = False
+        self.speed_boost_until = 0
+        self.speed_boost_multiplier = 1.0
+        self.original_player_speed = None
 
         # Kill Counter Display System
         self.kill_display_text = ""
@@ -177,15 +185,25 @@ class Game:
     # ---------------- Power-Up System ----------------
     def _try_drop_powerup(self, x, y):
         """Versucht ein Power-Up zu droppen mit konfigurierten Wahrscheinlichkeiten"""
-        # Nur droppen wenn Player verletzt ist
-        if self.player.get_health_percentage() >= 1.0:
-            return
-
+        # Power-Ups können immer droppen (entferne Health-Einschränkung)
+        
+        # Erstelle gewichtete Liste basierend auf drop_chance
+        weighted_powerups = []
         for powerup_type, config in POWERUP_CONFIG.items():
-            if random.random() < config["drop_chance"]:
-                powerup = PowerUp(x, y, powerup_type, self.assets)
-                self.powerups.append(powerup)
-                break  # Nur ein Power-Up pro Enemy
+            # Jede drop_chance wird als Gewicht verwendet
+            weight = int(config["drop_chance"] * 1000)  # Skaliere für bessere Genauigkeit
+            weighted_powerups.extend([powerup_type] * weight)
+        
+        # Wenn kein Power-Up gewählt wird (basierend auf Gesamtwahrscheinlichkeit)
+        total_chance = sum(config["drop_chance"] for config in POWERUP_CONFIG.values())
+        if random.random() > total_chance:
+            return  # Kein Drop
+            
+        # Wähle zufällig aus gewichteter Liste
+        if weighted_powerups:
+            chosen_type = random.choice(weighted_powerups)
+            powerup = PowerUp(x, y, chosen_type, self.assets)
+            self.powerups.append(powerup)
 
     def _update_powerups(self):
         """Aktualisiert alle Power-Ups"""
@@ -209,6 +227,9 @@ class Game:
                 elif isinstance(effect_result, dict) and effect_result.get("type") == "double_laser":
                     self._activate_double_laser(effect_result["duration"])
                     print(f"Double Laser activated for {effect_result['duration']/1000:.1f}s!")
+                elif isinstance(effect_result, dict) and effect_result.get("type") == "speed_boost":
+                    self._activate_speed_boost(effect_result["duration"], effect_result["multiplier"])
+                    print(f"Speed Boost activated for {effect_result['duration']/1000:.1f}s! ({effect_result['multiplier']}x speed)")
                 else:
                     print(f"Power-Up collected: {effect_result}")
 
@@ -241,6 +262,22 @@ class Game:
         now = self.get_game_time()
         self.double_laser_active = True
         self.double_laser_until = now + duration
+
+    def _activate_speed_boost(self, duration, multiplier):
+        """Aktiviert den Speed Boost Power-Up Modus"""
+        now = self.get_game_time()
+        
+        # Speichere ursprüngliche Geschwindigkeit beim ersten Aktivieren
+        if self.original_player_speed is None:
+            self.original_player_speed = self.player.speed
+        
+        # Aktiviere Speed Boost
+        self.speed_boost_active = True
+        self.speed_boost_until = now + duration
+        self.speed_boost_multiplier = multiplier
+        
+        # Wende Speed-Multiplikator an
+        self.player.speed = self.original_player_speed * multiplier
 
     # ---------------- Enemy Bewegung ----------------
     def _update_wave_enemies(self):
@@ -594,7 +631,9 @@ class Game:
         super_shield_active = self.powerup_shield is not None
         super_shield_until = self.powerup_shield_until if super_shield_active else 0
         self.hud.update_powerup_status(self.double_laser_active, self.double_laser_until, 
-                                     super_shield_active, super_shield_until, game_time)
+                                     super_shield_active, super_shield_until,
+                                     self.speed_boost_active, self.speed_boost_until,
+                                     game_time)
 
         # Health Bar aktualisieren
         if not self.player_dead:
@@ -676,6 +715,14 @@ class Game:
             if self.get_game_time() >= self.double_laser_until:
                 self.double_laser_active = False
 
+        # Speed Boost Power-Up Update
+        if self.speed_boost_active:
+            if self.get_game_time() >= self.speed_boost_until:
+                self.speed_boost_active = False
+                # Stelle ursprüngliche Geschwindigkeit wieder her
+                if self.original_player_speed is not None:
+                    self.player.speed = self.original_player_speed
+
         # Gegner bewegen - getrennt nach Bewegungstyp
         self._update_wave_enemies()
         self._update_fly_in_enemies()
@@ -696,9 +743,14 @@ class Game:
                 
                 # Normales Schild prüfen
                 if self.shield and not self.shield.is_broken() and self.shield.hit_by_projectile(p.rect):
-                    # Schild nimmt Schaden
                     damage = getattr(p, "dmg", 100)
-                    shield_still_active = self.shield.take_damage(damage)
+                    
+                    # Normales Schild absorbiert nur den Anteil, den es blockiert (90%)
+                    shield_config = SHIELD_CONFIG[1]["shield"]  # Normales Shield Config
+                    damage_reduction = shield_config.get("damage_reduction", 0.9)
+                    absorbed_damage = min(damage * damage_reduction, self.shield.current_health)
+                    
+                    shield_still_active = self.shield.take_damage(absorbed_damage)
 
                     self.shield.play_hit_sound(self.assets)
                     hit_shield = True
@@ -710,9 +762,11 @@ class Game:
 
                 # PowerUp-Schild prüfen (hat Priorität und absorbiert 100% des Schadens)
                 if self.powerup_shield and not self.powerup_shield.is_broken() and self.powerup_shield.hit_by_projectile(p.rect):
-                    # PowerUp-Schild nimmt Schaden
                     damage = getattr(p, "dmg", 100)
-                    shield_still_active = self.powerup_shield.take_damage(damage)
+                    
+                    # PowerUp-Schild absorbiert 100% des Schadens
+                    absorbed_damage = min(damage, self.powerup_shield.current_health)
+                    shield_still_active = self.powerup_shield.take_damage(absorbed_damage)
 
                     self.powerup_shield.play_hit_sound(self.assets)
                     hit_powerup_shield = True
@@ -721,7 +775,7 @@ class Game:
                     if not shield_still_active:
                         self.powerup_shield = None
 
-                    # PowerUp-Schild blockiert das Projektil vollständig
+                    # PowerUp-Schild blockiert das Projektil vollständig (100% absorption)
                     self.enemy_shots.remove(p)
                     continue
 
@@ -755,9 +809,9 @@ class Game:
                     if player_destroyed:
                         frames = self.assets.get("expl_laser", [])
                         fps    = self.assets.get("expl_laser_fps", 24)
-                        self.explosions.append(Explosion(self.player.rect.centerx,
-                                                        self.player.rect.centery,
-                                                        frames, fps=fps, scale=2.5))
+                        self.explosion_manager.add_explosion(self.player.rect.centerx,
+                                                           self.player.rect.centery,
+                                                           frames, fps=fps, scale=2.5)
 
                         self.player_dead       = True
                         self._respawn_ready_at = now + self.lives_cooldown
@@ -810,9 +864,9 @@ class Game:
 
                 frames = self.assets.get("expl_rocket", []) or self.assets.get("expl_laser", [])
                 fps    = self.assets.get("expl_rocket_fps", 24)
-                self.explosions.append(Explosion(hit_enemy.rect.centerx,
-                                                hit_enemy.rect.centery,
-                                                frames, fps=fps, scale=1.2))
+                self.explosion_manager.add_explosion(hit_enemy.rect.centerx,
+                                                    hit_enemy.rect.centery,
+                                                    frames, fps=fps, scale=1.2)
                 # Entfernen nur, wenn noch vorhanden
                 if hit_enemy in self.enemies:
                     self.enemies.remove(hit_enemy)
@@ -821,10 +875,8 @@ class Game:
                     self._fly_in_spawn_count = max(0, self._fly_in_spawn_count - 1)  # Count dekrementieren
 
 
-        # Explosionen updaten
-        for ex in self.explosions[:]:
-            ex.update()
-            if ex.done: self.explosions.remove(ex)
+        # Explosionen updaten - optimiert
+        self.explosion_manager.update()
 
         # Welle fertig -> neue bauen
         # if not self.enemies and not self.player_dead:
@@ -840,7 +892,7 @@ class Game:
         for en in self.enemies:     en.draw(self.screen)
         for en in self.fly_in_enemies: en.draw(self.screen)  # Fly-In Enemies zeichnen
         for powerup in self.powerups: powerup.draw(self.screen)  # Power-Ups zeichnen
-        for ex in self.explosions:  ex.draw(self.screen)
+        self.explosion_manager.draw(self.screen)  # Optimiertes Explosion-Drawing
 
         if not self.player_dead:
             self.player.draw(self.screen)
@@ -934,3 +986,11 @@ class Game:
 
             # Shield-Objekt die neue Skalierung durchführen lassen
             self.shield.rescale_for_player(self.player.rect, base_frames, base_scale_factor)
+        
+        # Auch PowerUp Shield (Super Shield) aktualisieren
+        if self.powerup_shield:
+            base_frames = self.assets["shield_frames"]
+            base_scale_factor = self.assets["shield_scale"]
+
+            # PowerUp Shield-Objekt die neue Skalierung durchführen lassen
+            self.powerup_shield.rescale_for_player(self.player.rect, base_frames, base_scale_factor)

@@ -33,5 +33,15 @@ POWERUP_CONFIG = {
         "duration": 10000,        # 10 Sekunden bis Verschwinden
         "points": 100,            # Mehr Punkte für seltenes Power-Up
         "weapon_duration": 15000, # 15 Sekunden DoubleLaser-Modus
+    },
+    "speed_boost": {
+        "img": "assets/images/icon/speedup.png",
+        "size": (70, 70),         # Größe für Power-Up Icon
+        "drop_chance": 0.06,      # 6% Chance bei Enemy-Tod
+        "fall_speed": 2,
+        "duration": 8000,         # 8 Sekunden bis Verschwinden
+        "points": 75,             # Bonus-Punkte beim Aufsammeln
+        "speed_duration": 10000,  # 10 Sekunden Speed Boost
+        "speed_multiplier": 1.75, # 75% schneller
     }
 }

@@ -79,6 +79,11 @@ class PowerUp:
             # DoubleLaser temporär aktivieren
             duration = self.config["weapon_duration"]
             return {"type": "double_laser", "duration": duration}
+        elif self.type == "speed_boost":
+            # Speed Boost temporär aktivieren
+            duration = self.config["speed_duration"]
+            multiplier = self.config["speed_multiplier"]
+            return {"type": "speed_boost", "duration": duration, "multiplier": multiplier}
 
         return "Power-Up!"
 

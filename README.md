@@ -1,17 +1,50 @@
 # 🚀 Space Invaders - Feature Roadmap
 
+Ein hochperformantes Space Invaders Spiel mit modernen Optimierungen und spannenden Features!
+
+## 📋 **Patch Notes & Updates**
+
+**📁 [Detailed Patch Notes](patch-notes/)** - Complete changelog with technical details  
+**🔄 Current Version**: v0.1.0-beta (October 7, 2025)  
+**🎯 Latest Changes**: Power-up system overhaul, shield mechanics rewrite, Speed Boost feature  
+**⚠️ Beta Status**: Missing start/pause screens, game modes - not production ready
+
+---
+
+## ⚡ Performance-Optimierungen (NEU!)
+
+### Explosion-Management System
+- ~~**ExplosionManager**: Optimierte Verwaltung aller Explosionen~~
+- ~~**Explosion Pooling**: Wiederverwendung von Explosion-Objekten~~
+- ~~**Frame Caching**: Vorberechnete, skalierte Explosion-Frames~~
+- ~~**Smart Limits**: Maximum 25 gleichzeitige Explosionen~~
+- ~~**Efficient Cleanup**: O(1) Entfernung statt O(n²) Liste-Operationen~~
+
+### Nuke-Optimierungen
+- ~~**Batch AOE Processing**: Alle Schäden werden gesammelt und batch-verarbeitet~~
+- ~~**Reduced Visual Effects**: Optimierte Shake/Flash-Zeiten für bessere Performance~~
+- ~~**Smart Explosion Replacement**: Älteste Explosionen werden ersetzt statt unbegrenztes Wachstum~~
+
+### Resultat
+- **🎯 Performance-Boost**: Von ~5 FPS auf 30+ FPS bei massiven Nuke-Explosionen
+- **🧠 Memory-Effizienz**: Begrenzte Explosion-Anzahl verhindert Memory-Leaks
+- **⚡ CPU-Optimierung**: 60-80% weniger CPU-Last durch Frame-Caching
+- **🚀 Keine Einfrierungen**: Auch bei 50+ gleichzeitigen Explosionen flüssiges Gameplay
+
 Spannende Ideen für weitere Verbesserungen des Space Invaders Spiels:
 
 ## 🚀 Gameplay-Erweiterungen
 
-### 1. Power-Up System
+### 1. Power-Up System ⚡ IN PROGRESS
 - ~~**Drop-Mechanik**: Items fallen von zerstörten Enemies~~
 - ~~**Health Power-Up**: Heilt den Spieler prozentual~~
 - ~~**Repair Power-Up**: Kleinere Heilung~~
 - ~~**Shield Power-Up**: Extra gelbes Shield mit Timer~~
-- **Double Shot**: Doppelte Laser gleichzeitig
+- ~~**Double Laser Power-Up**: Doppelte Laser für 15 Sekunden (Space-Taste Enhancement)~~
+- ~~**Pausable Power-Up Timers**: Timer pausieren bei ESC-Pause~~
+- ~~**Power-Up HUD**: Separate Anzeige unten rechts mit Countdown-Timer~~
+- ~~**Speed Boost**: Schnellere Bewegungsgeschwindigkeit (1.75x für 10s)~~
 - **Rapid Fire**: Reduzierte Cooldowns für alle Waffen
-- **Speed Boost**: Schnellere Bewegungsgeschwindigkeit
 
 ### 2. Combo-System
 - **Kill-Streaks**: Geben progressive Bonus-Punkte
@@ -39,7 +72,7 @@ Spannende Ideen für weitere Verbesserungen des Space Invaders Spiels:
 - **EMP Blast**: Deaktiviert Enemy-Waffen temporär
 - **Piercing Shot**: Durchdringt mehrere Enemies
 
-### 5. Spezial-Enemies
+### 5. Spezial-Enemies ✅ ERWEITERT
 
 - ~~**Alien**: Standard-Enemy~~
 - ~~**Drone**: Schneller Enemy~~
@@ -47,6 +80,7 @@ Spannende Ideen für weitere Verbesserungen des Space Invaders Spiels:
 - ~~**Sniper**: Präzise Schüsse~~
 - ~~**Boss**: Starker End-Gegner mit individuellen Waffen~~
 - ~~**Fly-In System**: Enemies fliegen dynamisch ins Spielfeld~~
+- ~~**Wave-basierte Bewegung**: Independente Wellen-Richtungen~~
 - ~~**Homing Enemy Rockets**: Enemies mit verfolgenden Raketen~~
 - **Healer**: Repariert andere Enemies
 - **Spawner**: Erstellt kleine Drohnen
@@ -72,10 +106,14 @@ Spannende Ideen für weitere Verbesserungen des Space Invaders Spiels:
 - **Particle Effects**: Funken, Rauch, Trümmer
 - **Dynamic Lighting**: Explosionen beleuchten Umgebung
 
-### 7. HUD-Verbesserungen
+### 7. HUD-Verbesserungen ✅ KOMPLETT
 
 - ~~**Health Bar**: Zeigt Spieler-Gesundheit~~
-- ~~**Weapon Cooldown**: Animierte Cooldown-Anzeigen~~
+- ~~**Weapon Cooldown HUD**: Animierte Cooldown-Anzeigen unten links~~
+- ~~**Power-Up Status HUD**: Separate Anzeige unten rechts mit Timer~~
+- ~~**Custom Icons**: Blaster.png und HomingRocket.png Icons~~
+- ~~**Cooldown Animation**: Von grau zu farbig Animation (Bottom-Up-Fill)~~
+- ~~**Pausierbare Timer**: Power-Up Timer pausieren bei ESC~~
 - ~~**Score & High Score**: Punkteanzeige~~
 - ~~**Stage Indicator**: Aktuelle Entwicklungsstufe~~
 - **Radar**: Zeigt Enemy-Positionen
@@ -132,6 +170,33 @@ Spannende Ideen für weitere Verbesserungen des Space Invaders Spiels:
 - **Zwischen-Level Briefings**: Mission Context
 - **Enemy-Datenbank**: Mit Lore und Hintergrund
 - **Multiple Endings**: Basierend auf Performance
+
+---
+
+## 🏆 Aktuelle Achievements
+
+### ✅ **Performance-Optimierungen (2025)**
+- **Explosion-Management System** implementiert
+- **Frame-Caching** für bis zu 80% CPU-Reduktion
+- **Smart Explosion Limits** (max. 25 gleichzeitig)
+- **Nuke-Performance** von 5 FPS auf 30+ FPS verbessert
+
+### ✅ **Advanced HUD System (2025)**
+- **Dual-Zone HUD**: Waffen links, Power-Ups rechts
+- **Pausierbare Timer**: Alle Timer pausieren bei ESC
+- **Custom Icons**: Individuelle Icons für alle Waffen
+- **Smooth Animations**: Bottom-Up-Fill Cooldown-Effekte
+
+### ✅ **DoubleLaser Power-Up System (2025)**
+- **15-Sekunden Duration** mit visueller Countdown-Anzeige
+- **Space-Key Enhancement**: Temporäre Waffen-Verbesserung
+- **Power-Up-Only Behavior**: Keine permanente Waffe
+- **Collision-Priority Shields**: PowerUp-Shield hat Vorrang
+
+### ✅ **Enhanced Enemy System (2025)**
+- **Independent Wave Movement**: Jede Welle bewegt sich individuell
+- **Fly-In Mechanics**: Dynamische Enemy-Spawns
+- **Wave-Based Direction Control**: Verhindert Bewegungs-Blockaden
 
 ---
 

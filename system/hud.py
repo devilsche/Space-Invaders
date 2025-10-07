@@ -31,7 +31,7 @@ class HUD:
 
         # Power-Up Status (unten rechts)
         self.powerup_icons = {}
-        self.powerup_order = ["double_laser", "super_shield"]
+        self.powerup_order = ["double_laser", "super_shield", "speed_boost"]
         self.powerup_icon_size = 48
         self.powerup_spacing = 8
         
@@ -43,7 +43,15 @@ class HUD:
             x = powerup_start_x - i * (self.powerup_icon_size + self.powerup_spacing)
             y = powerup_start_y
             # Standard-Werte, werden später überschrieben
-            total_time = 15000 if powerup == "double_laser" else 8000  # Shield hat 8s
+            if powerup == "double_laser":
+                total_time = 15000  # 15s
+            elif powerup == "super_shield":
+                total_time = 8000   # 8s
+            elif powerup == "speed_boost":
+                total_time = 10000  # 10s
+            else:
+                total_time = 8000   # Default
+                
             self.powerup_icons[powerup] = {
                 "pos": (x, y),
                 "active": False,
@@ -165,7 +173,8 @@ class HUD:
         # Power-Up Icons laden
         powerup_mapping = {
             "double_laser": "doubleLaser.png",
-            "super_shield": "shield.png"
+            "super_shield": "shield.png",
+            "speed_boost": "speedup.png"
         }
 
         for powerup, filename in powerup_mapping.items():
@@ -185,6 +194,13 @@ class HUD:
                     yellow_overlay = pygame.Surface(scaled_img.get_size(), pygame.SRCALPHA)
                     yellow_overlay.fill((255, 255, 100, 50))  # Dezente gelbe Färbung
                     colored_img.blit(yellow_overlay, (0, 0), special_flags=pygame.BLEND_MULT)
+                    self.powerup_images[powerup] = colored_img
+                elif powerup == "speed_boost":
+                    # Speed Boost: Bläuliches Glühen für Geschwindigkeit
+                    colored_img = scaled_img.copy()
+                    blue_overlay = pygame.Surface(scaled_img.get_size(), pygame.SRCALPHA)
+                    blue_overlay.fill((100, 200, 255, 60))  # Helles Blau
+                    colored_img.blit(blue_overlay, (0, 0), special_flags=pygame.BLEND_MULT)
                     self.powerup_images[powerup] = colored_img
                 else:
                     self.powerup_images[powerup] = scaled_img
@@ -242,7 +258,7 @@ class HUD:
         self.icons["shield"]["available"] = shield_available
         self.icons["shield"]["cooldown_progress"] = shield_progress
 
-    def update_powerup_status(self, double_laser_active, double_laser_until, super_shield_active, super_shield_until, current_time):
+    def update_powerup_status(self, double_laser_active, double_laser_until, super_shield_active, super_shield_until, speed_boost_active, speed_boost_until, current_time):
         """Aktualisiert Power-Up Status"""
         # DoubleLaser Power-Up
         if double_laser_active and double_laser_until > current_time:
@@ -267,6 +283,18 @@ class HUD:
             self.powerup_icons["super_shield"]["active"] = False
             self.powerup_icons["super_shield"]["remaining_time"] = 0
             self.powerup_icons["super_shield"]["duration_progress"] = 0.0
+
+        # Speed Boost Power-Up
+        if speed_boost_active and speed_boost_until > current_time:
+            remaining_time = speed_boost_until - current_time
+            self.powerup_icons["speed_boost"]["active"] = True
+            self.powerup_icons["speed_boost"]["remaining_time"] = remaining_time
+            # Duration progress: 1.0 = gerade gestartet, 0.0 = fast abgelaufen
+            self.powerup_icons["speed_boost"]["duration_progress"] = remaining_time / self.powerup_icons["speed_boost"]["total_time"]
+        else:
+            self.powerup_icons["speed_boost"]["active"] = False
+            self.powerup_icons["speed_boost"]["remaining_time"] = 0
+            self.powerup_icons["speed_boost"]["duration_progress"] = 0.0
 
     def draw(self, screen):
         """Zeichnet das HUD mit Cooldown-Animation"""

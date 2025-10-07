@@ -7,6 +7,9 @@ def _expl_frames(game, key):
     return game.assets.get(key, []), game.assets.get(f"{key}_fps", 24)
 
 def _apply_aoe(game, cx, cy, radius, max_damage, expl_key: str, expl_scale: float = 1.0):
+    # Sammle alle zu zerstörenden Gegner zuerst (Performance-Optimierung)
+    enemies_to_destroy = []
+    
     # Normale Feinde
     for en in game.enemies[:]:
         ex, ey = en.rect.center
@@ -19,12 +22,19 @@ def _apply_aoe(game, cx, cy, radius, max_damage, expl_key: str, expl_scale: floa
                 # Kill-Counter erhöhen
                 if hasattr(game, '_total_kills'):
                     game._total_kills += 1
-                frames, fps = _expl_frames(game, expl_key)
-                game.explosions.append(Explosion(ex, ey, frames, fps=fps, scale=expl_scale))
-                if en in game.enemies:
-                    game.enemies.remove(en)
+                # Power-Up Drop-Chance prüfen
+                game._try_drop_powerup(ex, ey)
+                enemies_to_destroy.append((en, ex, ey, "enemies"))
+    
+    # Batch-Entfernung und Explosion-Erstellung
+    frames, fps = _expl_frames(game, expl_key)
+    for en, ex, ey, list_type in enemies_to_destroy:
+        game.explosion_manager.add_explosion(ex, ey, frames, fps=fps, scale=expl_scale)
+        if en in game.enemies:
+            game.enemies.remove(en)
 
     # Fly-In Feinde
+    fly_in_enemies_to_destroy = []
     if hasattr(game, 'fly_in_enemies'):
         for en in game.fly_in_enemies[:]:
             ex, ey = en.rect.center
@@ -37,13 +47,18 @@ def _apply_aoe(game, cx, cy, radius, max_damage, expl_key: str, expl_scale: floa
                     # Kill-Counter erhöhen
                     if hasattr(game, '_total_kills'):
                         game._total_kills += 1
-                    frames, fps = _expl_frames(game, expl_key)
-                    game.explosions.append(Explosion(ex, ey, frames, fps=fps, scale=expl_scale))
-                    if en in game.fly_in_enemies:
-                        game.fly_in_enemies.remove(en)
-                        # Count dekrementieren
-                        if hasattr(game, '_fly_in_spawn_count'):
-                            game._fly_in_spawn_count = max(0, game._fly_in_spawn_count - 1)
+                    # Power-Up Drop-Chance prüfen
+                    game._try_drop_powerup(ex, ey)
+                    fly_in_enemies_to_destroy.append((en, ex, ey))
+        
+        # Batch-Entfernung für Fly-In Enemies
+        for en, ex, ey in fly_in_enemies_to_destroy:
+            game.explosion_manager.add_explosion(ex, ey, frames, fps=fps, scale=expl_scale)
+            if en in game.fly_in_enemies:
+                game.fly_in_enemies.remove(en)
+                # Count dekrementieren
+                if hasattr(game, '_fly_in_spawn_count'):
+                    game._fly_in_spawn_count = max(0, game._fly_in_spawn_count - 1)
     # Boss optional
     if getattr(game, "boss", None):
         bx, by = game.boss.rect.center
@@ -53,8 +68,9 @@ def _apply_aoe(game, cx, cy, radius, max_damage, expl_key: str, expl_scale: floa
             if game.boss.take_damage(dmg):
                 game.score += getattr(game.boss, "points", 600)
                 game.highscore = max(game.highscore, game.score)
-                frames, fps = _expl_frames(game, expl_key)
-                game.explosions.append(Explosion(bx, by, frames, fps=fps, scale=expl_scale))
+                # Power-Up Drop-Chance prüfen (Boss kann auch Power-Ups droppen)
+                game._try_drop_powerup(bx, by)
+                game.explosion_manager.add_explosion(bx, by, frames, fps=fps, scale=expl_scale)
                 game.boss = None
 
 class Projectile:
@@ -118,22 +134,20 @@ class Laser(Projectile):
 
     def on_hit(self, game, hit_pos):
         frames, fps = _expl_frames(game, "expl_laser")
-        ex = Explosion(hit_pos[0], hit_pos[1], frames, fps=fps)
         if game.assets.get("laser_sound_destroy"):
             game.assets["laser_sound_destroy"].set_volume(MASTER_VOLUME * SFX_VOLUME)
             game.assets["laser_sound_destroy"].play()
         keep = game.assets.get("expl_laser_keep")
         if keep:
-            ex.frames = ex.frames[:keep]
-
-
-        game.explosions.append(ex)
+            frames = frames[:keep]
+        
+        game.explosion_manager.add_explosion(hit_pos[0], hit_pos[1], frames, fps=fps)
 
 class DoubleLaser(Projectile):
     kind = "double_laser"
     @classmethod
     def create(cls, x, y, assets, owner="player", angle_deg=0):
-        cfg    = PROJECTILES_CONFIG["double_laser"]
+        cfg    = PROJECTILES_CONFIG["laser"]  # Verwende normale Laser-Konfiguration
         speed  = cfg.get("enemy_speed", cfg["speed"]) if owner=="enemy" else cfg["speed"]
         accel  = cfg.get("enemy_accel", cfg.get("accel",1.0)) if owner=="enemy" else cfg.get("accel",1.0)
         base   = -1 if owner=="player" else +1
@@ -147,18 +161,17 @@ class DoubleLaser(Projectile):
         if owner=="player" and assets.get("laser_sound_start"):
             assets["laser_sound_start"].set_volume(MASTER_VOLUME * SFX_VOLUME)
             assets["laser_sound_start"].play()
-        return cls(x, y, vx, vy, img, cfg["dmg"], owner, radius=0, kind="double_laser", accel=accel)
+        return cls(x, y, vx, vy, img, cfg["dmg"], owner, kind="double_laser", accel=accel)
 
     def on_hit(self, game, hit_pos):
         frames, fps = _expl_frames(game, "expl_laser")
-        ex = Explosion(hit_pos[0], hit_pos[1], frames, fps=fps)
         if game.assets.get("laser_sound_destroy"):
             game.assets["laser_sound_destroy"].set_volume(MASTER_VOLUME * SFX_VOLUME)
             game.assets["laser_sound_destroy"].play()
         keep = game.assets.get("expl_laser_keep")
         if keep:
-            ex.frames = ex.frames[:keep]
-        game.explosions.append(ex)
+            frames = frames[:keep]
+        game.explosion_manager.add_explosion(hit_pos[0], hit_pos[1], frames, fps=fps)
 
 class Rocket(Projectile):
     kind = "rocket"
@@ -195,7 +208,7 @@ class Rocket(Projectile):
             game.assets["rocket_sound_hit"].play()
         _apply_aoe(game, cx, cy, self.radius, self.dmg, "expl_rocket", expl_scale=1.0)
         frames, fps = _expl_frames(game, "expl_rocket")
-        game.explosions.append(Explosion(cx, cy, frames, fps=fps, scale=1.4))
+        game.explosion_manager.add_explosion(cx, cy, frames, fps=fps, scale=1.4)
 
 class Blaster(Projectile):
     kind = "blaster"
@@ -373,7 +386,7 @@ class Blaster(Projectile):
         keep = game.assets.get("expl_laser_keep")
         if keep:
             ex.frames = ex.frames[:keep]
-        game.explosions.append(ex)
+        game.explosion_manager.add_explosion(hit_pos[0], hit_pos[1], frames, fps=fps)
 
 class HomingRocket(Projectile):
     kind = "homing_rocket"
@@ -550,7 +563,7 @@ class HomingRocket(Projectile):
             game.assets["rocket_sound_hit"].play()
         _apply_aoe(game, cx, cy, self.radius, self.dmg, "expl_rocket", expl_scale=1.2)
         frames, fps = _expl_frames(game, "expl_rocket")
-        game.explosions.append(Explosion(cx, cy, frames, fps=fps, scale=1.6))
+        game.explosion_manager.add_explosion(cx, cy, frames, fps=fps, scale=1.6)
 
 class Nuke(Projectile):
     kind = "nuke"
@@ -574,10 +587,10 @@ class Nuke(Projectile):
         if game.assets.get("nuke_sound_hit"):
             game.assets["nuke_sound_hit"].set_volume(MASTER_VOLUME * SFX_VOLUME)
             game.assets["nuke_sound_hit"].play()
-        _apply_aoe(game, cx, cy, self.radius, self.dmg, "expl_nuke", expl_scale=2.0)
+        _apply_aoe(game, cx, cy, self.radius, self.dmg, "expl_nuke", expl_scale=1.5)  # Kleinere Explosionen
         now = pygame.time.get_ticks()
-        game.flash_until     = now + 350
-        game.shake_until     = now + 1000
-        game.timescale_until = now + 800
+        game.flash_until     = now + 200   # Kürzerer Flash
+        game.shake_until     = now + 600   # Kürzerer Shake
+        game.timescale_until = now + 400   # Kürzere Slow-Motion
         frames, fps = _expl_frames(game, "expl_nuke")
-        game.explosions.append(Explosion(cx, cy, frames, fps=fps, scale=2.5))
+        game.explosion_manager.add_explosion(cx, cy, frames, fps=fps, scale=2.5)
