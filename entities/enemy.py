@@ -81,10 +81,20 @@ class Enemy:
         if self.move_cfg["type"] == "grid":
             self.rect.x += dx
         elif self.move_cfg["type"] == "float":
-            amp = int(self.move_cfg.get("amp_frac", 0) * WIDTH * 0.5)
-            hz  = float(self.move_cfg.get("hz", 0.25))
-            offset = int(math.sin(pygame.time.get_ticks()*hz*0.001 + self._phase) * amp)
-            self.rect.x = WIDTH//2 + offset - self.rect.width//2
+            # Verwende aktuelle Bildschirmgröße für float-Bewegung
+            screen = pygame.display.get_surface()
+            if screen:
+                current_width, _ = screen.get_size()
+                amp = int(self.move_cfg.get("amp_frac", 0) * current_width * 0.5)
+                hz  = float(self.move_cfg.get("hz", 0.25))
+                offset = int(math.sin(pygame.time.get_ticks()*hz*0.001 + self._phase) * amp)
+                self.rect.x = current_width//2 + offset - self.rect.width//2
+            else:
+                # Fallback zu Konstanten
+                amp = int(self.move_cfg.get("amp_frac", 0) * WIDTH * 0.5)
+                hz  = float(self.move_cfg.get("hz", 0.25))
+                offset = int(math.sin(pygame.time.get_ticks()*hz*0.001 + self._phase) * amp)
+                self.rect.x = WIDTH//2 + offset - self.rect.width//2
         elif self.move_cfg["type"] == "fly_in":
             # Fliegt von oben rein und folgt dann einer Laufbahn
             self._update_fly_in()
@@ -178,10 +188,17 @@ class Enemy:
         return shots
 
     def offscreen(self):
-        # Für fly_in Enemies: vollständige Bildschirmrand-Prüfung
+        # Für fly_in Enemies: vollständige Bildschirmrand-Prüfung mit aktueller Bildschirmgröße
         if self.move_cfg.get("type") == "fly_in":
-            return (self.rect.right < -50 or self.rect.left > WIDTH + 50 or
-                    self.rect.bottom < -50 or self.rect.top > HEIGHT + 50)
+            screen = pygame.display.get_surface()
+            if screen:
+                current_width, current_height = screen.get_size()
+                return (self.rect.right < -50 or self.rect.left > current_width + 50 or
+                        self.rect.bottom < -50 or self.rect.top > current_height + 50)
+            else:
+                # Fallback zu Konstanten
+                return (self.rect.right < -50 or self.rect.left > WIDTH + 50 or
+                        self.rect.bottom < -50 or self.rect.top > HEIGHT + 50)
         # Für normale Enemies: nur oben raus
         return self.rect.bottom < 0
 

@@ -5,9 +5,16 @@ Ein hochperformantes Space Invaders Spiel mit modernen Optimierungen und spannen
 ## 📋 **Patch Notes & Updates**
 
 **📁 [Detailed Patch Notes](patch-notes/)** - Complete changelog with technical details  
-**🔄 Current Version**: v0.1.0-beta (October 7, 2025)  
-**🎯 Latest Changes**: Power-up system overhaul, shield mechanics rewrite, Speed Boost feature  
-**⚠️ Beta Status**: Missing start/pause screens, game modes - not production ready
+**🔄 Current Version**: v0.1.1 (October 7, 2025)  
+**🎯 Latest Changes**: Complete display system overhaul, native resolution support, adaptive UI scaling  
+**✅ Stable Release**: Core gameplay fully functional with comprehensive display support
+
+### 🖥️ **NEW: Display & Scaling Overhaul**
+- **Native Resolution Support**: Works with any monitor resolution including ultrawide
+- **Adaptive UI Scaling**: All elements scale beautifully from 1080p to 4K
+- **Advanced Window Management**: F11 for maximize, Alt+Enter for fullscreen
+- **Resolution-Independent Gameplay**: Projectiles and entities work at any resolution
+- **Smart Health Bar Positioning**: Always visible, intelligent text placement
 
 ---
 
@@ -197,6 +204,15 @@ Spannende Ideen für weitere Verbesserungen des Space Invaders Spiels:
 - **Independent Wave Movement**: Jede Welle bewegt sich individuell
 - **Fly-In Mechanics**: Dynamische Enemy-Spawns
 - **Wave-Based Direction Control**: Verhindert Bewegungs-Blockaden
+- **All Enemy Types Shoot**: Fly-in enemies can now use all weapon types
+
+### ✅ **Display & Scaling System (2025)**
+- **Native Resolution Support**: Works with any monitor resolution (1080p to 4K+)
+- **Ultrawide Compatibility**: Full support for 21:9 and 32:9 monitors
+- **Adaptive UI Scaling**: All elements scale from 1.2x to 2.15x based on resolution
+- **Smart Window Management**: F11 maximize + Alt+Enter fullscreen
+- **Resolution-Independent Projectiles**: Shots visible at all resolutions
+- **Dynamic Background Scaling**: Background fills entire screen without borders
 
 ---
 

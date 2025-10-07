@@ -5,17 +5,40 @@ from config.settings import REFERENCE_WIDTH, REFERENCE_HEIGHT
 
 HIGHSCORE_FILE = "data/highscore.json"
 
+# Dynamische Bildschirmgrößen-Tracking (zur Laufzeit änderbar)
+_current_width = None
+_current_height = None
+
+def update_screen_size(width, height):
+    """Aktualisiert die aktuellen Bildschirmabmessungen zur Laufzeit"""
+    global _current_width, _current_height
+    _current_width = width
+    _current_height = height
+    print(f"Screen size updated to: {width}x{height}")
+
 # Dynamische Skalierungs-Utilities
 def get_current_scale_factors():
     """Berechnet aktuelle Skalierungsfaktoren basierend auf Bildschirmgröße"""
-    screen = pygame.display.get_surface()
-    if screen is None:
-        return 1.0, 1.0, 1.0
+    global _current_width, _current_height
+    
+    # Verwende Runtime-Größe falls verfügbar, sonst Pygame-Surface
+    if _current_width is not None and _current_height is not None:
+        current_width, current_height = _current_width, _current_height
+    else:
+        screen = pygame.display.get_surface()
+        if screen is None:
+            return 1.0, 1.0, 1.0
+        current_width, current_height = screen.get_size()
 
-    current_width, current_height = screen.get_size()
     scale_x = current_width / REFERENCE_WIDTH
     scale_y = current_height / REFERENCE_HEIGHT
-    scale_factor = min(scale_x, scale_y)
+    
+    # Verwende einen aggressiveren Skalierungsfaktor um schwarze Ränder zu vermeiden
+    # Verwende den Durchschnitt statt minimum für bessere Ausnutzung
+    scale_factor = (scale_x + scale_y) / 2.0
+    
+    # Mindest-Skalierung für bessere Lesbarkeit
+    scale_factor = max(scale_factor, 1.2)
 
     return scale_factor, scale_x, scale_y
 

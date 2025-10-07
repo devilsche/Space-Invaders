@@ -26,8 +26,13 @@ class Game:
         self.clock = pygame.time.Clock()
         self.font  = pygame.font.Font(None, FONT_SIZE)
         
-        # Vollbild-Status
+        # Display-Modi
         self.is_fullscreen = False
+        self.is_maximized = False
+        self.original_size = (WIDTH, HEIGHT)
+        
+        # 16:9 Aspect Ratio
+        self.aspect_ratio = 16 / 9
 
         self.assets = load_assets()
 
@@ -101,11 +106,13 @@ class Game:
         self.kill_display_timer = 0
         self.kill_display_duration = 2000  # 2 Sekunden
 
-        self.player = Player(WIDTH, HEIGHT, self.assets)
+        # Player mit aktueller Bildschirmgröße initialisieren
+        current_width, current_height = self.screen.get_size() 
+        self.player = Player(current_width, current_height, self.assets)
         self.player.rect.center = self.spawn_pos
 
         # HUD initialisieren
-        self.hud = HUD(WIDTH, HEIGHT)
+        self.hud = HUD(current_width, current_height)
         self.hud.load_icons(self.assets)
 
         # Health Bar initialisieren (oben rechts)
@@ -141,46 +148,196 @@ class Game:
         # self._build_wave("alien")
 
     def toggle_fullscreen(self):
-        """Wechselt zwischen Vollbild und Fenster-Modus"""
+        """Wechselt zwischen Vollbild und Fenster-Modus - nutzt komplette Bildschirmfläche ohne schwarze Ränder"""
+        # Speichere aktuelle Player-Position vor Resize
+        old_player_pos = None
+        if self.player:
+            current_screen = pygame.display.get_surface()
+            if current_screen:
+                old_width, old_height = current_screen.get_size()
+                old_player_pos = (
+                    self.player.rect.centerx / old_width,
+                    self.player.rect.centery / old_height
+                )
+        
         if self.is_fullscreen:
             # Zu Fenster-Modus wechseln
-            self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+            self.screen = pygame.display.set_mode(self.original_size)
             self.is_fullscreen = False
+            self.is_maximized = False
             print("Switched to windowed mode")
         else:
-            # Zu Vollbild wechseln
-            self.screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
+            # Zu ECHTEM Vollbild wechseln - nutzt native Bildschirmauflösung ohne schwarze Ränder
+            self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
             self.is_fullscreen = True
-            print("Switched to fullscreen mode")
+            self.is_maximized = False
+            fullscreen_width, fullscreen_height = self.screen.get_size()
+            print(f"Switched to fullscreen mode: {fullscreen_width}x{fullscreen_height} (native resolution)")
         
-        # Nach Auflösungs-Wechsel: HUD und andere UI-Elemente neu initialisieren
-        self._reinitialize_ui()
+        # Nach Auflösungs-Wechsel: Player-Position wiederherstellen und UI neu initialisieren
+        self._reinitialize_ui(old_player_pos)
+
+    def toggle_maximize(self):
+        """Wechselt zwischen normalem Fenster und maximiertem Fenster mit 16:9 Aspect Ratio"""
+        # Speichere aktuelle Player-Position vor Resize
+        old_player_pos = None
+        old_width, old_height = 0, 0
+        if self.player:
+            current_screen = pygame.display.get_surface()
+            if current_screen:
+                old_width, old_height = current_screen.get_size()
+                old_player_pos = (
+                    self.player.rect.centerx / old_width,
+                    self.player.rect.centery / old_height
+                )
+        
+        if self.is_maximized or self.is_fullscreen:
+            # Zurück zu normaler Fenstergröße
+            self.screen = pygame.display.set_mode(self.original_size)
+            self.is_maximized = False
+            self.is_fullscreen = False
+            print(f"Switched to normal window mode: {self.original_size}")
+        else:
+            # Maximiertes Fenster mit 16:9 Aspect Ratio
+            # Verwende aktuelle Fenster-Position und aktuellen Monitor
+            window_pos = pygame.display.get_window_position() if hasattr(pygame.display, 'get_window_position') else (0, 0)
+            
+            # Heuristische Berechnung für maximale Fenstergröße
+            # Da wir nicht direkt den aktuellen Monitor abfragen können,
+            # verwenden wir eine konservative Schätzung
+            current_screen = pygame.display.get_surface()
+            if current_screen:
+                current_width, current_height = current_screen.get_size()
+                
+                # Berechne größere Auflösung basierend auf aktuellem Fenster
+                # Typische Monitor-Größen für bessere Schätzung
+                if current_width <= 1280:
+                    # Vermutlich 1920x1080 Monitor
+                    max_width, max_height = 1920, 1080
+                elif current_width <= 1920:
+                    # Vermutlich 2560x1440 Monitor  
+                    max_width, max_height = 2560, 1440
+                else:
+                    # Größerer Monitor - verwende konservative Werte
+                    max_width, max_height = current_width + 400, current_height + 200
+            else:
+                # Fallback für häufigste Auflösung
+                max_width, max_height = 1920, 1080
+            
+            # Berechne 16:9 Größe basierend auf verfügbarem Platz
+            # Berücksichtige Taskbar/Titelleiste (etwa 100px Overhead)
+            available_height = max_height - 100
+            available_width = max_width - 50
+            
+            # Berechne maximale Größe mit 16:9 Ratio
+            if available_width / available_height > self.aspect_ratio:
+                # Höhe ist limitierend
+                new_height = available_height
+                new_width = int(new_height * self.aspect_ratio)
+            else:
+                # Breite ist limitierend
+                new_width = available_width
+                new_height = int(new_width / self.aspect_ratio)
+            
+            # Stelle sicher, dass die Größe nicht zu klein wird
+            min_width, min_height = 800, 450  # Minimum 16:9 Größe
+            new_width = max(new_width, min_width)
+            new_height = max(new_height, min_height)
+            
+            self.screen = pygame.display.set_mode((new_width, new_height))
+            self.is_maximized = True
+            self.is_fullscreen = False
+            print(f"Switched to maximized window mode: {new_width}x{new_height} (16:9 ratio)")
+        
+        # Nach Auflösungs-Wechsel: Player-Position wiederherstellen und UI neu initialisieren
+        self._reinitialize_ui(old_player_pos)
     
-    def _reinitialize_ui(self):
+    def _reinitialize_ui(self, old_player_pos=None):
         """Initialisiert UI-Elemente nach Auflösungs-Wechsel neu"""
         # HUD mit neuer Bildschirmgröße neu erstellen
         current_width, current_height = self.screen.get_size()
+        
+        # Aktualisiere globale WIDTH/HEIGHT für alle Spielelemente
+        import config.settings
+        config.settings.WIDTH = current_width
+        config.settings.HEIGHT = current_height
+        
+        # Aktualisiere system.utils scale-System
+        import system.utils
+        system.utils.update_screen_size(current_width, current_height)
+        
         self.hud = HUD(current_width, current_height)
         self.hud.load_icons(self.assets)
         
-        # HealthBar neu skalieren (oben rechts)
-        health_bar_width = scale(200)
-        health_bar_height = scale(20)
-        health_bar_x = current_width - health_bar_width - scale(70)
-        health_bar_y = scale(20)
-        self.health_bar = HealthBar(health_bar_x, health_bar_y, health_bar_width, health_bar_height)
+        # Aggressivere Skalierungsfaktoren für bessere Bildschirmnutzung
+        # Base-Auflösung: 1920x1080
+        base_width, base_height = 1920, 1080
+        width_scale = current_width / base_width
+        height_scale = current_height / base_height
         
-        # Shield Health Bar (oben rechts, unter Player Health)
-        shield_bar_width = scale(200)
-        shield_bar_height = scale(15)
-        shield_bar_x = current_width - shield_bar_width - scale(70)
-        shield_bar_y = scale(50)
-        self.shield_health_bar = HealthBar(shield_bar_x, shield_bar_y, shield_bar_width, shield_bar_height)
+        # Verwende größeren Skalierungsfaktor für UI-Elemente
+        ui_scale = max(width_scale, height_scale) * 1.2  # 20% größer für bessere Sichtbarkeit
         
-        print(f"UI re-initialized for resolution: {current_width}x{current_height}")
-        from system.utils import get_current_scale_factors
-        scale_factor, scale_x, scale_y = get_current_scale_factors()
-        print(f"New scale factors: {scale_factor:.2f}, {scale_x:.2f}, {scale_y:.2f}")
+        # HealthBar neu skalieren (oben rechts) - deutlich größer
+        health_bar_width = int(300 * ui_scale)  # von 200 auf 300
+        health_bar_height = int(25 * ui_scale)  # von 20 auf 25
+        health_bar_x = current_width - health_bar_width - int(50 * ui_scale)  # weniger Abstand vom Rand
+        health_bar_y = int(20 * ui_scale)
+        self.health_bar = HealthBar(health_bar_x, health_bar_y, health_bar_width, health_bar_height, ui_scale)
+        
+        # Shield Health Bar (oben rechts, unter Player Health) - mit extra Abstand für Text
+        shield_bar_width = int(300 * ui_scale)  # von 200 auf 300
+        shield_bar_height = int(20 * ui_scale)  # von 15 auf 20
+        shield_bar_x = current_width - shield_bar_width - int(50 * ui_scale)
+        # Berechne Y-Position: HealthBar Ende + Text-Höhe + zusätzlicher Puffer
+        text_height = int(20 * ui_scale)  # Höhe des HealthBar-Texts
+        shield_bar_y = health_bar_y + health_bar_height + text_height + int(10 * ui_scale)  # Text-Höhe + 10px Puffer
+        self.shield_health_bar = HealthBar(shield_bar_x, shield_bar_y, shield_bar_width, shield_bar_height, ui_scale)
+        
+        # Player-Position relativ zur neuen Bildschirmgröße neu berechnen
+        self._reposition_player(current_width, current_height, old_player_pos)
+        
+        # Spawn-Position an neue Auflösung anpassen - mit aggressiverer Skalierung
+        self.spawn_pos = (current_width // 2, current_height - int(60 * ui_scale))  # weniger Abstand vom Rand
+        
+        # Schilde neu skalieren wenn aktiv
+        if self.shield:
+            self._update_shield_scale()
+        if self.powerup_shield:
+            self._update_shield_scale()
+            
+        # Font-Größe an neue Auflösung anpassen
+        scaled_font_size = int(FONT_SIZE * ui_scale)
+        self.font = pygame.font.Font(None, scaled_font_size)
+        
+        print(f"UI reinitialized for resolution: {current_width}x{current_height} (UI scale: {ui_scale:.2f}, Font: {scaled_font_size}px)")
+
+    def _reposition_player(self, new_width, new_height, old_player_pos=None):
+        """Positioniert Player relativ zur neuen Bildschirmgröße"""
+        if not self.player:
+            return
+            
+        # Verwende gespeicherte relative Position oder berechne sie
+        if old_player_pos:
+            rel_x, rel_y = old_player_pos
+        else:
+            # Fallback: zentriere Player unten
+            rel_x, rel_y = 0.5, 0.85
+        
+        # Neue absolute Position
+        new_x = int(rel_x * new_width)  
+        new_y = int(rel_y * new_height)
+        
+        # Stelle sicher, dass Player im sichtbaren Bereich bleibt
+        margin = self.player.rect.width // 2
+        new_x = max(margin, min(new_width - margin, new_x))
+        new_y = max(margin, min(new_height - margin, new_y))
+        
+        # Setze neue Position
+        old_pos = self.player.rect.center
+        self.player.rect.center = (new_x, new_y)
+        
+        print(f"Player repositioned from {old_pos} to ({new_x}, {new_y}) (relative: {rel_x:.2f}, {rel_y:.2f})")
 
     # ---------------- Power-Up System ----------------
     def _try_drop_powerup(self, x, y):
@@ -500,9 +657,9 @@ class Game:
                     except pygame.error:
                         pass
                 elif e.key == pygame.K_F11:
-                    pygame.display.toggle_fullscreen()
+                    self.toggle_maximize()  # F11 für maximiertes Fenster mit 16:9
                 elif e.key == pygame.K_RETURN and (pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]):
-                    # Alt+Enter für Vollbild-Toggle
+                    # Alt+Enter für echtes Vollbild
                     self.toggle_fullscreen()
                 elif e.key == pygame.K_1:
                     self.player.set_stage(1)
@@ -526,8 +683,8 @@ class Game:
                     self._build_wave( 'sniper' )
                 elif e.key == pygame.K_F5:
                     self._build_wave( 'boss' )
-                elif e.key == pygame.K_F12:
-                    self.enemies = []
+                elif e.key == pygame.K_F12 and not (pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]):
+                    self.enemies = []  # F12 allein für Enemies clear
 
                 elif e.key == pygame.K_SPACE and not self.paused and not self.player_dead:
                     # Immer Laser schießen, aber mit DoubleLaser-Geschossen wenn Power-Up aktiv
@@ -645,7 +802,9 @@ class Game:
                 self._respawn()
 
         if not self.player_dead:
-            self.player.handle_input(keys, WIDTH, HEIGHT)
+            # Verwende aktuelle Bildschirmgröße statt Konstanten
+            current_width, current_height = self.screen.get_size()
+            self.player.handle_input(keys, current_width, current_height)
 
         if keys[pygame.K_SPACE] and not self.paused and not self.player_dead:
             # Immer Laser schießen, aber mit DoubleLaser-Geschossen wenn Power-Up aktiv
@@ -727,8 +886,14 @@ class Game:
         self._update_wave_enemies()
         self._update_fly_in_enemies()
 
-        # Alle Gegner schießen lassen
+        # Alle Gegner schießen lassen - sowohl normale als auch Fly-In Enemies
         for en in self.enemies:
+            for w, amt in en.weapons.items():
+                if amt > 0:
+                    self.enemy_shots.extend(en.shoot_weapon(w, amt))
+        
+        # Fly-In Enemies schießen lassen
+        for en in self.fly_in_enemies:
             for w, amt in en.weapons.items():
                 if amt > 0:
                     self.enemy_shots.extend(en.shoot_weapon(w, amt))
@@ -885,7 +1050,14 @@ class Game:
     # ---------------- Draw ----------------
     def _draw(self):
         bg = self.assets.get("background_img")
-        self.screen.blit(bg, (0, 0)) if bg else self.screen.fill((0, 0, 0))
+        if bg:
+            # Skaliere Hintergrund auf aktuelle Bildschirmgröße
+            current_width, current_height = self.screen.get_size()
+            if bg.get_size() != (current_width, current_height):
+                bg = pygame.transform.smoothscale(bg, (current_width, current_height))
+            self.screen.blit(bg, (0, 0))
+        else:
+            self.screen.fill((0, 0, 0))
 
         for p in self.player_shots: p.draw(self.screen)
         for p in self.enemy_shots:  p.draw(self.screen)
@@ -901,17 +1073,26 @@ class Game:
             if self.powerup_shield:
                 self.powerup_shield.draw(self.screen)
 
-        self.screen.blit(self.font.render(f"Score: {self.score}", True, (255,255,255)), (10, 10))
-        self.screen.blit(self.font.render(f"High Score: {self.highscore}", True, (255,255,255)), (10, 50))
+        # Score-Anzeige skaliert positionieren (oben links)
+        current_width, current_height = self.screen.get_size()
+        ui_scale = max(current_width / 1920, current_height / 1080) * 1.2
+        score_x = int(15 * ui_scale)
+        score_y = int(15 * ui_scale)
+        highscore_y = int(55 * ui_scale)
+        
+        self.screen.blit(self.font.render(f"Score: {self.score}", True, (255,255,255)), (score_x, score_y))
+        self.screen.blit(self.font.render(f"High Score: {self.highscore}", True, (255,255,255)), (score_x, highscore_y))
 
         # Temporärer Kill-Counter in der Mitte (nur kurz nach Kill)
         current_time = pygame.time.get_ticks()
         if (self.kill_display_timer > 0 and 
             current_time - self.kill_display_timer < self.kill_display_duration):
             
-            # Kill-Text in der Bildschirmmitte anzeigen
+            # Kill-Text in der Bildschirmmitte anzeigen - mit aktueller Auflösung
             kill_surface = self.font.render(self.kill_display_text, True, (255, 255, 0))
-            kill_rect = kill_surface.get_rect(center=(WIDTH // 2, scale(100)))
+            current_width, current_height = self.screen.get_size()
+            ui_scale = max(current_width / 1920, current_height / 1080) * 1.2
+            kill_rect = kill_surface.get_rect(center=(current_width // 2, int(100 * ui_scale)))
             self.screen.blit(kill_surface, kill_rect)
 
         # Health Bar zeichnen (nur wenn Spieler lebt)
@@ -950,8 +1131,9 @@ class Game:
         if self.lives > 0:
             self.lives -= 1
 
-        # Player neu erzeugen mit deinen Parametern
-        self.player = Player(WIDTH, HEIGHT, self.assets)
+        # Player neu erzeugen mit aktueller Bildschirmgröße
+        current_width, current_height = self.screen.get_size()
+        self.player = Player(current_width, current_height, self.assets)
         self.player.rect.center = self.spawn_pos
         # # Schutzphase
         # self.player.invincible_until = pygame.time.get_ticks() + self.respawn_protection

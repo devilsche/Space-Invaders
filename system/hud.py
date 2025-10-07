@@ -7,9 +7,14 @@ class HUD:
     def __init__(self, screen_width, screen_height):
         self.screen_width = screen_width
         self.screen_height = screen_height
-        self.icon_size = 48  # Doppelt so groß: 48x48px
-        self.icon_spacing = 8
-        self.margin = 10
+        
+        # Dynamische Skalierung basierend auf Bildschirmgröße
+        base_width = 1920
+        scale_factor = max(screen_width / base_width, 1.2)  # Mindestens 20% größer
+        
+        self.icon_size = int(48 * scale_factor)  # Skalierte Icon-Größe
+        self.icon_spacing = int(8 * scale_factor)
+        self.margin = int(10 * scale_factor)
 
         # Position unten links
         self.start_x = self.margin
@@ -32,8 +37,8 @@ class HUD:
         # Power-Up Status (unten rechts)
         self.powerup_icons = {}
         self.powerup_order = ["double_laser", "super_shield", "speed_boost"]
-        self.powerup_icon_size = 48
-        self.powerup_spacing = 8
+        self.powerup_icon_size = int(48 * scale_factor)  # Skalierte PowerUp-Icon-Größe
+        self.powerup_spacing = int(8 * scale_factor)
         
         # Position unten rechts
         powerup_start_x = screen_width - self.margin - self.powerup_icon_size
@@ -334,10 +339,12 @@ class HUD:
             # Power-Up Icon ohne Fading - immer voll sichtbar
             screen.blit(powerup_icon, pos)
             
-            # Zeit-Text ÜBER dem Icon - nur ganze Sekunden
+            # Zeit-Text ÜBER dem Icon - nur ganze Sekunden, skaliert
             remaining_sec = int(remaining_time / 1000.0)  # Ganze Sekunden
             if remaining_sec > 0:  # Nur anzeigen wenn Zeit übrig
-                font = pygame.font.Font(None, 28)
+                # Skalierte Font-Größe basierend auf Icon-Größe
+                font_size = max(int(28 * (self.powerup_icon_size / 48)), 18)  # Relative zur Icon-Größe
+                font = pygame.font.Font(None, font_size)
                 time_text = font.render(f"{remaining_sec}", True, (255, 255, 255))  # Weiß
                 text_rect = time_text.get_rect()
                 text_x = pos[0] + (self.powerup_icon_size - text_rect.width) // 2

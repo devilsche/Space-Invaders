@@ -101,8 +101,16 @@ class Projectile:
         self.rect.y += int(self.vy)
 
     def offscreen(self):
-        return (self.rect.right < 0 or self.rect.left > WIDTH or
-                self.rect.bottom < 0 or self.rect.top > HEIGHT)
+        # Verwende aktuelle Bildschirmgröße statt Konstanten
+        screen = pygame.display.get_surface()
+        if screen:
+            current_width, current_height = screen.get_size()
+            return (self.rect.right < 0 or self.rect.left > current_width or
+                    self.rect.bottom < 0 or self.rect.top > current_height)
+        else:
+            # Fallback zu Konstanten falls kein Screen verfügbar
+            return (self.rect.right < 0 or self.rect.left > WIDTH or
+                    self.rect.bottom < 0 or self.rect.top > HEIGHT)
 
     def draw(self, screen):
         screen.blit(self.img, self.rect)
@@ -541,8 +549,16 @@ class HomingRocket(Projectile):
     def offscreen(self):
         # Wärmelenkraketen bleiben länger aktiv als normale Projektile
         margin = 100  # Zusätzlicher Rand
-        return (self.rect.right < -margin or self.rect.left > WIDTH + margin or
-                self.rect.bottom < -margin or self.rect.top > HEIGHT + margin)
+        # Verwende aktuelle Bildschirmgröße statt Konstanten
+        screen = pygame.display.get_surface()
+        if screen:
+            current_width, current_height = screen.get_size()
+            return (self.rect.right < -margin or self.rect.left > current_width + margin or
+                    self.rect.bottom < -margin or self.rect.top > current_height + margin)
+        else:
+            # Fallback zu Konstanten falls kein Screen verfügbar
+            return (self.rect.right < -margin or self.rect.left > WIDTH + margin or
+                    self.rect.bottom < -margin or self.rect.top > HEIGHT + margin)
 
     def draw(self, screen):
         # Einfache und direkte Winkelberechnung

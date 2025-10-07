@@ -157,10 +157,10 @@ ENEMY_CONFIG = {
         "shoot": {
             "prob": 0.001,  # Fallback für nicht definierte Waffen
             "weapon_probs": {
-                "laser": 0.008,    # Häufigste Waffe
-                "blaster": 0.006,  # Zweit-häufigste (gelenkte Laser)
-                "rocket": 0.003,   # Seltenere Raketen
-                "nuke": 0.001,      # Sehr seltene Nukes
+                "laser": 0.01,    # Häufigste Waffe
+                "blaster": 0.008,  # Zweit-häufigste (gelenkte Laser)
+                "rocket": 0.005,   # Seltenere Raketen
+                "nuke": 0.002,      # Sehr seltene Nukes
                 "homing_rocket": 0.001 # Gelegentliche gelenkte Raketen
             }
         },
