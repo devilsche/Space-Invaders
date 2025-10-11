@@ -11,12 +11,12 @@ class Shield:
 
     def __init__(self, x, y, frames, fps=18, scale=1.0, loop=True, alpha=150, blend_add=False, use_mask=True, player_health=1000, is_powerup_shield=False, shield_config=None):
         if not frames:
-            blank = pygame.Surface((1,1), pygame.SRCALPHA)
+            blank  = pygame.Surface((1,1), pygame.SRCALPHA)
             frames = [blank]
 
         # einheitlich skalieren
         if scale != 1.0:
-            w, h = frames[0].get_width(), frames[0].get_height()
+            w, h   = frames[0].get_width(), frames[0].get_height()
             tw, th = int(w*scale), int(h*scale)
             frames = [pygame.transform.smoothscale(f, (tw, th)) for f in frames]
 

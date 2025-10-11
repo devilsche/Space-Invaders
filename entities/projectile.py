@@ -6,72 +6,145 @@ from entities.explosion import Explosion
 def _expl_frames(game, key):
     return game.assets.get(key, []), game.assets.get(f"{key}_fps", 24)
 
-def _apply_aoe(game, cx, cy, radius, max_damage, expl_key: str, expl_scale: float = 1.0):
-    # Sammle alle zu zerstörenden Gegner zuerst (Performance-Optimierung)
-    enemies_to_destroy = []
+def _apply_aoe(
+    game,
+    cx:          int,
+    cy:          int,
+    radius:      float,
+    max_damage:  int,
+    expl_key:    str,
+    expl_scale:  float = 1.0,
+    weapon_type: str | None = None
+) -> int:
+    """
+    Wendet Area-of-Effect Schaden an und erstellt IMMER Explosionen für JEDEN getroffenen Gegner.
+    
+    Returns:
+        Anzahl der getroffenen Gegner
+    """
+    frames, fps = _expl_frames(game, expl_key)
+    enemies_hit = 0
 
-    # Normale Feinde
-    for en in game.enemies[:]:
+    # ===== Normale Feinde =====
+    for en in game.enemies[:]:  # [:] erstellt Kopie der Liste
         ex, ey = en.rect.center
-        dist = math.hypot(ex - cx, ey - cy)
+        dist   = math.hypot(ex - cx, ey - cy)
+        
         if dist <= radius:
             dmg = int(max_damage * (1 - dist / radius))
-            if dmg > 0 and en.take_damage(dmg):
-                game.score += en.points
-                game.highscore = max(game.highscore, game.score)
-                # Kill-Counter erhöhen
-                if hasattr(game, '_total_kills'):
-                    game._total_kills += 1
-                # Power-Up Drop-Chance prüfen
-                game._try_drop_powerup(ex, ey)
-                enemies_to_destroy.append((en, ex, ey, "enemies"))
-
-    # Batch-Entfernung und Explosion-Erstellung
-    frames, fps = _expl_frames(game, expl_key)
-    for en, ex, ey, list_type in enemies_to_destroy:
-        game.explosion_manager.add_explosion(ex, ey, frames, fps=fps, scale=expl_scale)
-        if en in game.enemies:
-            game.enemies.remove(en)
-
-    # Fly-In Feinde
-    fly_in_enemies_to_destroy = []
-    if hasattr(game, 'fly_in_enemies'):
-        for en in game.fly_in_enemies[:]:
-            ex, ey = en.rect.center
-            dist = math.hypot(ex - cx, ey - cy)
-            if dist <= radius:
-                dmg = int(max_damage * (1 - dist / radius))
-                if dmg > 0 and en.take_damage(dmg):
-                    game.score += en.points
+            
+            if dmg > 0:
+                enemies_hit += 1
+                is_dead = en.take_damage(dmg)
+                
+                if is_dead:
+                    # Gegner ist tot - Score, PowerUp, Explosion
+                    game.score     = game.score + en.points
                     game.highscore = max(game.highscore, game.score)
-                    # Kill-Counter erhöhen
+                    
                     if hasattr(game, '_total_kills'):
                         game._total_kills += 1
-                    # Power-Up Drop-Chance prüfen
+                    
+                    # Weapon-Statistik: Kill registrieren
+                    if weapon_type:
+                        game.explosion_manager.register_enemy_death(weapon_type)
+                    
                     game._try_drop_powerup(ex, ey)
-                    fly_in_enemies_to_destroy.append((en, ex, ey))
+                    
+                    # EXPLOSION GARANTIERT!
+                    game.explosion_manager.add_explosion(
+                        x           = ex,
+                        y           = ey,
+                        frames      = frames,
+                        fps         = fps,
+                        scale       = expl_scale,
+                        weapon_type = weapon_type
+                    )
+                    
+                    # Gegner aus Liste entfernen
+                    if en in game.enemies:
+                        game.enemies.remove(en)
 
-        # Batch-Entfernung für Fly-In Enemies
-        for en, ex, ey in fly_in_enemies_to_destroy:
-            game.explosion_manager.add_explosion(ex, ey, frames, fps=fps, scale=expl_scale)
-            if en in game.fly_in_enemies:
-                game.fly_in_enemies.remove(en)
-                # Count dekrementieren
-                if hasattr(game, '_fly_in_spawn_count'):
-                    game._fly_in_spawn_count = max(0, game._fly_in_spawn_count - 1)
-    # Boss optional
+    # ===== Fly-In Feinde =====
+    if hasattr(game, 'fly_in_enemies'):
+        for en in game.fly_in_enemies[:]:  # [:] erstellt Kopie
+            ex, ey = en.rect.center
+            dist   = math.hypot(ex - cx, ey - cy)
+            
+            if dist <= radius:
+                dmg = int(max_damage * (1 - dist / radius))
+                
+                if dmg > 0:
+                    enemies_hit += 1
+                    is_dead = en.take_damage(dmg)
+                    
+                    if is_dead:
+                        # Gegner ist tot
+                        game.score     = game.score + en.points
+                        game.highscore = max(game.highscore, game.score)
+                        
+                        if hasattr(game, '_total_kills'):
+                            game._total_kills += 1
+                        
+                        # Weapon-Statistik: Kill registrieren
+                        if weapon_type:
+                            game.explosion_manager.register_enemy_death(weapon_type)
+                        
+                        game._try_drop_powerup(ex, ey)
+                        
+                        # EXPLOSION GARANTIERT!
+                        game.explosion_manager.add_explosion(
+                            x           = ex,
+                            y           = ey,
+                            frames      = frames,
+                            fps         = fps,
+                            scale       = expl_scale,
+                            weapon_type = weapon_type
+                        )
+                        
+                        # Aus Liste entfernen
+                        if en in game.fly_in_enemies:
+                            game.fly_in_enemies.remove(en)
+                            
+                            if hasattr(game, '_fly_in_spawn_count'):
+                                game._fly_in_spawn_count = max(0, game._fly_in_spawn_count - 1)
+
+    # ===== Boss (falls vorhanden) =====
     if getattr(game, "boss", None):
         bx, by = game.boss.rect.center
-        dist = math.hypot(bx - cx, by - cy)
+        dist   = math.hypot(bx - cx, by - cy)
+        
         if dist <= radius:
             dmg = int(max_damage * (1 - dist / radius))
-            if game.boss.take_damage(dmg):
-                game.score += getattr(game.boss, "points", 600)
-                game.highscore = max(game.highscore, game.score)
-                # Power-Up Drop-Chance prüfen (Boss kann auch Power-Ups droppen)
-                game._try_drop_powerup(bx, by)
-                game.explosion_manager.add_explosion(bx, by, frames, fps=fps, scale=expl_scale)
-                game.boss = None
+            
+            if dmg > 0:
+                enemies_hit += 1
+                is_dead = game.boss.take_damage(dmg)
+                
+                if is_dead:
+                    # Boss ist tot
+                    game.score     = game.score + getattr(game.boss, "points", 600)
+                    game.highscore = max(game.highscore, game.score)
+                    
+                    # Weapon-Statistik: Kill registrieren
+                    if weapon_type:
+                        game.explosion_manager.register_enemy_death(weapon_type)
+                    
+                    game._try_drop_powerup(bx, by)
+                    
+                    # EXPLOSION GARANTIERT (größer für Boss)!
+                    game.explosion_manager.add_explosion(
+                        x           = bx,
+                        y           = by,
+                        frames      = frames,
+                        fps         = fps,
+                        scale       = expl_scale * 1.5,  # 50% größer für Boss
+                        weapon_type = weapon_type
+                    )
+                    
+                    game.boss = None
+
+    return enemies_hit
 
 class Projectile:
     __slots__ = ("img","rect","vx","vy","dmg","owner","radius","kind","accel","_dir","_speed")
@@ -92,13 +165,20 @@ class Projectile:
         else:
             self._dir = (self.vx/sp, self.vy/sp); self._speed = sp
 
-    def update(self):
+    def physics_update(self, game):
+        """Fixed timestep physics update"""
         if self.accel != 1.0:
             self._speed *= self.accel
             self.vx = self._dir[0] * self._speed
             self.vy = self._dir[1] * self._speed
+            
+        # Da wir fixen Timestep haben (z.B. 1/120), müssen wir nicht mehr mit dt multiplizieren
         self.rect.x += int(self.vx)
         self.rect.y += int(self.vy)
+    
+    def update(self):
+        """Legacy update - sollte nicht mehr für Bewegung verwendet werden"""
+        pass
 
     def offscreen(self):
         # Verwende aktuelle Bildschirmgröße statt Konstanten
@@ -214,9 +294,11 @@ class Rocket(Projectile):
         if game.assets.get("rocket_sound_hit"):
             game.assets["rocket_sound_hit"].set_volume(MASTER_VOLUME * SFX_VOLUME)
             game.assets["rocket_sound_hit"].play()
-        _apply_aoe(game, cx, cy, self.radius, self.dmg, "expl_rocket", expl_scale=1.0)
+        # AoE Schaden für normale Rakete
+        _apply_aoe(game, cx, cy, self.radius, self.dmg, "expl_rocket", expl_scale=0.7, weapon_type="rocket")  # Kleinere Explosionen für getroffene Gegner
+        # Haupt-Explosion
         frames, fps = _expl_frames(game, "expl_rocket")
-        game.explosion_manager.add_explosion(cx, cy, frames, fps=fps, scale=1.4)
+        game.explosion_manager.add_explosion(cx, cy, frames, fps=fps, scale=1.6, weapon_type="rocket")  # Größere Hauptexplosion
 
 class Blaster(Projectile):
     kind = "blaster"
@@ -386,15 +468,18 @@ class Blaster(Projectile):
         self.rect.y += int(self.vy)
 
     def on_hit(self, game, hit_pos):
-        frames, fps = _expl_frames(game, "expl_laser")
-        ex = Explosion(hit_pos[0], hit_pos[1], frames, fps=fps)
+        cx, cy = hit_pos
         if game.assets.get("laser_sound_destroy"):
             game.assets["laser_sound_destroy"].set_volume(MASTER_VOLUME * SFX_VOLUME)
             game.assets["laser_sound_destroy"].play()
-        keep = game.assets.get("expl_laser_keep")
+        # AoE-Schaden für den Blaster (kleiner als Rakete)
+        _apply_aoe(game, cx, cy, 40, self.dmg, "expl_rocket", expl_scale=0.8, weapon_type="blaster")
+        # Explosion
+        frames, fps = _expl_frames(game, "expl_rocket")  # Raketen-Explosion sieht besser aus
+        keep = game.assets.get("expl_rocket_keep", 8)  # Länger als Laser-Explosion
         if keep:
-            ex.frames = ex.frames[:keep]
-        game.explosion_manager.add_explosion(hit_pos[0], hit_pos[1], frames, fps=fps)
+            frames = frames[:keep]
+        game.explosion_manager.add_explosion(cx, cy, frames, fps=fps*1.2, scale=1.2, weapon_type="blaster")  # Schnellere, größere Explosion
 
 class HomingRocket(Projectile):
     kind = "homing_rocket"
@@ -577,9 +662,20 @@ class HomingRocket(Projectile):
         if game.assets.get("rocket_sound_hit"):
             game.assets["rocket_sound_hit"].set_volume(MASTER_VOLUME * SFX_VOLUME)
             game.assets["rocket_sound_hit"].play()
-        _apply_aoe(game, cx, cy, self.radius, self.dmg, "expl_rocket", expl_scale=1.2)
+        # AoE Schaden für Homing-Rakete (größer als normale Rakete)
+        _apply_aoe(game, cx, cy, self.radius * 1.2, self.dmg, "expl_rocket", expl_scale=0.8, weapon_type="homing_rocket")  # Leicht größerer Radius
+        # Haupt-Explosion (größer und spektakulärer als normale Rakete)
         frames, fps = _expl_frames(game, "expl_rocket")
-        game.explosion_manager.add_explosion(cx, cy, frames, fps=fps, scale=1.6)
+        # Zentrale große Explosion
+        game.explosion_manager.add_explosion(cx, cy, frames, fps=fps*0.9, scale=2.0, weapon_type="homing_rocket")  # Langsamere, größere Hauptexplosion
+        # Ring aus kleineren Explosionen für coolen Effekt
+        num_explosions = 4  # 4 kleine Explosionen im Ring
+        radius = 30  # Kleiner Radius für den Ring
+        for i in range(num_explosions):
+            angle = i * (2 * math.pi / num_explosions)
+            x = cx + radius * math.cos(angle)
+            y = cy + radius * math.sin(angle)
+            game.explosion_manager.add_explosion(x, y, frames, fps=fps*1.2, scale=0.6, weapon_type="homing_rocket")  # Schnellere, kleinere Explosionen
 
 class Nuke(Projectile):
     kind = "nuke"
@@ -600,13 +696,36 @@ class Nuke(Projectile):
 
     def on_hit(self, game, hit_pos):
         cx, cy = hit_pos
+        print(f"NUKE HIT at {cx},{cy}!")  # Debug
+        
         if game.assets.get("nuke_sound_hit"):
             game.assets["nuke_sound_hit"].set_volume(MASTER_VOLUME * SFX_VOLUME)
             game.assets["nuke_sound_hit"].play()
-        _apply_aoe(game, cx, cy, self.radius, self.dmg, "expl_nuke", expl_scale=1.5)  # Kleinere Explosionen
-        now = pygame.time.get_ticks()
-        game.flash_until     = now + 200   # Kürzerer Flash
-        game.shake_until     = now + 600   # Kürzerer Shake
-        game.timescale_until = now + 400   # Kürzere Slow-Motion
+        
+        # MEHRERE große Explosionen für maximalen Effekt!
         frames, fps = _expl_frames(game, "expl_nuke")
-        game.explosion_manager.add_explosion(cx, cy, frames, fps=fps, scale=2.5)
+        print(f"NUKE: Got frames={len(frames) if frames else 0}, fps={fps}")  # Debug
+        
+        # Zentrale Mega-Explosion
+        game.explosion_manager.add_explosion(cx, cy, frames, fps=fps*0.8, scale=4.0, weapon_type="nuke")
+        print(f"NUKE: Added central explosion!")  # Debug
+        
+        # Ring aus kleineren Explosionen
+        num_explosions = 8
+        radius = 100  # Radius des Explosionsrings
+        for i in range(num_explosions):
+            angle = i * (2 * math.pi / num_explosions)
+            x = cx + radius * math.cos(angle)
+            y = cy + radius * math.sin(angle)
+            game.explosion_manager.add_explosion(x, y, frames, fps=fps*1.2, scale=1.2, weapon_type="nuke")
+        print(f"NUKE: Added {num_explosions} ring explosions!")  # Debug
+        
+        # AoE Schaden INKLUSIVE Explosionen
+        enemies_hit = _apply_aoe(game, cx, cy, self.radius, self.dmg, "expl_nuke", expl_scale=1.0, weapon_type="nuke")
+        print(f"NUKE: Hit {enemies_hit if enemies_hit else 0} enemies!")  # Debug
+        
+        # Maximale visuelle Effekte
+        now = pygame.time.get_ticks()
+        game.flash_until     = now + 400   # Längerer Flash
+        game.shake_until     = now + 1000  # Mehr Shake
+        game.timescale_until = now + 600   # Längere Slow-Motion

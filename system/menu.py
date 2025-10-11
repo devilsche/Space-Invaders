@@ -9,8 +9,8 @@ class GameMenu:
 
     def __init__(self):
         self.background_image = None
-        self.font = None
-        self.title_font = None
+        self.font = pygame.font.Font(None, FONT_SIZE)
+        self.title_font = pygame.font.Font(None, FONT_SIZE * 2)
         self.selected_option = 0
         self.menu_options = ["Start", "Quit"]  # Passend zum Startscreen-Bild
         self.pause_options = ["Resume", "Quit to Menu"]
@@ -28,12 +28,12 @@ class GameMenu:
         self.normal_color = (255, 255, 255, 64)     # Weiß mit Transparenz
         self.border_color = (255, 255, 100)         # Gelber Rahmen
 
-    def load_assets(self):
+    def load_assets(self, assets):
         """Lade Menü-Assets"""
         try:
-            # Hintergrundbild laden - Verwende background.png statt startscreen.png
             self.background_image = pygame.image.load("assets/images/background.png").convert()
             # Skaliere auf Bildschirmgröße falls nötig
+            self.assets = assets
             if self.background_image.get_size() != (WIDTH, HEIGHT):
                 self.background_image = pygame.transform.scale(self.background_image, (WIDTH, HEIGHT))
 

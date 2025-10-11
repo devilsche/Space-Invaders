@@ -1,659 +1,460 @@
 import pygame
 import random
 from assets.load_assets import load_assets
-from system.utils       import load_highscore, save_highscore, scale, scale_pos, scale_size
+from system.utils       import load_highscore, save_highscore, scale
 from system.hud         import HUD
 from system.health_bar  import HealthBar
-from system.explosion_manager import ExplosionManager
 from config             import *
 from config.powerup     import POWERUP_CONFIG
 from config.shield      import SHIELD_CONFIG
 from entities           import *
+from manager import ExplosionManager, PowerUpManager, ProjectileManager
+from system.menu import GameMenu
 
 class Game:
     def __init__(self):
         pygame.init()
 
-        # Mehr Mixer-Kanäle für gleichzeitige Sounds
-        pygame.mixer.set_num_channels(32)  # Erhöhe von 8 auf 32 Kanäle
-
-        # Reserviere Kanäle für wichtige Sounds
-        self.shield_channel = pygame.mixer.Channel(30)  # Kanal 30 für Shield-Hits
-        self.music_channel = pygame.mixer.Channel(31)   # Kanal 31 für Musik
-
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        # Pygame Setup (optional: vsync wenn verfügbar)
+        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))  # , pygame.SCALED, vsync=1
         pygame.display.set_caption("Space Invaders")
         self.clock = pygame.time.Clock()
-        self.font  = pygame.font.Font(None, FONT_SIZE)
-        
+
+        # Game State
+        self.running    = True
+        self.paused     = False
+        self.game_state = "menu"
+        self.score      = 0
+        self.highscore  = load_highscore()
+        self.lives      = LIVES
+
         # Display-Modi
         self.is_fullscreen = False
-        self.is_maximized = False
+        self.is_maximized  = False
         self.original_size = (WIDTH, HEIGHT)
-        
-        # 16:9 Aspect Ratio
-        self.aspect_ratio = 16 / 9
+        self.aspect_ratio  = 16 / 9
 
+        # Assets
         self.assets = load_assets()
+        self.font   = pygame.font.Font(None, FONT_SIZE)
+        self._bg_scaled = self.assets.get("background_img")  # wird in _reinitialize_ui() skaliert
 
-        self.player_shots = []
-        self.enemy_shots  = []
-        self.enemies      = []
-        self.explosion_manager = ExplosionManager(max_explosions=25)  # Optimierter Explosion-Manager
+        # Menü
+        self.menu = GameMenu()
+        self.menu.load_assets(self.assets)
+        self.menu.set_pause_mode(False)
 
+        # Audio
+        pygame.mixer.set_num_channels(32)
+        self.shield_channel = pygame.mixer.Channel(30)
+        self.music_channel  = pygame.mixer.Channel(31)
+        # Musik einmal laden
+        if "music_paths" in self.assets and "raining_bits" in self.assets["music_paths"]:
+            try:
+                pygame.mixer.music.load(self.assets["music_paths"]["raining_bits"])
+            except pygame.error:
+                pass
+
+        # Fixed timestep
+        self.fixed_timestep      = 1.0 / 60.0
+        self.accumulated_time    = 0.0
+        self.max_steps_per_frame = 2
+
+        # Gameplay Container
+        self.enemies = []
         self.enemy_dir   = 1
         self.enemy_speed = 0.0
         self.wave_num    = 0
 
-        self.score              = 0
-        self.highscore          = load_highscore()
-        self.paused             = False
-        
-        # Game States
-        self.game_state = "menu"  # "menu", "playing", "paused", "game_over"
-        
-        # Menu System
-        from system.menu import GameMenu
-        self.menu = GameMenu()
-        self.menu.load_assets()
-        self.menu.set_pause_mode(False)  # Initialize with start menu
-        self.pause_start_time   = 0
-        self.total_pause_time   = 0
-        self.running            = True
-        self.shield             = None
-        self.shield_until       = 0
-        self._shield_ready_at   = 0
-        self.player_dead        = False
-        self.lives              = LIVES
+        self.shield           = None
+        self.shield_until     = 0
+        self._shield_ready_at = 0
+        self._last_shield_destroyed = 0
+
+        self.player_dead = False
         self.lives_cooldown     = LIVES_COOLDOWN
         self.respawn_protection = RESPAWN_PROTECTION
         self._respawn_ready_at  = 0
-        self.spawn_pos          = (WIDTH // 2, HEIGHT - 80)   # NEU: feste Spawn-Position
+        self.spawn_pos          = (WIDTH // 2, HEIGHT - 80)
 
-        # Weapon Cooldown Tracking
+        # Manager
+        self.powerup_manager    = PowerUpManager(self.assets)
+        self.explosion_manager  = ExplosionManager(max_explosions=10000)
+        self.projectile_manager = ProjectileManager(max_projectiles=10000)  # Sehr hoch für extreme Situationen
+
+        # Pausen-Zeitmessung
+        self.total_pause_time = 0
+        self.pause_start_time = 0
+
+        # Runtime-Status für HUD und Waffen
         self.weapon_cooldowns = {
-            "rocket_last_used": 0,
+            "rocket_last_used":        0,
             "homing_rocket_last_used": 0,
-            "blaster_last_used": 0,
-            "nuke_last_used": 0,
-            "shield_ready_at": 0
+            "blaster_last_used":       0,
+            "nuke_last_used":          0,
+            "shield_ready_at":         0
         }
 
-        # Schild-Zerstörungs-Tracking
-        self._last_shield_destroyed = 0
+        # Fly-In/Spawn Status
+        self.fly_in_enemies         = []
+        self._last_fly_in_spawn     = 0
+        self._fly_in_spawn_interval = 1000
+        self._fly_in_spawn_count    = 0
+        self._max_fly_in_enemies    = 30
 
-        # Fly-In Enemy Spawning System
-        self.fly_in_enemies = []  # Separate Liste für einfliegende Gegner
-        self._last_fly_in_spawn = 0
-        self._fly_in_spawn_interval = 3000  # 3 Sekunden zwischen Spawns
-        self._fly_in_spawn_count = 0
-        self._max_fly_in_enemies = 20  # Maximal 20 einfliegende Gegner
-
-        # Kill-Tracking für Boss-Spawn
-        self._total_kills = 0
+        # Kills/Boss
+        self._total_kills  = 0
         self._boss_spawned = False
 
-        # Power-Up System
+        # Power-Ups
         self.powerups = []
-
-        # Power-Up Shield System
-        self.powerup_shield = None
+        self.powerup_shield       = None
         self.powerup_shield_until = 0
+        self.double_laser_active  = False
+        self.double_laser_until   = 0
+        self.speed_boost_active   = False
+        self.speed_boost_until    = 0
+        self.speed_boost_multiplier = 1.0
+        self.original_player_speed  = None
 
-        # DoubleLaser Power-Up System
-        self.double_laser_active = False
-        self.double_laser_until = 0
-
-        # Speed Boost Power-Up System
-        self.speed_boost_active = False
-        self.speed_boost_until = 0
-        
-        # EMP System
+        # EMP
         from entities.emp import EMPPowerUp
         self.emp_powerup = EMPPowerUp()
-        # EMP startet mit 0 Ladungen - muss durch Power-Ups gesammelt werden
-        self.emp_waves = []  # Aktive EMP-Wellen
-        self.speed_boost_multiplier = 1.0
-        self.original_player_speed = None
+        self.emp_waves   = []
 
-        # Kill Counter Display System
-        self.kill_display_text = ""
-        self.kill_display_timer = 0
-        self.kill_display_duration = 2000  # 2 Sekunden
+        # Kill-Overlay
+        self.kill_display_text     = ""
+        self.kill_display_timer    = 0
+        self.kill_display_duration = 2000
 
-        # Player mit aktueller Bildschirmgröße initialisieren
-        current_width, current_height = self.screen.get_size() 
+        # Player+HUD
+        current_width, current_height = self.screen.get_size()
         self.player = Player(current_width, current_height, self.assets)
         self.player.rect.center = self.spawn_pos
 
-        # HUD initialisieren
         self.hud = HUD(current_width, current_height)
         self.hud.load_icons(self.assets)
 
-        # Health Bar initialisieren (oben rechts)
-        health_bar_width = scale(200)
+        health_bar_width  = scale(200)
         health_bar_height = scale(20)
-        health_bar_x = WIDTH - health_bar_width - scale(70)  # 20px vom rechten Rand
-        health_bar_y = scale(20)  # 20px von oben
+        health_bar_x = WIDTH - health_bar_width - scale(70)
+        health_bar_y = scale(20)
         self.health_bar = HealthBar(health_bar_x, health_bar_y, health_bar_width, health_bar_height)
-        
-        # Schild Health Bar (oben rechts, unter Player Health)
-        shield_bar_width = scale(200)
+
+        shield_bar_width  = scale(200)
         shield_bar_height = scale(15)
         shield_bar_x = WIDTH - shield_bar_width - scale(70)
-        shield_bar_y = scale(50)  # Unter der Health Bar
+        shield_bar_y = scale(50)
         self.shield_health_bar = HealthBar(shield_bar_x, shield_bar_y, shield_bar_width, shield_bar_height)
-    
+
+        # Start-UI auf aktuelle Größe bringen
+        self._reinitialize_ui()
+
+    def _physics_update(self):
+        """Nur Physik, keine Neu-Initialisierung."""
+        self.projectile_manager.physics_update(self)
+
     def _show_kill_counter(self):
-        """Zeigt den Kill-Counter kurz in der Bildschirmmitte an"""
         if self._total_kills < 50:
             self.kill_display_text = f"Kill {self._total_kills}/50"
         else:
             self.kill_display_text = f"Kill {self._total_kills}"
         self.kill_display_timer = pygame.time.get_ticks()
 
-        if "music_paths" in self.assets and "raining_bits" in self.assets["music_paths"]:
-            try:
-                pygame.mixer.music.load(self.assets["music_paths"]["raining_bits"])
+        # Musik nur starten, nicht neu laden
+        try:
+            if not pygame.mixer.music.get_busy():
                 pygame.mixer.music.set_volume(MASTER_VOLUME * MUSIC_VOLUME)
                 pygame.mixer.music.play(-1)
-            except pygame.error:
-                pass
-
-        # self._build_wave("alien")
+        except pygame.error:
+            pass
 
     def toggle_fullscreen(self):
-        """Wechselt zwischen Vollbild und Fenster-Modus - nutzt komplette Bildschirmfläche ohne schwarze Ränder"""
-        # Speichere aktuelle Player-Position vor Resize
         old_player_pos = None
         if self.player:
             current_screen = pygame.display.get_surface()
             if current_screen:
-                old_width, old_height = current_screen.get_size()
-                old_player_pos = (
-                    self.player.rect.centerx / old_width,
-                    self.player.rect.centery / old_height
-                )
-        
+                ow, oh = current_screen.get_size()
+                old_player_pos = (self.player.rect.centerx / ow, self.player.rect.centery / oh)
+
         if self.is_fullscreen:
-            # Zu Fenster-Modus wechseln
             self.screen = pygame.display.set_mode(self.original_size)
             self.is_fullscreen = False
-            self.is_maximized = False
-            print("Switched to windowed mode")
+            self.is_maximized  = False
         else:
-            # Zu ECHTEM Vollbild wechseln - nutzt native Bildschirmauflösung ohne schwarze Ränder
             self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
             self.is_fullscreen = True
-            self.is_maximized = False
-            fullscreen_width, fullscreen_height = self.screen.get_size()
-            print(f"Switched to fullscreen mode: {fullscreen_width}x{fullscreen_height} (native resolution)")
-        
-        # Nach Auflösungs-Wechsel: Player-Position wiederherstellen und UI neu initialisieren
+            self.is_maximized  = False
+
         self._reinitialize_ui(old_player_pos)
 
     def toggle_maximize(self):
-        """Wechselt zwischen normalem Fenster und maximiertem Fenster mit 16:9 Aspect Ratio"""
-        # Speichere aktuelle Player-Position vor Resize
         old_player_pos = None
-        old_width, old_height = 0, 0
         if self.player:
             current_screen = pygame.display.get_surface()
             if current_screen:
-                old_width, old_height = current_screen.get_size()
-                old_player_pos = (
-                    self.player.rect.centerx / old_width,
-                    self.player.rect.centery / old_height
-                )
-        
+                ow, oh = current_screen.get_size()
+                old_player_pos = (self.player.rect.centerx / ow, self.player.rect.centery / oh)
+
         if self.is_maximized or self.is_fullscreen:
-            # Zurück zu normaler Fenstergröße
             self.screen = pygame.display.set_mode(self.original_size)
             self.is_maximized = False
             self.is_fullscreen = False
-            print(f"Switched to normal window mode: {self.original_size}")
         else:
-            # Maximiertes Fenster mit 16:9 Aspect Ratio
-            # Verwende aktuelle Fenster-Position und aktuellen Monitor
-            window_pos = pygame.display.get_window_position() if hasattr(pygame.display, 'get_window_position') else (0, 0)
-            
-            # Heuristische Berechnung für maximale Fenstergröße
-            # Da wir nicht direkt den aktuellen Monitor abfragen können,
-            # verwenden wir eine konservative Schätzung
             current_screen = pygame.display.get_surface()
             if current_screen:
-                current_width, current_height = current_screen.get_size()
-                
-                # Berechne größere Auflösung basierend auf aktuellem Fenster
-                # Typische Monitor-Größen für bessere Schätzung
-                if current_width <= 1280:
-                    # Vermutlich 1920x1080 Monitor
-                    max_width, max_height = 1920, 1080
-                elif current_width <= 1920:
-                    # Vermutlich 2560x1440 Monitor  
-                    max_width, max_height = 2560, 1440
+                cw, ch = current_screen.get_size()
+                if cw <= 1280:
+                    max_w, max_h = 1920, 1080
+                elif cw <= 1920:
+                    max_w, max_h = 2560, 1440
                 else:
-                    # Größerer Monitor - verwende konservative Werte
-                    max_width, max_height = current_width + 400, current_height + 200
+                    max_w, max_h = cw + 400, ch + 200
             else:
-                # Fallback für häufigste Auflösung
-                max_width, max_height = 1920, 1080
-            
-            # Berechne 16:9 Größe basierend auf verfügbarem Platz
-            # Berücksichtige Taskbar/Titelleiste (etwa 100px Overhead)
-            available_height = max_height - 100
-            available_width = max_width - 50
-            
-            # Berechne maximale Größe mit 16:9 Ratio
-            if available_width / available_height > self.aspect_ratio:
-                # Höhe ist limitierend
-                new_height = available_height
-                new_width = int(new_height * self.aspect_ratio)
+                max_w, max_h = 1920, 1080
+
+            avail_h = max_h - 100
+            avail_w = max_w - 50
+            if avail_w / avail_h > self.aspect_ratio:
+                new_h = avail_h
+                new_w = int(new_h * self.aspect_ratio)
             else:
-                # Breite ist limitierend
-                new_width = available_width
-                new_height = int(new_width / self.aspect_ratio)
-            
-            # Stelle sicher, dass die Größe nicht zu klein wird
-            min_width, min_height = 800, 450  # Minimum 16:9 Größe
-            new_width = max(new_width, min_width)
-            new_height = max(new_height, min_height)
-            
-            self.screen = pygame.display.set_mode((new_width, new_height))
+                new_w = avail_w
+                new_h = int(new_w / self.aspect_ratio)
+
+            new_w = max(new_w, 800)
+            new_h = max(new_h, 450)
+
+            self.screen = pygame.display.set_mode((new_w, new_h))
             self.is_maximized = True
             self.is_fullscreen = False
-            print(f"Switched to maximized window mode: {new_width}x{new_height} (16:9 ratio)")
-        
-        # Nach Auflösungs-Wechsel: Player-Position wiederherstellen und UI neu initialisieren
+
         self._reinitialize_ui(old_player_pos)
-    
+
     def _reinitialize_ui(self, old_player_pos=None):
-        """Initialisiert UI-Elemente nach Auflösungs-Wechsel neu"""
-        # HUD mit neuer Bildschirmgröße neu erstellen
-        current_width, current_height = self.screen.get_size()
-        
-        # Aktualisiere globale WIDTH/HEIGHT für alle Spielelemente
+        cw, ch = self.screen.get_size()
+
         import config.settings
-        config.settings.WIDTH = current_width
-        config.settings.HEIGHT = current_height
-        
-        # Aktualisiere system.utils scale-System
+        config.settings.WIDTH  = cw
+        config.settings.HEIGHT = ch
+
         import system.utils
-        system.utils.update_screen_size(current_width, current_height)
-        
-        self.hud = HUD(current_width, current_height)
+        system.utils.update_screen_size(cw, ch)
+
+        self.hud = HUD(cw, ch)
         self.hud.load_icons(self.assets)
-        
-        # Aggressivere Skalierungsfaktoren für bessere Bildschirmnutzung
-        # Base-Auflösung: 1920x1080
-        base_width, base_height = 1920, 1080
-        width_scale = current_width / base_width
-        height_scale = current_height / base_height
-        
-        # Verwende größeren Skalierungsfaktor für UI-Elemente
-        ui_scale = max(width_scale, height_scale) * 1.2  # 20% größer für bessere Sichtbarkeit
-        
-        # HealthBar neu skalieren (oben rechts) - deutlich größer
-        health_bar_width = int(300 * ui_scale)  # von 200 auf 300
-        health_bar_height = int(25 * ui_scale)  # von 20 auf 25
-        health_bar_x = current_width - health_bar_width - int(50 * ui_scale)  # weniger Abstand vom Rand
-        health_bar_y = int(20 * ui_scale)
-        self.health_bar = HealthBar(health_bar_x, health_bar_y, health_bar_width, health_bar_height, ui_scale)
-        
-        # Shield Health Bar (oben rechts, unter Player Health) - mit extra Abstand für Text
-        shield_bar_width = int(300 * ui_scale)  # von 200 auf 300
-        shield_bar_height = int(20 * ui_scale)  # von 15 auf 20
-        shield_bar_x = current_width - shield_bar_width - int(50 * ui_scale)
-        # Berechne Y-Position: HealthBar Ende + Text-Höhe + zusätzlicher Puffer
-        text_height = int(20 * ui_scale)  # Höhe des HealthBar-Texts
-        shield_bar_y = health_bar_y + health_bar_height + text_height + int(10 * ui_scale)  # Text-Höhe + 10px Puffer
-        self.shield_health_bar = HealthBar(shield_bar_x, shield_bar_y, shield_bar_width, shield_bar_height, ui_scale)
-        
-        # Player-Position relativ zur neuen Bildschirmgröße neu berechnen
-        self._reposition_player(current_width, current_height, old_player_pos)
-        
-        # Spawn-Position an neue Auflösung anpassen - mit aggressiverer Skalierung
-        self.spawn_pos = (current_width // 2, current_height - int(60 * ui_scale))  # weniger Abstand vom Rand
-        
-        # Schilde neu skalieren wenn aktiv
+
+        base_w, base_h = 1920, 1080
+        ui_scale = max(cw / base_w, ch / base_h) * 1.2
+
+        hb_w = int(300 * ui_scale)
+        hb_h = int(25 * ui_scale)
+        hb_x = cw - hb_w - int(50 * ui_scale)
+        hb_y = int(20 * ui_scale)
+        self.health_bar = HealthBar(hb_x, hb_y, hb_w, hb_h, ui_scale)
+
+        sb_w = int(300 * ui_scale)
+        sb_h = int(20 * ui_scale)
+        sb_x = cw - sb_w - int(50 * ui_scale)
+        text_h = int(20 * ui_scale)
+        sb_y = hb_y + hb_h + text_h + int(10 * ui_scale)
+        self.shield_health_bar = HealthBar(sb_x, sb_y, sb_w, sb_h, ui_scale)
+
+        self._reposition_player(cw, ch, old_player_pos)
+        self.spawn_pos = (cw // 2, ch - int(60 * ui_scale))
+
         if self.shield:
             self._update_shield_scale()
         if self.powerup_shield:
             self._update_shield_scale()
-            
-        # Font-Größe an neue Auflösung anpassen
-        scaled_font_size = int(FONT_SIZE * ui_scale)
-        self.font = pygame.font.Font(None, scaled_font_size)
-        
-        print(f"UI reinitialized for resolution: {current_width}x{current_height} (UI scale: {ui_scale:.2f}, Font: {scaled_font_size}px)")
+
+        self.font = pygame.font.Font(None, int(FONT_SIZE * ui_scale))
+
+        # Hintergrund einmalig skalieren
+        bg = self.assets.get("background_img")
+        if bg:
+            if bg.get_size() != (cw, ch):
+                self._bg_scaled = pygame.transform.smoothscale(bg, (cw, ch))
+            else:
+                self._bg_scaled = bg
 
     def _reposition_player(self, new_width, new_height, old_player_pos=None):
-        """Positioniert Player relativ zur neuen Bildschirmgröße"""
         if not self.player:
             return
-            
-        # Verwende gespeicherte relative Position oder berechne sie
         if old_player_pos:
             rel_x, rel_y = old_player_pos
         else:
-            # Fallback: zentriere Player unten
             rel_x, rel_y = 0.5, 0.85
-        
-        # Neue absolute Position
-        new_x = int(rel_x * new_width)  
+        new_x = int(rel_x * new_width)
         new_y = int(rel_y * new_height)
-        
-        # Stelle sicher, dass Player im sichtbaren Bereich bleibt
         margin = self.player.rect.width // 2
         new_x = max(margin, min(new_width - margin, new_x))
         new_y = max(margin, min(new_height - margin, new_y))
-        
-        # Setze neue Position
-        old_pos = self.player.rect.center
         self.player.rect.center = (new_x, new_y)
-        
-        print(f"Player repositioned from {old_pos} to ({new_x}, {new_y}) (relative: {rel_x:.2f}, {rel_y:.2f})")
 
     # ---------------- Power-Up System ----------------
     def _try_drop_powerup(self, x, y):
-        """Versucht ein Power-Up zu droppen mit konfigurierten Wahrscheinlichkeiten"""
-        # Power-Ups können immer droppen (entferne Health-Einschränkung)
-        
-        # Erstelle gewichtete Liste basierend auf drop_chance
-        weighted_powerups = []
-        for powerup_type, config in POWERUP_CONFIG.items():
-            # Jede drop_chance wird als Gewicht verwendet
-            weight = int(config["drop_chance"] * 1000)  # Skaliere für bessere Genauigkeit
-            weighted_powerups.extend([powerup_type] * weight)
-        
-        # Wenn kein Power-Up gewählt wird (basierend auf Gesamtwahrscheinlichkeit)
-        total_chance = sum(config["drop_chance"] for config in POWERUP_CONFIG.values())
-        if random.random() > total_chance:
-            return  # Kein Drop
-            
-        # Wähle zufällig aus gewichteter Liste
-        if weighted_powerups:
-            chosen_type = random.choice(weighted_powerups)
-            powerup = PowerUp(x, y, chosen_type, self.assets)
-            self.powerups.append(powerup)
+        self.powerup_manager.queue_drop_check(x, y)
 
     def _update_powerups(self):
-        """Aktualisiert alle Power-Ups"""
-        for powerup in self.powerups[:]:
-            powerup.update()
-
-            # Entfernen wenn abgelaufen oder vom Bildschirm gefallen
-            if powerup.is_expired() or powerup.offscreen():
-                self.powerups.remove(powerup)
-                continue
-
-            # Kollision mit Player prüfen
+        # PowerUpManager Update (verarbeitet Queue und updatet PowerUps)
+        dt = self.clock.get_time() / 1000.0
+        self.powerup_manager.update(dt, HEIGHT)
+        
+        # Kollisionserkennung mit Player
+        for powerup in self.powerup_manager.powerups[:]:
             if powerup.rect.colliderect(self.player.rect):
-                # Effekt anwenden
                 effect_result = powerup.apply_effect(self.player)
-
-                # Shield Power-Up spezielle Behandlung
                 if isinstance(effect_result, dict) and effect_result.get("type") == "shield":
                     self._activate_powerup_shield(effect_result["duration"], effect_result["config"])
-                    print(f"Power-Up Shield activated for {effect_result['duration']/1000:.1f}s!")
                 elif isinstance(effect_result, dict) and effect_result.get("type") == "double_laser":
                     self._activate_double_laser(effect_result["duration"])
-                    print(f"Double Laser activated for {effect_result['duration']/1000:.1f}s!")
                 elif isinstance(effect_result, dict) and effect_result.get("type") == "speed_boost":
                     self._activate_speed_boost(effect_result["duration"], effect_result["multiplier"])
-                    print(f"Speed Boost activated for {effect_result['duration']/1000:.1f}s! ({effect_result['multiplier']}x speed)")
                 elif isinstance(effect_result, dict) and effect_result.get("type") == "emp":
                     self.emp_powerup.add_charge()
-                    print(f"EMP charge added! Charges: {self.emp_powerup.charges}/{self.emp_powerup.max_charges}")
-                else:
-                    print(f"Power-Up collected: {effect_result}")
-
-                # Punkte geben
                 self.score += powerup.get_points()
                 self.highscore = max(self.highscore, self.score)
-
-                # Power-Up entfernen
-                self.powerups.remove(powerup)
+                self.powerup_manager.powerups.remove(powerup)
 
     def _activate_powerup_shield(self, duration, shield_config):
-        """Aktiviert das gelbe Power-Up Shield"""
         now = self.get_game_time()
-
-        # Power-Up Shield erstellen mit gleicher Skalierung wie normales Shield
         frames = self.assets["shield_frames"]
         fps = shield_config.get("fps", 20)
-        # Gleiche dynamische Skalierung wie beim normalen Q-Shield
-        scale = max(self.player.rect.w, self.player.rect.h) / frames[0].get_width() * self.assets["shield_scale"]
-
+        scale_f = max(self.player.rect.w, self.player.rect.h) / frames[0].get_width() * self.assets["shield_scale"]
         self.powerup_shield = Shield(
-            *self.player.rect.center, frames, fps=fps, scale=scale,
+            *self.player.rect.center, frames, fps=fps, scale=scale_f,
             loop=True, player_health=self.player.max_health, is_powerup_shield=True,
             shield_config=shield_config
         )
         self.powerup_shield_until = now + duration
 
     def _activate_double_laser(self, duration):
-        """Aktiviert den DoubleLaser Power-Up Modus"""
         now = self.get_game_time()
         self.double_laser_active = True
         self.double_laser_until = now + duration
 
     def _activate_speed_boost(self, duration, multiplier):
-        """Aktiviert den Speed Boost Power-Up Modus"""
         now = self.get_game_time()
-        
-        # Speichere ursprüngliche Geschwindigkeit beim ersten Aktivieren
         if self.original_player_speed is None:
             self.original_player_speed = self.player.speed
-        
-        # Aktiviere Speed Boost
         self.speed_boost_active = True
         self.speed_boost_until = now + duration
         self.speed_boost_multiplier = multiplier
-        
-        # Wende Speed-Multiplikator an
         self.player.speed = self.original_player_speed * multiplier
 
     # ---------------- Enemy Bewegung ----------------
     def _update_wave_enemies(self):
-        """Aktualisiert Wave-Enemies mit gruppenbasierter Bewegung"""
         if not hasattr(self, 'wave_movements'):
             return
-        
-        # Gruppiere Enemies nach Wave-ID
         wave_groups = {}
         for enemy in self.enemies:
-            if hasattr(enemy, 'movement_type') and enemy.movement_type == "wave":
-                wave_id = getattr(enemy, 'wave_id', 'default')
-                if wave_id not in wave_groups:
-                    wave_groups[wave_id] = []
-                wave_groups[wave_id].append(enemy)
-        
-        # Bewege jede Wave separat
+            if getattr(enemy, 'movement_type', None) == "wave":
+                wave_groups.setdefault(getattr(enemy, 'wave_id', 'default'), []).append(enemy)
         for wave_id, enemies in wave_groups.items():
-            if not enemies or wave_id not in self.wave_movements:
-                continue
-                
+            if not enemies or wave_id not in self.wave_movements: continue
             wave_data = self.wave_movements[wave_id]
             direction = wave_data["direction"]
             speed = wave_data["speed"]
-            
             dx = direction * max(1, int(speed))
             left = min(en.rect.left for en in enemies)
             right = max(en.rect.right for en in enemies)
-            
-            # Richtungsänderung bei Bildschirmrand
             if (direction == 1 and right + dx >= WIDTH) or (direction == -1 and left - dx <= 0):
                 wave_data["direction"] *= -1
-                # Drop distance aus Config holen
                 enemy_type = wave_data["enemy_type"]
-                move_cfg = ENEMY_CONFIG[enemy_type]["move"]
-                drop_px = move_cfg.get("drop_px", 20)
-                for en in enemies:
-                    en.drop(drop_px)
+                drop_px = ENEMY_CONFIG[enemy_type]["move"].get("drop_px", 20)
+                for en in enemies: en.drop(drop_px)
             else:
-                for en in enemies:
-                    en.update(dx)
+                for en in enemies: en.update(dx)
 
     def _update_fly_in_enemies(self):
-        """Aktualisiert Fly-in Enemies mit individueller Bewegung"""
         for enemy in self.enemies[:]:
-            if hasattr(enemy, 'movement_type') and enemy.movement_type == "fly_in":
-                enemy.update()  # Individuelle Bewegung
-                
-                # Prüfe, ob Enemy den Bildschirm verlassen hat und zurückkommen soll
+            if getattr(enemy, 'movement_type', None) == "fly_in":
+                enemy.update()
                 if enemy.rect.right < 0 or enemy.rect.left > WIDTH:
-                    # Enemy ist seitlich raus - zurückbringen
-                    if enemy.rect.right < 0:
-                        enemy.rect.x = WIDTH  # Von rechts reinkommen
-                    else:
-                        enemy.rect.x = -enemy.rect.width  # Von links reinkommen
+                    enemy.rect.x = WIDTH if enemy.rect.right < 0 else -enemy.rect.width
 
     # ---------------- Wellen ----------------
     def _build_wave(self, enemy_type: str):
-        # self.enemies.clear()
         form = ENEMY_CONFIG[enemy_type]["formation"]
         wave_id = f"wave_{self.wave_num}"
-        
         for r in range(form["rows"]):
             for c in range(form["cols"]):
                 x = c * scale(form["h_spacing"]) + scale(form["margin_x"])
                 y = r * scale(form["v_spacing"]) + scale(form["margin_y"])
                 enemy = Enemy(enemy_type, self.assets, x, y)
-                enemy.wave_id = wave_id  # Wave-ID zuweisen
-                enemy.movement_type = "wave"  # Bewegungstyp
+                enemy.wave_id = wave_id
+                enemy.movement_type = "wave"
                 self.enemies.append(enemy)
-        
-        # Wave-spezifische Bewegungsdaten initialisieren
         if not hasattr(self, 'wave_movements'):
             self.wave_movements = {}
-        
         base = ENEMY_CONFIG[enemy_type]["move"]["speed_start"]
-        self.wave_movements[wave_id] = {
-            "speed": base,
-            "direction": 1,  # Jede Wave startet nach rechts
-            "enemy_type": enemy_type
-        }
-        
+        self.wave_movements[wave_id] = {"speed": base, "direction": 1, "enemy_type": enemy_type}
         self.wave_num += 1
 
     def _spawn_fly_in_enemy(self):
-        """Spawnt einen einfliegenden Gegner von oben"""
-        if self._fly_in_spawn_count >= self._max_fly_in_enemies:
-            return  # Maximale Anzahl erreicht
-
-        import random
-
-        # Zufällige X-Position am oberen Bildschirmrand
+        if self._fly_in_spawn_count >= self._max_fly_in_enemies: return
         spawn_x = random.randint(50, WIDTH - 50)
-        spawn_y = -50  # Über dem Bildschirm
-
-        # Zufällige Laufbahn wählen (weniger Kreisbewegung für weniger Wackeln)
-        path_types = ["straight", "straight", "sine", "sine", "circle"]  # Gewichtung
-        path = random.choice(path_types)
-
-        # Zufälligen Enemy-Typ wählen (außer boss)
-        enemy_types = ["alien", "drone", "tank", "sniper"]
-        enemy_type = random.choice(enemy_types)
-
-        # Enemy erstellen mit dynamischer Konfiguration
+        spawn_y = -50
+        path = random.choice(["straight", "straight", "sine", "sine", "circle"])
+        enemy_type = random.choice(["alien", "drone", "tank", "sniper"])
         enemy = Enemy(enemy_type, self.assets, spawn_x, spawn_y)
-        
-        # Fly-in spezifische Eigenschaften
         enemy.wave_id = f"fly_in_{self._fly_in_spawn_count}"
         enemy.movement_type = "fly_in"
-
-        # Fly-In Bewegung aktivieren (überschreibt die normale Konfiguration)
-        enemy.move_cfg = enemy.move_cfg.copy()  # Kopie erstellen
+        enemy.move_cfg = enemy.move_cfg.copy()
         enemy.move_cfg["type"] = "fly_in"
-
-        # Bewegungsparameter anpassen
         enemy.move_cfg["path"] = path
         if path == "sine":
-            enemy.move_cfg["amplitude"] = random.randint(30, 50)  # Kleinere Amplitude
-            enemy.move_cfg["frequency"] = random.uniform(0.8, 1.5)  # Höhere Frequenz
+            enemy.move_cfg["amplitude"] = random.randint(30, 50)
+            enemy.move_cfg["frequency"] = random.uniform(0.8, 1.5)
         elif path == "circle":
-            enemy.move_cfg["radius"] = random.randint(25, 40)  # Viel kleinerer Radius
-            enemy.move_cfg["frequency"] = random.uniform(0.6, 1.0)  # Höhere Frequenz
+            enemy.move_cfg["radius"] = random.randint(25, 40)
+            enemy.move_cfg["frequency"] = random.uniform(0.6, 1.0)
         elif path == "straight":
-            # Zufällige Richtung für gerade Bewegung
             enemy._phase = random.choice([-1, 1]) * random.uniform(0.5, 2.0)
-
-        # Zufällige Ziel-Y-Position
         enemy.move_cfg["target_y"] = random.randint(80, 150)
-
         self.fly_in_enemies.append(enemy)
         self._fly_in_spawn_count += 1
 
     def _spawn_boss_group(self):
-        """Spawnt 2 Boss-Enemies nach 50 Kills"""
-        import random
-
-        for i in range(2):
+        for _ in range(2):
             spawn_x = random.randint(100, WIDTH - 100)
-            spawn_y = -80  # Höher über dem Bildschirm für Boss
-
-            # Boss erstellen
+            spawn_y = -80
             boss = Enemy("boss", self.assets, spawn_x, spawn_y)
-
-            # Fly-In Bewegung für Boss (langsamer und majestätischer)
             boss.move_cfg = boss.move_cfg.copy()
             boss.move_cfg["type"] = "fly_in"
-            boss.move_cfg["target_y"] = random.randint(100, 140)  # Höhere Position
-            boss.move_cfg["path"] = "sine"  # Sanfte Bewegung für Boss
-            boss.move_cfg["speed"] = 1.5  # Langsamer
-            boss.move_cfg["amplitude"] = 30  # Kleine Bewegung
-            boss.move_cfg["frequency"] = 0.5  # Langsame Frequenz
-
+            boss.move_cfg["target_y"] = random.randint(100, 140)
+            boss.move_cfg["path"] = "sine"
+            boss.move_cfg["speed"] = 1.5
+            boss.move_cfg["amplitude"] = 30
+            boss.move_cfg["frequency"] = 0.5
             self.fly_in_enemies.append(boss)
             self._fly_in_spawn_count += 1
-
         self._boss_spawned = True
-        # Spawning komplett stoppen nach Boss-Spawn
         self._max_fly_in_enemies = len(self.fly_in_enemies)
 
     def _update_fly_in_spawning(self):
-        """Updated das Spawning-System für einfliegende Gegner"""
         now = pygame.time.get_ticks()
-
-        # Prüfe ob Boss gespawnt werden soll
-        if (self._total_kills >= 50 and
-            not self._boss_spawned and
-            len(self.fly_in_enemies) == 0):  # Nur wenn alle normalen Enemies weg sind
-            print(f"DEBUG: Spawning boss! Kills: {self._total_kills}, Boss spawned: {self._boss_spawned}, Enemies left: {len(self.fly_in_enemies)}")
+        if self._total_kills >= 50 and not self._boss_spawned and len(self.fly_in_enemies) == 0:
             self._spawn_boss_group()
             return
-
-        # Stoppe normales Spawning nach 50 Kills
         if self._total_kills >= 50:
             return
-
-        # Spawne neue Gegner basierend auf Intervall
         if (now - self._last_fly_in_spawn > self._fly_in_spawn_interval and
             self._fly_in_spawn_count < self._max_fly_in_enemies):
-
-            # Spawne 2-4 Gegner gleichzeitig in einer Gruppe
-            import random
             group_size = random.randint(2, 4)
-            for i in range(group_size):
+            for _ in range(group_size):
                 if self._fly_in_spawn_count < self._max_fly_in_enemies:
                     self._spawn_fly_in_enemy()
-
             self._last_fly_in_spawn = now
-
-            # Intervall leicht variieren für natürlicheres Spawning
-            self._fly_in_spawn_interval = random.randint(4000, 6000)  # Längere Pause zwischen Gruppen
+            self._fly_in_spawn_interval = random.randint(4000, 6000)
 
     def get_game_time(self):
-        """Gibt die echte Spielzeit zurück (ohne Pause-Zeit)"""
         current_time = pygame.time.get_ticks()
         if self.paused:
-            # Während Pause: Pause-Zeit bis jetzt nicht mitzählen
             pause_time_so_far = current_time - self.pause_start_time
             return current_time - self.total_pause_time - pause_time_so_far
-        else:
-            # Normal: Nur die gesamte bisherige Pause-Zeit abziehen
-            return current_time - self.total_pause_time
+        return current_time - self.total_pause_time
 
     # ---------------- Events ----------------
     def _handle_events(self):
@@ -662,96 +463,77 @@ class Game:
                 self.running = False
             elif e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_ESCAPE:
-                    # ESC aktiviert das Pause-Menü
                     if not self.paused:
-                        # Pause: Pause-Start-Zeit merken
                         self.pause_start_time = pygame.time.get_ticks()
-                        self.paused = True
-                        self.game_state = "paused"
-                        self.menu.set_pause_mode(True)  # Set pause menu when entering pause state
-                        try:
-                            pygame.mixer.music.pause()
-                        except pygame.error:
-                            pass
+                        self.paused           = True
+                        self.game_state       = "paused"
+                        self.menu.set_pause_mode(True)
+                        try: pygame.mixer.music.pause()
+                        except pygame.error: pass
+                    else:
+                        self.total_pause_time += pygame.time.get_ticks() - self.pause_start_time
+                        self.paused     = False
+                        self.game_state = "playing"
+                        try: pygame.mixer.music.unpause()
+                        except pygame.error: pass
                 elif e.key == pygame.K_F11:
-                    self.toggle_maximize()  # F11 für maximiertes Fenster mit 16:9
+                    self.toggle_maximize()
                 elif e.key == pygame.K_RETURN and (pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]):
-                    # Alt+Enter für echtes Vollbild
                     self.toggle_fullscreen()
                 elif e.key == pygame.K_1:
-                    self.player.set_stage(1)
-                    self._update_shield_scale()
+                    self.player.set_stage(1); self._update_shield_scale()
                 elif e.key == pygame.K_2:
-                    self.player.set_stage(2)
-                    self._update_shield_scale()
+                    self.player.set_stage(2); self._update_shield_scale()
                 elif e.key == pygame.K_3:
-                    self.player.set_stage(3)
-                    self._update_shield_scale()
+                    self.player.set_stage(3); self._update_shield_scale()
                 elif e.key == pygame.K_4:
-                    self.player.set_stage(4)
-                    self._update_shield_scale()
+                    self.player.set_stage(4); self._update_shield_scale()
                 elif e.key == pygame.K_F1:
-                    self._build_wave( 'alien' )
+                    self._build_wave('alien')
                 elif e.key == pygame.K_F2:
-                    self._build_wave( 'drone' )
+                    self._build_wave('drone')
                 elif e.key == pygame.K_F3:
-                    self._build_wave( 'tank' )
+                    self._build_wave('tank')
                 elif e.key == pygame.K_F4:
-                    self._build_wave( 'sniper' )
+                    self._build_wave('sniper')
                 elif e.key == pygame.K_F5:
-                    self._build_wave( 'boss' )
+                    self._build_wave('boss')
                 elif e.key == pygame.K_F12 and not (pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]):
-                    self.enemies = []  # F12 allein für Enemies clear
-
+                    self.enemies = []
                 elif e.key == pygame.K_SPACE and not self.paused and not self.player_dead:
-                    # Immer Laser schießen, aber mit DoubleLaser-Geschossen wenn Power-Up aktiv
                     shots = self.player.shoot_weapon("laser")
                     if self.double_laser_active and shots:
-                        # Laser-Geschosse durch DoubleLaser-Geschosse ersetzen
-                        enhanced_shots = []
+                        enhanced = []
                         for shot in shots:
-                            # DoubleLaser mit gleicher Position und Geschwindigkeit erstellen
-                            double_shot = DoubleLaser.create(shot.rect.centerx, shot.rect.centery, 
-                                                           self.assets, owner="player", angle_deg=0)
-                            enhanced_shots.append(double_shot)
-                        self.player_shots.extend(enhanced_shots)
+                            ds = DoubleLaser.create(shot.rect.centerx, shot.rect.centery, self.assets, owner="player", angle_deg=0)
+                            enhanced.append(ds)
+                        for s in enhanced: self.projectile_manager.add_player_shot(s)
                     else:
-                        self.player_shots.extend(shots)
+                        for s in shots: self.projectile_manager.add_player_shot(s)
                 elif e.key == pygame.K_r and not self.paused and not self.player_dead:
                     shots = self.player.shoot_weapon("rocket")
-                    if shots:  # Nur wenn tatsächlich geschossen wurde
-                        self.player_shots.extend(shots)
-                        current_time = pygame.time.get_ticks()
-                        self.weapon_cooldowns["rocket_last_used"] = current_time
+                    if shots:
+                        for s in shots: self.projectile_manager.add_player_shot(s)
+                        self.weapon_cooldowns["rocket_last_used"] = pygame.time.get_ticks()
                 elif e.key == pygame.K_t and not self.paused and not self.player_dead:
                     shots = self.player.shoot_weapon("homing_rocket")
-                    if shots:  # Nur wenn tatsächlich geschossen wurde
-                        self.player_shots.extend(shots)
-                        current_time = pygame.time.get_ticks()
-                        self.weapon_cooldowns["homing_rocket_last_used"] = current_time
+                    if shots:
+                        for s in shots: self.projectile_manager.add_player_shot(s)
+                        self.weapon_cooldowns["homing_rocket_last_used"] = pygame.time.get_ticks()
                 elif e.key == pygame.K_b and not self.paused and not self.player_dead:
                     shots = self.player.shoot_weapon("blaster")
-                    if shots:  # Nur wenn tatsächlich geschossen wurde
-                        self.player_shots.extend(shots)
-                        current_time = pygame.time.get_ticks()
-                        self.weapon_cooldowns["blaster_last_used"] = current_time
+                    if shots:
+                        for s in shots: self.projectile_manager.add_player_shot(s)
+                        self.weapon_cooldowns["blaster_last_used"] = pygame.time.get_ticks()
                 elif e.key == pygame.K_e and not self.paused and not self.player_dead:
                     shots = self.player.shoot_weapon("nuke")
-                    if shots:  # Nur wenn tatsächlich geschossen wurde
-                        self.player_shots.extend(shots)
-                        current_time = pygame.time.get_ticks()
-                        self.weapon_cooldowns["nuke_last_used"] = current_time
-
+                    if shots:
+                        for s in shots: self.projectile_manager.add_player_shot(s)
+                        self.weapon_cooldowns["nuke_last_used"] = pygame.time.get_ticks()
                 elif e.key == pygame.K_q and not self.paused and not self.player_dead:
-                    # Prüfen, ob das aktuelle Schiff einen Schild hat
                     from config.ship import SHIP_CONFIG
-                    current_ship_config = SHIP_CONFIG.get(self.player.stage, {})
-                    has_shield = current_ship_config.get("shield", 0) == 1
-
-                    if not has_shield:
-                        # Kein Schild verfügbar für dieses Schiff
-                        break
-
+                    has_shield = SHIP_CONFIG.get(self.player.stage, {}).get("shield", 0) == 1
+                    if not has_shield: break
                     if self.shield:
                         self.shield = None
                         break
@@ -759,548 +541,437 @@ class Game:
                     if now >= self._shield_ready_at:
                         frames = self.assets["shield_frames"]
                         fps    = self.assets["shield_fps"]
-
-                        scale = max(self.player.rect.w, self.player.rect.h) / frames[0].get_width() * self.assets["shield_scale"]
-                        new_shield = Shield( *self.player.rect.center, frames, fps=fps, scale=scale, loop=True,
-                                           player_health=self.player.max_health )
-
-                        # Schild sollte mit reduzierter Health starten wenn es kürzlich zerstört wurde
-                        from config.shield import SHIELD_CONFIG
+                        scale_f = max(self.player.rect.w, self.player.rect.h) / frames[0].get_width() * self.assets["shield_scale"]
+                        new_shield = Shield(*self.player.rect.center, frames, fps=fps, scale=scale_f, loop=True, player_health=self.player.max_health)
                         shield_cfg = SHIELD_CONFIG[1]["shield"]
-                        regen_rate = shield_cfg.get("regen_rate", 0.2)  # 20% pro Sekunde
-                        min_health_percent = shield_cfg.get("min_health_percentage", 0.3)   # Mindestens 30% der Schild-Health
-                        min_health = int(new_shield.max_health * min_health_percent)
-
-                        time_since_last_shield = max(0, now - getattr(self, '_last_shield_destroyed', 0))
-                        regen_time_seconds = time_since_last_shield / 1000.0
-                        health_regen = min(new_shield.max_health, new_shield.max_health * regen_rate * regen_time_seconds)
+                        regen_rate = shield_cfg.get("regen_rate", 0.2)
+                        min_health = int(new_shield.max_health * shield_cfg.get("min_health_percentage", 0.3))
+                        time_since_last = max(0, now - getattr(self, '_last_shield_destroyed', 0))
+                        health_regen = min(new_shield.max_health, new_shield.max_health * regen_rate * (time_since_last/1000.0))
                         new_shield.current_health = max(min_health, int(health_regen))
-
                         self.shield = new_shield
                         self.shield_until     = now + self.assets["shield_duration"]
                         self._shield_ready_at = now + self.assets["shield_cooldown"]
-
-                        # Shield-Aktivierungs-Sound abspielen
                         if self.assets.get("shield_activate_sound"):
-                            from config import MASTER_VOLUME, SFX_VOLUME
                             self.assets["shield_activate_sound"].set_volume(MASTER_VOLUME * SFX_VOLUME)
                             self.assets["shield_activate_sound"].play()
-
-
 
     # ---------------- Update ----------------
     def _update(self):
         keys = pygame.key.get_pressed()
         now  = pygame.time.get_ticks()
 
-        # Fly-In Enemy Spawning System
         self._update_fly_in_spawning()
 
-        # HUD mit aktuellen Weapon-Status aktualisieren
         self.weapon_cooldowns["shield_ready_at"] = self._shield_ready_at
         self.hud.update_weapon_status(self.player, now, self.weapon_cooldowns)
-        
-        # EMP-Status für HUD aktualisieren
         self.hud.update_emp_status(self.emp_powerup, now)
-        
-        # Power-Up Status aktualisieren - mit Spielzeit (ohne Pause)
+
         game_time = self.get_game_time()
         super_shield_active = self.powerup_shield is not None
-        super_shield_until = self.powerup_shield_until if super_shield_active else 0
-        self.hud.update_powerup_status(self.double_laser_active, self.double_laser_until, 
-                                     super_shield_active, super_shield_until,
-                                     self.speed_boost_active, self.speed_boost_until,
-                                     game_time)
+        super_shield_until  = self.powerup_shield_until if super_shield_active else 0
+        self.hud.update_powerup_status(
+            self.double_laser_active, self.double_laser_until,
+            super_shield_active, super_shield_until,
+            self.speed_boost_active, self.speed_boost_until,
+            game_time
+        )
 
-        # Health Bar aktualisieren
         if not self.player_dead:
             self.health_bar.update(self.player.get_health_percentage())
 
-        # während tot: kein Input, keine Kollisionen
         if self.player_dead:
             if (self.lives == -1 or self.lives > 0) and now >= self._respawn_ready_at:
                 self._respawn()
 
         if not self.player_dead:
-            # Verwende aktuelle Bildschirmgröße statt Konstanten
-            current_width, current_height = self.screen.get_size()
-            self.player.handle_input(keys, current_width, current_height)
+            cw, ch = self.screen.get_size()
+            self.player.handle_input(keys, cw, ch)
 
         if keys[pygame.K_SPACE] and not self.paused and not self.player_dead:
-            # Immer Laser schießen, aber mit DoubleLaser-Geschossen wenn Power-Up aktiv
             shots = self.player.shoot_weapon("laser")
             if self.double_laser_active and shots:
-                # Laser-Geschosse durch DoubleLaser-Geschosse ersetzen
-                enhanced_shots = []
+                enhanced = []
                 for shot in shots:
-                    # DoubleLaser mit gleicher Position und Geschwindigkeit erstellen
-                    double_shot = DoubleLaser.create(shot.rect.centerx, shot.rect.centery, 
-                                                   self.assets, owner="player", angle_deg=0)
-                    enhanced_shots.append(double_shot)
-                self.player_shots.extend(enhanced_shots)
+                    ds = DoubleLaser.create(shot.rect.centerx, shot.rect.centery, self.assets, owner="player", angle_deg=0)
+                    enhanced.append(ds)
+                for s in enhanced: self.projectile_manager.add_player_shot(s)
             else:
-                self.player_shots.extend(shots)
-        
-        # EMP-Aktivierung mit V-Taste (V für "Volt" oder "EMP")
+                for s in shots: self.projectile_manager.add_player_shot(s)
+
         if keys[pygame.K_v] and not self.paused and not self.player_dead:
             if self.emp_powerup.can_use(now):
-                if self.emp_powerup.use(self, self.player.rect.center, now):
-                    # Erfolgreiche EMP-Aktivierung - visuelles Feedback
-                    pass
+                self.emp_powerup.use(self, self.player.rect.center, now)
 
-        # Projektile bewegen
-        for p in self.player_shots[:]:
-            # Wärmelenkraketen brauchen Zugriff auf das Game-Objekt
-            if hasattr(p, 'homing') and p.homing:
-                p.update(self)
-            else:
-                p.update()
-            if p.offscreen():
-                self.player_shots.remove(p)
-        for p in self.enemy_shots[:]:
-            # GuidedLaser braucht Zugriff auf das Game-Objekt für Lenkung
-            if hasattr(p, 'homing') and p.homing:
-                p.update(self)
-            else:
-                p.update()
-            if p.offscreen():
-                self.enemy_shots.remove(p)
+        self.projectile_manager.update(self.clock.get_time() / 1000.0, HEIGHT)
 
-        # Update EMP-Effekte auf Gegnern
-        dt = self.clock.get_time() / 1000.0  # Delta time in Sekunden
+        for shot in self.projectile_manager.get_player_shots():
+            if getattr(shot, 'homing', False): shot.update(self)
+        for shot in self.projectile_manager.get_enemy_shots():
+            if getattr(shot, 'homing', False): shot.update(self)
+
+        dt = self.clock.get_time() / 1000.0
         for enemy in self.enemies:
-            if hasattr(enemy, 'update_emp_effects'):
-                enemy.update_emp_effects(dt)
+            if hasattr(enemy, 'update_emp_effects'): enemy.update_emp_effects(dt)
 
         for e in self.enemies[:]:
-            if e.offscreen():
-                self.enemies.remove(e)
-                
-        # Update EMP-Wellen
-        for emp_wave in self.emp_waves[:]:
-            if not emp_wave.update(dt, self):
-                self.emp_waves.remove(emp_wave)
+            if e.offscreen(): self.enemies.remove(e)
 
-        # Update Fly-In Enemies
+        for emp_wave in self.emp_waves[:]:
+            if not emp_wave.update(dt, self): self.emp_waves.remove(emp_wave)
+
         for enemy in self.fly_in_enemies[:]:
             enemy.update()
-            # Update EMP-Effekte auch für fly_in_enemies
-            if hasattr(enemy, 'update_emp_effects'):
-                enemy.update_emp_effects(dt)
-            # Entferne Enemies die den Bildschirm verlassen haben
-            if (enemy.rect.y > HEIGHT + 50 or
-                enemy.rect.x < -100 or
-                enemy.rect.x > WIDTH + 100):
+            if hasattr(enemy, 'update_emp_effects'): enemy.update_emp_effects(dt)
+            if (enemy.rect.y > HEIGHT + 50 or enemy.rect.x < -100 or enemy.rect.x > WIDTH + 100):
                 self.fly_in_enemies.remove(enemy)
-                self._fly_in_spawn_count = max(0, self._fly_in_spawn_count - 1)  # Count dekrementieren
+                self._fly_in_spawn_count = max(0, self._fly_in_spawn_count - 1)
 
-        # Power-Ups aktualisieren
         self._update_powerups()
 
         if self.shield:
             self.shield.set_center(self.player.rect.center)
             self.shield.update()
-            if pygame.time.get_ticks() >= self.shield_until or self.shield.done:
+            if now >= self.shield_until or self.shield.done:
+                self._last_shield_destroyed = now
                 self.shield = None
 
-        # Power-Up Shield Update
         if self.powerup_shield:
             self.powerup_shield.set_center(self.player.rect.center)
             self.powerup_shield.update()
             if self.get_game_time() >= self.powerup_shield_until or self.powerup_shield.done:
                 self.powerup_shield = None
 
-        # DoubleLaser Power-Up Update
-        if self.double_laser_active:
-            if self.get_game_time() >= self.double_laser_until:
-                self.double_laser_active = False
+        if self.double_laser_active and self.get_game_time() >= self.double_laser_until:
+            self.double_laser_active = False
 
-        # Speed Boost Power-Up Update
-        if self.speed_boost_active:
-            if self.get_game_time() >= self.speed_boost_until:
-                self.speed_boost_active = False
-                # Stelle ursprüngliche Geschwindigkeit wieder her
-                if self.original_player_speed is not None:
-                    self.player.speed = self.original_player_speed
+        if self.speed_boost_active and self.get_game_time() >= self.speed_boost_until:
+            self.speed_boost_active = False
+            if self.original_player_speed is not None:
+                self.player.speed = self.original_player_speed
 
-        # Gegner bewegen - getrennt nach Bewegungstyp
         self._update_wave_enemies()
         self._update_fly_in_enemies()
 
-        # Alle Gegner schießen lassen - sowohl normale als auch Fly-In Enemies
         for en in self.enemies:
             for w, amt in en.weapons.items():
                 if amt > 0:
-                    self.enemy_shots.extend(en.shoot_weapon(w, amt))
-        
-        # Fly-In Enemies schießen lassen
+                    for s in en.shoot_weapon(w, amt):
+                        self.projectile_manager.add_enemy_shot(s)
         for en in self.fly_in_enemies:
             for w, amt in en.weapons.items():
                 if amt > 0:
-                    self.enemy_shots.extend(en.shoot_weapon(w, amt))
+                    for s in en.shoot_weapon(w, amt):
+                        self.projectile_manager.add_enemy_shot(s)
 
-
-        # ---- Kollision: Gegner-Projektil -> Spieler ----
+        # Enemy->Player
         if not self.player_dead:
-            for p in self.enemy_shots[:]:
-                # Schild-Kollision prüfen (wenn Schild aktiv ist)
+            for p in self.projectile_manager.get_enemy_shots():
                 hit_shield = False
                 hit_powerup_shield = False
-                
-                # Normales Schild prüfen
                 if self.shield and not self.shield.is_broken() and self.shield.hit_by_projectile(p.rect):
-                    damage = getattr(p, "dmg", 100)
-                    
-                    # Normales Schild absorbiert nur den Anteil, den es blockiert (90%)
-                    shield_config = SHIELD_CONFIG[1]["shield"]  # Normales Shield Config
-                    damage_reduction = shield_config.get("damage_reduction", 0.9)
-                    absorbed_damage = min(damage * damage_reduction, self.shield.current_health)
-                    
-                    shield_still_active = self.shield.take_damage(absorbed_damage)
-
+                    dmg = getattr(p, "dmg", 100)
+                    shield_cfg = SHIELD_CONFIG[1]["shield"]
+                    absorbed = min(dmg * shield_cfg.get("damage_reduction", 0.9), self.shield.current_health)
+                    active = self.shield.take_damage(absorbed)
                     self.shield.play_hit_sound(self.assets)
                     hit_shield = True
-
-                    # Wenn Schild zerstört wird, entferne es
-                    if not shield_still_active:
-                        self._last_shield_destroyed = now  # Zeitpunkt der Zerstörung tracken
+                    if not active:
+                        self._last_shield_destroyed = now
                         self.shield = None
-
-                # PowerUp-Schild prüfen (hat Priorität und absorbiert 100% des Schadens)
                 if self.powerup_shield and not self.powerup_shield.is_broken() and self.powerup_shield.hit_by_projectile(p.rect):
-                    damage = getattr(p, "dmg", 100)
-                    
-                    # PowerUp-Schild absorbiert 100% des Schadens
-                    absorbed_damage = min(damage, self.powerup_shield.current_health)
-                    shield_still_active = self.powerup_shield.take_damage(absorbed_damage)
-
+                    dmg = getattr(p, "dmg", 100)
+                    absorbed = min(dmg, self.powerup_shield.current_health)
+                    active = self.powerup_shield.take_damage(absorbed)
                     self.powerup_shield.play_hit_sound(self.assets)
                     hit_powerup_shield = True
-
-                    # Wenn PowerUp-Schild zerstört wird, entferne es
-                    if not shield_still_active:
+                    if not active:
                         self.powerup_shield = None
-
-                    # PowerUp-Schild blockiert das Projektil vollständig (100% absorption)
-                    self.enemy_shots.remove(p)
+                    self.projectile_manager.remove_shot(p)
                     continue
-
                 if p.rect.colliderect(self.player.rect):
-                    # Unverwundbarkeit nach Respawn beachten
                     if now < getattr(self.player, "invincible_until", 0):
-                        self.enemy_shots.remove(p)
+                        self.projectile_manager.remove_shot(p)
                         continue
-
-                    self.enemy_shots.remove(p)
-
-                    # Schaden berechnen (verschiedene Projektile machen unterschiedlich viel Schaden)
-                    damage = getattr(p, "dmg", 100)  # Standard-Schaden 100
-
-                    # Schild-Schutz: Reduzierter Schaden wenn Schild aktiv ist
-                    # PowerUp-Shield hat Priorität und blockiert 100% (sollte aber schon oben abgefangen worden sein)
-                    has_powerup_shield = hit_powerup_shield or (self.powerup_shield is not None and not self.powerup_shield.is_broken())
-                    has_normal_shield = hit_shield or (self.shield is not None and not self.shield.is_broken())
-                    
-                    # Wenn PowerUp-Shield aktiv ist, sollte diese Stelle nie erreicht werden
-                    # Aber als Backup: PowerUp-Shield blockiert 100% des Schadens
-                    if has_powerup_shield:
-                        player_destroyed = False  # Kein Schaden
-                    else:
-                        player_destroyed = self.player.take_damage(damage, has_normal_shield)
-
-                    if hasattr(p, "on_hit"):
-                        p.on_hit(self, self.player.rect.center)
-
-                    # Explosion nur bei Zerstörung
-                    if player_destroyed:
+                    self.projectile_manager.remove_shot(p)
+                    dmg = getattr(p, "dmg", 100)
+                    has_power = hit_powerup_shield or (self.powerup_shield and not self.powerup_shield.is_broken())
+                    has_norm  = hit_shield or (self.shield and not self.shield.is_broken())
+                    destroyed = False if has_power else self.player.take_damage(dmg, has_norm)
+                    if hasattr(p, "on_hit"): p.on_hit(self, self.player.rect.center)
+                    if destroyed:
                         frames = self.assets.get("expl_laser", [])
                         fps    = self.assets.get("expl_laser_fps", 24)
-                        self.explosion_manager.add_explosion(self.player.rect.centerx,
-                                                           self.player.rect.centery,
-                                                           frames, fps=fps, scale=2.5)
-
+                        self.explosion_manager.add_explosion(self.player.rect.centerx, self.player.rect.centery, frames, fps=fps, scale=2.5)
                         self.player_dead       = True
                         self._respawn_ready_at = now + self.lives_cooldown
-
                     break
 
-
-        # Kollision: Spieler-Projektile -> Gegner (normale Enemies + Fly-In Enemies)
-        for p in self.player_shots[:]:
+        # Player->Enemy
+        for p in self.projectile_manager.get_player_shots():
             hit_enemy = None
-            # Prüfe normale Enemies
             for en in self.enemies:
                 if p.rect.colliderect(en.rect):
-                    hit_enemy = en
-                    break
-            # Prüfe Fly-In Enemies
+                    hit_enemy = en; break
             if not hit_enemy:
                 for en in self.fly_in_enemies:
                     if p.rect.colliderect(en.rect):
-                        hit_enemy = en
-                        break
-            if not hit_enemy:
-                continue
-
-            # Projektil raus
-            self.player_shots.remove(p)
-
-            # Projektil-spezifischer Hit (kann Gegner via AoE schon entfernen!)
+                        hit_enemy = en; break
+            if not hit_enemy: continue
             if hasattr(p, "on_hit"):
                 p.on_hit(self, hit_enemy.rect.center)
-
-            # Wenn der eben getroffene Gegner durch AoE schon entfernt wurde -> weiter
+                self.explosion_manager.log_weapon_explosion(p.__class__.__name__)
+            self.projectile_manager.remove_shot(p)
             if hit_enemy not in self.enemies and hit_enemy not in self.fly_in_enemies:
                 continue
-
-            # Direkt-Schaden anwenden und ggf. entfernen
             dead = hit_enemy.take_damage(getattr(p, "dmg", 10))
             if dead:
+                self.explosion_manager.register_enemy_death(p.__class__.__name__)
                 self.score += hit_enemy.points
                 self.highscore = max(self.highscore, self.score)
-
-                # Kill-Counter erhöhen
                 self._total_kills += 1
-                
-                # Kill-Display aktivieren
                 self._show_kill_counter()
-
-                # Power-Up Drop-Chance prüfen
                 self._try_drop_powerup(hit_enemy.rect.centerx, hit_enemy.rect.centery)
-
-                frames = self.assets.get("expl_rocket", []) or self.assets.get("expl_laser", [])
-                fps    = self.assets.get("expl_rocket_fps", 24)
-                self.explosion_manager.add_explosion(hit_enemy.rect.centerx,
-                                                    hit_enemy.rect.centery,
-                                                    frames, fps=fps, scale=1.2)
-                # Entfernen nur, wenn noch vorhanden
+                wtype = getattr(p, "weapon_type", "default")
+                if wtype in ("nuke", "rocket", "homing_rocket"):
+                    frames = self.assets.get("expl_rocket", [])
+                    fps = self.assets.get("expl_rocket_fps", 30 if wtype=="nuke" else 28)
+                    scale_e = 5.0 if wtype=="nuke" else 3.5
+                else:
+                    frames = self.assets.get("expl_laser", [])
+                    fps    = self.assets.get("expl_laser_fps", 26)
+                    scale_e = 2.0
+                self.explosion_manager.add_explosion(hit_enemy.rect.centerx, hit_enemy.rect.centery, frames, fps=fps, scale=scale_e)
                 if hit_enemy in self.enemies:
                     self.enemies.remove(hit_enemy)
                 elif hit_enemy in self.fly_in_enemies:
                     self.fly_in_enemies.remove(hit_enemy)
-                    self._fly_in_spawn_count = max(0, self._fly_in_spawn_count - 1)  # Count dekrementieren
+                    self._fly_in_spawn_count = max(0, self._fly_in_spawn_count - 1)
 
-
-        # Explosionen updaten - optimiert
         self.explosion_manager.update()
-
-        # Welle fertig -> neue bauen
-        # if not self.enemies and not self.player_dead:
-            # self._build_wave("alien")
 
     # ---------------- Draw ----------------
     def _draw(self):
-        bg = self.assets.get("background_img")
-        if bg:
-            # Skaliere Hintergrund auf aktuelle Bildschirmgröße
-            current_width, current_height = self.screen.get_size()
-            if bg.get_size() != (current_width, current_height):
-                bg = pygame.transform.smoothscale(bg, (current_width, current_height))
-            self.screen.blit(bg, (0, 0))
+        if self._bg_scaled:
+            self.screen.blit(self._bg_scaled, (0, 0))
         else:
             self.screen.fill((0, 0, 0))
 
-        for p in self.player_shots: p.draw(self.screen)
-        for p in self.enemy_shots:  p.draw(self.screen)
-        for en in self.enemies:     en.draw(self.screen)
-        for en in self.fly_in_enemies: en.draw(self.screen)  # Fly-In Enemies zeichnen
-        for powerup in self.powerups: powerup.draw(self.screen)  # Power-Ups zeichnen
-        self.explosion_manager.draw(self.screen)  # Optimiertes Explosion-Drawing
-        
-        # EMP-Wellen zeichnen
+        self.projectile_manager.draw(self.screen)
+        for en in self.enemies: en.draw(self.screen)
+        for en in self.fly_in_enemies: en.draw(self.screen)
+        self.powerup_manager.draw(self.screen)
+        self.explosion_manager.draw(self.screen)
+
         for emp_wave in self.emp_waves:
             emp_wave.draw(self.screen)
 
         if not self.player_dead:
             self.player.draw(self.screen)
-            if self.shield:
-                self.shield.draw(self.screen)
-            if self.powerup_shield:
-                self.powerup_shield.draw(self.screen)
+            if self.shield: self.shield.draw(self.screen)
+            if self.powerup_shield: self.powerup_shield.draw(self.screen)
 
-        # Score-Anzeige skaliert positionieren (oben links)
-        current_width, current_height = self.screen.get_size()
-        ui_scale = max(current_width / 1920, current_height / 1080) * 1.2
+        cw, ch = self.screen.get_size()
+        ui_scale = max(cw / 1920, ch / 1080) * 1.2
         score_x = int(15 * ui_scale)
         score_y = int(15 * ui_scale)
         highscore_y = int(55 * ui_scale)
-        
         self.screen.blit(self.font.render(f"Score: {self.score}", True, (255,255,255)), (score_x, score_y))
         self.screen.blit(self.font.render(f"High Score: {self.highscore}", True, (255,255,255)), (score_x, highscore_y))
 
-        # Temporärer Kill-Counter in der Mitte (nur kurz nach Kill)
         current_time = pygame.time.get_ticks()
-        if (self.kill_display_timer > 0 and 
-            current_time - self.kill_display_timer < self.kill_display_duration):
-            
-            # Kill-Text in der Bildschirmmitte anzeigen - mit aktueller Auflösung
+        if self.kill_display_timer > 0 and current_time - self.kill_display_timer < self.kill_display_duration:
             kill_surface = self.font.render(self.kill_display_text, True, (255, 255, 0))
-            current_width, current_height = self.screen.get_size()
-            ui_scale = max(current_width / 1920, current_height / 1080) * 1.2
-            kill_rect = kill_surface.get_rect(center=(current_width // 2, int(100 * ui_scale)))
+            kill_rect = kill_surface.get_rect(center=(cw // 2, int(100 * ui_scale)))
             self.screen.blit(kill_surface, kill_rect)
 
-        # Health Bar zeichnen (nur wenn Spieler lebt)
         if not self.player_dead:
-            self.health_bar.draw(self.screen, self.player.get_health_percentage(),
-                               self.player.current_health, self.player.max_health)
-
-            # Schild Health Bar (nur wenn aktiv)
+            self.health_bar.draw(self.screen, self.player.get_health_percentage(), self.player.current_health, self.player.max_health)
             if self.shield and not self.shield.is_broken():
-                # Schild-Health Bar mit blauer Farbe
                 old_colors = self.shield_health_bar.health_colors.copy()
                 self.shield_health_bar.health_colors = {
-                    "high": (0, 150, 255),     # Blau
-                    "medium": (100, 200, 255), # Hellblau
-                    "low": (255, 150, 0),      # Orange
-                    "critical": (255, 0, 0)    # Rot
+                    "high": (0, 150, 255),
+                    "medium": (100, 200, 255),
+                    "low": (255, 150, 0),
+                    "critical": (255, 0, 0)
                 }
-                self.shield_health_bar.draw(self.screen, self.shield.get_health_percentage(),
-                                          self.shield.current_health, self.shield.max_health, "SHIELD")
+                self.shield_health_bar.draw(self.screen, self.shield.get_health_percentage(), self.shield.current_health, self.shield.max_health, "SHIELD")
                 self.shield_health_bar.health_colors = old_colors
 
-        # HUD zeichnen
         self.hud.draw(self.screen)
-
         pygame.display.flip()
 
-
     def kill_player(self):
-        if self.player_dead:
-            return
+        if self.player_dead: return
         self.player_dead = True
         self._respawn_ready_at = pygame.time.get_ticks() + self.lives_cooldown
-
 
     def _respawn(self):
         if self.lives > 0:
             self.lives -= 1
-
-        # Player neu erzeugen mit aktueller Bildschirmgröße
-        current_width, current_height = self.screen.get_size()
-        self.player = Player(current_width, current_height, self.assets)
+        cw, ch = self.screen.get_size()
+        self.player = Player(cw, ch, self.assets)
         self.player.rect.center = self.spawn_pos
-        # # Schutzphase
-        # self.player.invincible_until = pygame.time.get_ticks() + self.respawn_protection
-        # # optionales Blinken
-        # self.player.blink_until = self.player.invincible_until
-
         self.player_dead = False
         self._respawn_ready_at = 0
-
-
-
-
-
-
 
     # ---------------- Loop ----------------
     def run(self):
         while self.running:
+            frame_time = self.clock.tick(FPS) / 1000.0
+            self.accumulated_time += frame_time
+
             if self.game_state == "menu":
                 self._handle_menu()
             elif self.game_state == "playing":
                 self._handle_events()
                 if not self.paused:
+                    updates = 0
+                    while self.accumulated_time >= self.fixed_timestep and updates < self.max_steps_per_frame:
+                        self._physics_update()
+                        self.accumulated_time -= self.fixed_timestep
+                        updates += 1
+                    if self.accumulated_time > self.fixed_timestep:
+                        self.accumulated_time = 0.0
                     self._update()
                 self._draw()
             elif self.game_state == "paused":
                 self._handle_pause_menu()
             elif self.game_state == "game_over":
-                # TODO: Game Over Screen implementieren
                 self.game_state = "menu"
-            
-            self.clock.tick(FPS)
+
+            current_time = pygame.time.get_ticks()
+            if not hasattr(self, '_last_stats_log'):
+                self._last_stats_log = current_time
+            elif current_time - self._last_stats_log >= 60000:
+                self.explosion_manager.print_stats()
+                self._last_stats_log = current_time
+
+        self.explosion_manager.print_stats()
         save_highscore(self.highscore)
         pygame.quit()
-    
+
     def _handle_menu(self):
-        """Handle Start Menu"""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                self.running = False
-                return
+                self.running = False; return
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    self.running = False
-                    return
+                    self.running = False; return
                 elif event.key == pygame.K_F11:
-                    self.toggle_maximize()  # F11 für maximiertes Fenster mit 16:9
+                    self.toggle_maximize()
                 elif event.key == pygame.K_RETURN and (pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]):
-                    # Alt+Enter für echtes Vollbild
                     self.toggle_fullscreen()
                 else:
-                    # Menü-Navigation (nur wenn keine Vollbild-Taste gedrückt wurde)
                     action = self.menu.handle_input(event)
                     if action == "start_game":
                         self.game_state = "playing"
                         self._start_new_game()
                     elif action == "quit_game":
                         self.running = False
-        
-        # Menü zeichnen
         self.menu.draw(self.screen)
         pygame.display.flip()
-    
+
     def _handle_pause_menu(self):
-        """Handle Pause Menu"""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                self.running = False
-                return
+                self.running = False; return
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
+                    # Pausenzeit aufsummieren
+                    now = pygame.time.get_ticks()
+                    self.total_pause_time += now - self.pause_start_time
                     self.game_state = "playing"
                     self.paused = False
+                    try: pygame.mixer.music.unpause()
+                    except pygame.error: pass
                     return
                 elif event.key == pygame.K_F11:
-                    self.toggle_maximize()  # F11 für maximiertes Fenster mit 16:9
+                    self.toggle_maximize()
                 elif event.key == pygame.K_RETURN and (pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]):
-                    # Alt+Enter für echtes Vollbild
                     self.toggle_fullscreen()
                 else:
-                    # Pause-Menü-Navigation (nur wenn keine Vollbild-Taste gedrückt wurde)
                     action = self.menu.handle_input(event)
                     if action == "resume":
+                        now = pygame.time.get_ticks()
+                        self.total_pause_time += now - self.pause_start_time
                         self.game_state = "playing"
                         self.paused = False
+                        try: pygame.mixer.music.unpause()
+                        except pygame.error: pass
                     elif action == "quit_to_menu":
+                        now = pygame.time.get_ticks()
+                        self.total_pause_time += now - self.pause_start_time
                         self.game_state = "menu"
                         self.paused = False
-                        self.menu.set_pause_mode(False)  # Set start menu when returning to main menu
+                        self.menu.set_pause_mode(False)
                         self._reset_game()
-        
-        # Pause-Menü zeichnen
         self.menu.draw(self.screen)
         pygame.display.flip()
-    
+
     def _start_new_game(self):
-        """Starte ein neues Spiel"""
-        # Game-Zustand zurücksetzen aber Score/Highscore behalten
         self.paused = False
-        # Hier können weitere Initialisierungen kommen
-        print("Starting new game!")
-    
+        self.score = 0
+        self.lives = 3
+        self.level = 1
+        self.player_dead = False
+        self._respawn_ready_at = 0
+
+        cw, ch = self.screen.get_size()
+        self.spawn_pos = (cw // 2, ch - 100)
+
+        self.player = Player(cw, ch, self.assets)
+        self.player.rect.center = self.spawn_pos
+
+        self.enemies.clear()
+        self.fly_in_enemies.clear()
+        self.boss = None
+
+        self.explosion_manager.clear_all()
+        self.powerup_manager.clear_all()
+        self.projectile_manager.clear_all()
+
+        # Reset Laufzeit-Status
+        self.weapon_cooldowns.update({
+            "rocket_last_used": 0,
+            "homing_rocket_last_used": 0,
+            "blaster_last_used": 0,
+            "nuke_last_used": 0,
+            "shield_ready_at": 0
+        })
+        self._total_kills  = 0
+        self._boss_spawned = False
+        self._fly_in_spawn_count = 0
+        self._last_fly_in_spawn = pygame.time.get_ticks()
+        self.powerups.clear()
+        self.double_laser_active = False
+        self.speed_boost_active  = False
+        self.powerup_shield = None
+
     def _reset_game(self):
-        """Setze das Spiel komplett zurück (für zurück zum Menü)"""
-        # Hier könnten wir das Spiel komplett zurücksetzen
-        # Erstmal nur Pause-Status
         self.paused = False
-        print("Returning to main menu!")
+        self.score = 0
+        self.highscore = load_highscore()
+        self.lives = 3
+        self.level = 1
+        self.player_dead = False
+        self._respawn_ready_at = 0
+
+        self.player = None
+        self.enemies.clear()
+        self.fly_in_enemies.clear()
+        self.boss = None
+
+        self.explosion_manager.clear_all()
+        self.powerup_manager.clear_all()
+        self.projectile_manager.clear_all()
 
     def _update_shield_scale(self):
-        """Aktualisiert die Schild-Skalierung basierend auf der aktuellen Spielergröße"""
         if self.shield:
             base_frames = self.assets["shield_frames"]
             base_scale_factor = self.assets["shield_scale"]
-
-            # Shield-Objekt die neue Skalierung durchführen lassen
             self.shield.rescale_for_player(self.player.rect, base_frames, base_scale_factor)
-        
-        # Auch PowerUp Shield (Super Shield) aktualisieren
         if self.powerup_shield:
             base_frames = self.assets["shield_frames"]
             base_scale_factor = self.assets["shield_scale"]
-
-            # PowerUp Shield-Objekt die neue Skalierung durchführen lassen
             self.powerup_shield.rescale_for_player(self.player.rect, base_frames, base_scale_factor)

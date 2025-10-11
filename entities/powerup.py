@@ -4,13 +4,24 @@ from config.powerup import POWERUP_CONFIG
 from config.shield import SHIELD_CONFIG
 
 class PowerUp:
-    def __init__(self, x, y, powerup_type, assets):
+    # Statischer Bilder-Cache
+    _image_cache = {}
+    
+    @classmethod
+    def _get_cached_image(cls, powerup_type, assets):
+        """Holt ein PowerUp-Bild aus dem Cache oder erstellt es"""
+        if powerup_type not in cls._image_cache:
+            config = POWERUP_CONFIG[powerup_type]
+            raw_img = pygame.image.load(config["img"]).convert_alpha()
+            cls._image_cache[powerup_type] = pygame.transform.smoothscale(raw_img, config["size"])
+        return cls._image_cache[powerup_type]
+    
+    def __init__(self, powerup_type, config, assets, x, y):
         self.type = powerup_type
-        self.config = POWERUP_CONFIG[powerup_type]
-
-        # Bild laden und skalieren
-        raw_img = pygame.image.load(self.config["img"]).convert_alpha()
-        self.img = pygame.transform.smoothscale(raw_img, self.config["size"])
+        self.config = config
+        
+        # Bild aus Cache holen
+        self.img = self._get_cached_image(powerup_type, assets)
         self.rect = self.img.get_rect(center=(x, y))
 
         # Bewegung
