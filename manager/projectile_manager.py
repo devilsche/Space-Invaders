@@ -27,7 +27,7 @@ class ProjectileManager:
         now = pygame.time.get_ticks()
         if now - self._last_limit_warning > 5000:
             self._last_limit_warning = now
-            logging.warning(f"⚠️ Projektil-Limit erreicht! {total}/{self.max_projectiles} - Player-Schuss blockiert")
+            logging.warning(f"[WARNING] Projektil-Limit erreicht! {total}/{self.max_projectiles} - Player-Schuss blockiert")
         return False
 
     def add_enemy_shot(self, shot) -> bool:
@@ -40,7 +40,7 @@ class ProjectileManager:
         now = pygame.time.get_ticks()
         if now - self._last_limit_warning > 5000:
             self._last_limit_warning = now
-            logging.warning(f"⚠️ Projektil-Limit erreicht! {total}/{self.max_projectiles} - Enemy-Schuss blockiert")
+            logging.warning(f"[WARNING] Projektil-Limit erreicht! {total}/{self.max_projectiles} - Enemy-Schuss blockiert")
         return False
 
     def physics_update(self, game):

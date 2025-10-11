@@ -3,46 +3,30 @@ import random
 from .powerup import POWERUP_CONFIG
 
 class PowerUpDropCalculator:
-    """Optimierter PowerUp-Drop Calculator mit vorberechneten Wahrscheinlichkeiten"""
+    """Zwei-stufiger PowerUp-Drop Calculator:
+    1. Wähle zufällig einen PowerUp-Typ (gleiche Chance für alle)
+    2. Würfle ob dieser Typ wirklich droppt (basierend auf drop_chance)
+    """
     
     def __init__(self, config):
         self.config = config
-        self._prepare_cumulative_chances()
+        self.powerup_types = list(config.keys())
         
-    def _prepare_cumulative_chances(self):
-        """Berechnet kumulative Wahrscheinlichkeiten für schnellere Drops"""
-        # Sortiere PowerUps nach Drop-Chance (absteigend)
-        sorted_powerups = sorted(
-            self.config.items(),
-            key=lambda x: x[1]['drop_chance'],
-            reverse=True
-        )
-        
-        # Berechne kumulative Wahrscheinlichkeiten
-        self.cum_chances = []
-        cumsum = 0
-        for name, cfg in sorted_powerups:
-            cumsum += cfg['drop_chance']
-            self.cum_chances.append((cumsum, name, cfg))
-            
-        # Gesamtwahrscheinlichkeit für "kein Drop"
-        self.total_chance = cumsum
-            
     def calculate_drop(self) -> Optional[Tuple[str, dict]]:
-        """Berechnet einen einzelnen PowerUp-Drop mit nur einer Zufallszahl"""
-        # Eine Zufallszahl für die Entscheidung
+        """Berechnet einen einzelnen PowerUp-Drop mit zwei-stufigem System"""
+        # Stufe 1: Wähle zufällig einen PowerUp-Typ (alle gleiche Chance)
+        chosen_type = random.choice(self.powerup_types)
+        chosen_config = self.config[chosen_type]
+        
+        # Stufe 2: Würfle ob dieser Typ wirklich droppt
+        drop_chance = chosen_config.get('drop_chance', 0.0)
         roll = random.random()
         
-        # Wenn roll > Gesamtwahrscheinlichkeit: Kein Drop
-        if roll > self.total_chance:
-            return None
-            
-        # Finde das PowerUp basierend auf der Zufallszahl
-        for cum_chance, name, cfg in self.cum_chances:
-            if roll <= cum_chance:
-                return (name, cfg)
-                
+        if roll <= drop_chance:
+            return (chosen_type, chosen_config)
+        
         return None
 
 # Singleton-Instanz
 calculator = PowerUpDropCalculator(POWERUP_CONFIG)
+

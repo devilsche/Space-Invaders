@@ -51,12 +51,36 @@ class ExplosionManager:
                             format='%(asctime)s - %(message)s',
                             filename=log_path)
 
-    def add_explosion(self, x, y, frames, fps=24, scale=1.0, weapon_type=None):
-        """Fügt eine Explosion hinzu mit Performance-Optimierungen und Object Pooling"""
+    def add_explosion(self, x, y, frames, fps=24, scale=1.0, weapon_type=None, explosion_category=None):
+        """
+        Fügt eine Explosion hinzu mit Performance-Optimierungen und Object Pooling
+        
+        Args:
+            explosion_category: "hit" (Projektil-Treffer) oder "destroy" (Gegner-Tod)
+        """
         current_tick = pygame.time.get_ticks()
+        print(f"[{current_tick}ms] ExplosionManager.add_explosion() called: pos=({x},{y}), frames={len(frames)}, fps={fps}, category={explosion_category}")
 
-        # Waffen-Explosion protokollieren
-        if weapon_type:
+        # Waffen-Explosion protokollieren mit Kategorie
+        if weapon_type and explosion_category:
+            if weapon_type not in self.weapon_stats:
+                self.weapon_stats[weapon_type] = {
+                    'kills': 0,
+                    'hit_explosions': 0,
+                    'destroy_explosions': 0,
+                    'total_explosions': 0
+                }
+            
+            if explosion_category == "hit":
+                self.weapon_stats[weapon_type]['hit_explosions'] += 1
+            elif explosion_category == "destroy":
+                self.weapon_stats[weapon_type]['destroy_explosions'] += 1
+            
+            self.weapon_stats[weapon_type]['total_explosions'] += 1
+            
+            logging.info(f"Neue {explosion_category.upper()}-Explosion für {weapon_type} an Position ({x}, {y})")
+        elif weapon_type:
+            # Legacy support - ohne Kategorie
             self.log_weapon_explosion(weapon_type)
             logging.info(f"Neue Explosion für {weapon_type} an Position ({x}, {y})")
 
@@ -94,15 +118,20 @@ class ExplosionManager:
             for weapon, stats in self.weapon_stats.items():
                 logging.info(f"\n{weapon}:")
                 logging.info(f"- Kills: {stats['kills']}")
-                logging.info(f"- Ausgelöste Explosionen: {stats['explosions']}")
+                logging.info(f"- HIT Explosionen: {stats['hit_explosions']}")
+                logging.info(f"- DESTROY Explosionen: {stats['destroy_explosions']}")
+                logging.info(f"- Total Explosionen: {stats['total_explosions']}")
                 if stats['kills'] > 0:
-                    ratio = stats['explosions'] / stats['kills'] * 100
-                    logging.info(f"- Explosionen/Kill Ratio: {ratio:.1f}%")
+                    destroy_ratio = stats['destroy_explosions'] / stats['kills'] * 100
+                    logging.info(f"- DESTROY/Kill Ratio: {destroy_ratio:.1f}%")
+                    total_ratio = stats['total_explosions'] / stats['kills'] * 100
+                    logging.info(f"- Total/Kill Ratio: {total_ratio:.1f}%")
 
         # Versuche zuerst, eine inaktive Explosion wiederzuverwenden
         explosion = None
         if self.inactive_pool:
             explosion = self.inactive_pool.pop()
+            print(f"[{current_tick}ms] Recycling explosion from pool (pool size: {len(self.inactive_pool)})")
             # Setze die Explosion zurück
             cached_frames = self._get_cached_frames(frames, scale)
             explosion.frames = cached_frames
@@ -111,8 +140,12 @@ class ExplosionManager:
             explosion._t_last = pygame.time.get_ticks()
             explosion._i = 0
             explosion.done = False
+            
+            # WICHTIG: Recycelte Explosion muss zu self.explosions hinzugefügt werden!
+            self.explosions.append(explosion)
 
         if explosion is None:
+            print(f"[{current_tick}ms] Creating NEW explosion (active: {len(self.explosions)}/{self.max_explosions})")
             # Wenn kein Pool-Objekt verfügbar, erstelle neue Explosion
             if len(self.explosions) >= self.max_explosions:
                 # Finde die älteste Explosion
@@ -125,6 +158,8 @@ class ExplosionManager:
             else:
                 explosion = self._create_explosion(x, y, frames, fps, scale)
                 self.explosions.append(explosion)
+        
+        print(f"[{current_tick}ms] Explosion added! Total active: {len([e for e in self.explosions if not e.done])}, Total in list: {len(self.explosions)}")
 
     def _get_cached_frames(self, frames, scale):
         """Holt oder erstellt gecachte Frames"""
@@ -228,38 +263,67 @@ class ExplosionManager:
             if weapon_type not in self.weapon_stats:
                 self.weapon_stats[weapon_type] = {
                     'kills': 0,
-                    'explosions': 0,
-                    'skipped': 0
+                    'hit_explosions': 0,
+                    'destroy_explosions': 0,
+                    'total_explosions': 0
                 }
             self.weapon_stats[weapon_type]['kills'] += 1
 
     def log_weapon_explosion(self, weapon_type):
-        """Registriert eine Explosion für eine bestimmte Waffe"""
-        if weapon_type in self.weapon_stats:
-            self.weapon_stats[weapon_type]['explosions'] += 1
+        """Legacy-Methode für Kompatibilität"""
+        if weapon_type not in self.weapon_stats:
+            self.weapon_stats[weapon_type] = {
+                'kills': 0,
+                'hit_explosions': 0,
+                'destroy_explosions': 0,
+                'total_explosions': 0
+            }
+        self.weapon_stats[weapon_type]['total_explosions'] += 1
         self.explosion_calls += 1
 
     def print_stats(self):
-        """Gibt die gesammelten Statistiken aus"""
+        """Gibt die gesammelten Statistiken mit HIT/DESTROY Trennung aus"""
         logging.info("\n=== Explosions-Statistiken ===")
         logging.info(f"Getötete Gegner insgesamt: {self.enemy_death_count}")
-        logging.info(f"Explosions-Aufrufe insgesamt: {self.explosion_calls}")
-        logging.info(f"Übersprungene Explosionen: {self.skipped_explosions}")
+        
+        # Gesamtstatistiken berechnen aus weapon_stats
+        total_hit_explosions = sum(stats['hit_explosions'] for stats in self.weapon_stats.values())
+        total_destroy_explosions = sum(stats['destroy_explosions'] for stats in self.weapon_stats.values())
+        total_explosions = sum(stats['total_explosions'] for stats in self.weapon_stats.values())
+        
+        logging.info(f"HIT Explosionen gesamt: {total_hit_explosions}")
+        logging.info(f"DESTROY Explosionen gesamt: {total_destroy_explosions}")
+        logging.info(f"Explosionen gesamt: {total_explosions}")
+        
+        if self.enemy_death_count > 0:
+            destroy_ratio = total_destroy_explosions / self.enemy_death_count * 100
+            logging.info(f"DESTROY/Kill Ratio: {destroy_ratio:.1f}%")
 
-        logging.info("\nStatistiken pro Waffe:")
+        logging.info("\n=== Statistiken pro Waffe ===")
         for weapon, stats in self.weapon_stats.items():
             logging.info(f"\n{weapon}:")
             logging.info(f"- Kills: {stats['kills']}")
-            logging.info(f"- Ausgelöste Explosionen: {stats['explosions']}")
+            logging.info(f"- HIT Explosionen (Projektil-Impact): {stats['hit_explosions']}")
+            logging.info(f"- DESTROY Explosionen (Enemy-Tod): {stats['destroy_explosions']}")
+            logging.info(f"- Total Explosionen: {stats['total_explosions']}")
             if stats['kills'] > 0:
-                ratio = stats['explosions'] / stats['kills'] * 100
-                logging.info(f"- Explosionen/Kill Ratio: {ratio:.1f}%")
+                destroy_ratio = stats['destroy_explosions'] / stats['kills'] * 100
+                logging.info(f"- DESTROY/Kill Ratio: {destroy_ratio:.1f}%")
+                total_ratio = stats['total_explosions'] / stats['kills'] * 100
+                logging.info(f"- Total/Kill Ratio: {total_ratio:.1f}%")
 
     def draw(self, screen):
         """Zeichnet alle aktiven Explosionen"""
+        drawn_count = 0
         for explosion in self.explosions:
             if not explosion.done:
                 explosion.draw(screen)
+                drawn_count += 1
+        
+        # Debug: Nur loggen wenn Explosionen gezeichnet werden
+        if drawn_count > 0:
+            current_tick = pygame.time.get_ticks()
+            print(f"[{current_tick}ms] Drawing {drawn_count} explosions")
 
     def clear(self):
         """Leert alle Explosionen und den Pool"""

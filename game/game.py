@@ -319,29 +319,70 @@ class Game:
 
     def _activate_powerup_shield(self, duration, shield_config):
         now = self.get_game_time()
-        frames = self.assets["shield_frames"]
-        fps = shield_config.get("fps", 20)
-        scale_f = max(self.player.rect.w, self.player.rect.h) / frames[0].get_width() * self.assets["shield_scale"]
-        self.powerup_shield = Shield(
-            *self.player.rect.center, frames, fps=fps, scale=scale_f,
-            loop=True, player_health=self.player.max_health, is_powerup_shield=True,
-            shield_config=shield_config
-        )
-        self.powerup_shield_until = now + duration
+        
+        # Zeit-Stacking: Addiere Duration zur verbleibenden Zeit
+        remaining_time = max(0, self.powerup_shield_until - now) if self.powerup_shield is not None else 0
+        new_duration = remaining_time + duration
+        
+        # Maximum: 5x der einzelnen Duration
+        max_duration = duration * 5
+        if new_duration > max_duration:
+            new_duration = max_duration
+            print(f"[WARNING] Shield: Maximum {max_duration/1000:.1f}s erreicht!")
+        
+        # Shield erstellen (nur wenn noch keins aktiv ist)
+        if self.powerup_shield is None:
+            frames = self.assets["shield_frames"]
+            fps = shield_config.get("fps", 20)
+            scale_f = max(self.player.rect.w, self.player.rect.h) / frames[0].get_width() * self.assets["shield_scale"]
+            self.powerup_shield = Shield(
+                *self.player.rect.center, frames, fps=fps, scale=scale_f,
+                loop=True, player_health=self.player.max_health, is_powerup_shield=True,
+                shield_config=shield_config
+            )
+        
+        self.powerup_shield_until = now + new_duration
+        print(f"[POWERUP] Shield activated! Duration: {new_duration/1000:.1f}s (max: {max_duration/1000:.1f}s)")
 
     def _activate_double_laser(self, duration):
         now = self.get_game_time()
+        
+        # Zeit-Stacking: Addiere Duration zur verbleibenden Zeit
+        remaining_time = max(0, self.double_laser_until - now) if self.double_laser_active else 0
+        new_duration = remaining_time + duration
+        
+        # Maximum: 5x der einzelnen Duration
+        max_duration = duration * 5
+        if new_duration > max_duration:
+            new_duration = max_duration
+            print(f"[WARNING] Double Laser: Maximum {max_duration/1000:.1f}s erreicht!")
+        
         self.double_laser_active = True
-        self.double_laser_until = now + duration
+        self.double_laser_until = now + new_duration
+        
+        print(f"[POWERUP] Double Laser activated! Duration: {new_duration/1000:.1f}s (max: {max_duration/1000:.1f}s)")
 
     def _activate_speed_boost(self, duration, multiplier):
         now = self.get_game_time()
         if self.original_player_speed is None:
             self.original_player_speed = self.player.speed
+        
+        # Zeit-Stacking: Addiere Duration zur verbleibenden Zeit
+        remaining_time = max(0, self.speed_boost_until - now) if self.speed_boost_active else 0
+        new_duration = remaining_time + duration
+        
+        # Maximum: 5x der einzelnen Duration
+        max_duration = duration * 5
+        if new_duration > max_duration:
+            new_duration = max_duration
+            print(f"[WARNING] Speed Boost: Maximum {max_duration/1000:.1f}s erreicht!")
+        
         self.speed_boost_active = True
-        self.speed_boost_until = now + duration
+        self.speed_boost_until = now + new_duration
         self.speed_boost_multiplier = multiplier
         self.player.speed = self.original_player_speed * multiplier
+        
+        print(f"[POWERUP] Speed Boost activated! Duration: {new_duration/1000:.1f}s (max: {max_duration/1000:.1f}s)")
 
     # ---------------- Enemy Bewegung ----------------
     def _update_wave_enemies(self):
@@ -718,35 +759,145 @@ class Game:
                     if p.rect.colliderect(en.rect):
                         hit_enemy = en; break
             if not hit_enemy: continue
+            
+            # Koordinaten SOFORT speichern - unabhängig von Enemy-Objekt!
+            enemy_x = hit_enemy.rect.centerx
+            enemy_y = hit_enemy.rect.centery
+            hit_pos = (enemy_x, enemy_y)
+            
+            # Prüfe zuerst ob der Treffer tödlich ist (für Single-Target Waffen)
+            weapon_kind = getattr(p, "kind", "generic")
+            weapon_owner = getattr(p, "owner", "player")
+            damage = getattr(p, "dmg", 10)
+            will_die = (hit_enemy.hp <= damage)
+            
+            # DEBUG: Treffer registriert
+            timestamp = pygame.time.get_ticks()
+            print(f"[{timestamp}ms] HIT! {p.__class__.__name__} -> {hit_enemy.etype} | HP: {hit_enemy.hp}/{damage} | will_die={will_die} | pos=({enemy_x},{enemy_y})")
+            
+            # AoE-Waffen (Rocket, HomingRocket, Blaster, Nuke) rufen IMMER on_hit() auf
+            # Single-Target Waffen (Laser, DoubleLaser) rufen on_hit() NUR auf wenn Enemy ÜBERLEBT
+            is_single_target = weapon_kind in ("laser", "double_laser")
+            
             if hasattr(p, "on_hit"):
-                p.on_hit(self, hit_enemy.rect.center)
-                self.explosion_manager.log_weapon_explosion(p.__class__.__name__)
+                if not is_single_target or not will_die:
+                    # AoE-Waffen: Immer on_hit() (handhaben eigene Explosionen)
+                    # Single-Target: Nur wenn Enemy überlebt (HIT-Explosion)
+                    print(f"[{timestamp}ms]   HIT-Explosion: {p.__class__.__name__}.on_hit() called")
+                    p.on_hit(self, hit_pos)
+                    # KEIN log_weapon_explosion() mehr - wird bereits in on_hit() mit Kategorie gezählt!
+                else:
+                    print(f"[{timestamp}ms]   HIT-Explosion: SKIPPED (enemy will die, waiting for DESTROY)")
+            
+            # DESTROY-Explosion für Single-Target Waffen MUSS IMMER erstellt werden
+            # Verwendet gespeicherte Koordinaten - egal ob Enemy noch existiert!
+            if is_single_target and will_die and weapon_owner == "player":
+                print(f"[{timestamp}ms]   DESTROY-Explosion: Creating at ({enemy_x},{enemy_y})")
+                # Sound abspielen
+                if self.assets.get("laser_sound_destroy"):
+                    self.assets["laser_sound_destroy"].set_volume(MASTER_VOLUME * SFX_VOLUME)
+                    self.assets["laser_sound_destroy"].play()
+                
+                # Volle Explosion für getöteten Enemy (an gespeicherter Position)
+                frames = self.assets.get("expl_laser", [])
+                fps    = self.assets.get("expl_laser_fps", 30)  # SCHNELLER: 30 statt 26/10
+                
+                # Falls FPS zu langsam ist (von Asset), überschreiben
+                if fps < 20:
+                    print(f"[{timestamp}ms]   [WARNING] Asset FPS={fps} too slow, overriding to 30!")
+                    fps = 30
+                
+                self.explosion_manager.add_explosion(
+                    x                  = enemy_x,
+                    y                  = enemy_y,
+                    frames             = frames,
+                    fps                = fps,
+                    scale              = 1.5,
+                    weapon_type        = p.__class__.__name__,
+                    explosion_category = "destroy"
+                )
+                print(f"[{timestamp}ms]   DESTROY-Explosion: CREATED! Frames={len(frames)}, FPS={fps}, Duration={len(frames)/fps:.2f}s")
+                print(f"[{timestamp}ms]   Explosion should finish at: {timestamp + (len(frames)/fps*1000):.0f}ms")
+            elif is_single_target and will_die:
+                print(f"[{timestamp}ms]   DESTROY-Explosion: SKIPPED (owner={weapon_owner}, not 'player')")
+            elif not is_single_target and will_die and weapon_owner == "player":
+                # AoE-Waffen: Direkt getroffener Enemy bekommt AUCH eine DESTROY-Explosion
+                # (zusätzlich zu denen die _apply_aoe() erstellt)
+                print(f"[{timestamp}ms]   DESTROY-Explosion (AoE direct hit): Creating at ({enemy_x},{enemy_y})")
+                # Benutze passende Explosion für Waffe
+                expl_key = "expl_rocket" if weapon_kind in ("rocket", "homing_rocket") else "expl_blaster" if weapon_kind == "blaster" else "expl_nuke"
+                frames = self.assets.get(expl_key, [])
+                fps = self.assets.get(f"{expl_key}_fps", 30)
+                
+                self.explosion_manager.add_explosion(
+                    x                  = enemy_x,
+                    y                  = enemy_y,
+                    frames             = frames,
+                    fps                = fps,
+                    scale              = 1.5,
+                    weapon_type        = p.__class__.__name__,
+                    explosion_category = "destroy"
+                )
+                print(f"[{timestamp}ms]   DESTROY-Explosion (AoE): CREATED!")
+            
             self.projectile_manager.remove_shot(p)
-            if hit_enemy not in self.enemies and hit_enemy not in self.fly_in_enemies:
+            
+            # Prüfe ob Enemy noch existiert (könnte bereits von anderem Projektil getötet worden sein)
+            enemy_exists = (hit_enemy in self.enemies) or (hit_enemy in self.fly_in_enemies)
+            if not enemy_exists:
+                # Enemy wurde bereits getötet -> Explosion wurde oben erstellt, jetzt skip
+                print(f"[{timestamp}ms]   Enemy already removed from list (race condition) -> skipping damage/score")
                 continue
-            dead = hit_enemy.take_damage(getattr(p, "dmg", 10))
+            
+            dead = hit_enemy.take_damage(damage)
+            print(f"[{timestamp}ms]   take_damage({damage}) -> dead={dead}, HP now: {hit_enemy.hp}")
+            
             if dead:
+                print(f"[{timestamp}ms]   Enemy KILLED! Registering death, adding score +{hit_enemy.points}")
+                
+                # DESTROY-Explosion erstellen wenn noch keine existiert
+                # (z.B. wenn Enemy erst durch AoE-Schaden stirbt, nicht durch direkten Treffer)
+                if not will_die and weapon_owner == "player":
+                    print(f"[{timestamp}ms]   DESTROY-Explosion (killed by AoE damage): Creating at ({enemy_x},{enemy_y})")
+                    
+                    # Benutze passende Explosion für Waffe
+                    if is_single_target:
+                        expl_key = "expl_laser"
+                        fps = 30
+                    else:
+                        expl_key = "expl_rocket" if weapon_kind in ("rocket", "homing_rocket") else "expl_blaster" if weapon_kind == "blaster" else "expl_nuke"
+                        fps = self.assets.get(f"{expl_key}_fps", 30)
+                    
+                    frames = self.assets.get(expl_key, [])
+                    
+                    self.explosion_manager.add_explosion(
+                        x                  = enemy_x,
+                        y                  = enemy_y,
+                        frames             = frames,
+                        fps                = fps,
+                        scale              = 1.5,
+                        weapon_type        = p.__class__.__name__,
+                        explosion_category = "destroy"
+                    )
+                    print(f"[{timestamp}ms]   DESTROY-Explosion: CREATED!")
+                
                 self.explosion_manager.register_enemy_death(p.__class__.__name__)
                 self.score += hit_enemy.points
                 self.highscore = max(self.highscore, self.score)
                 self._total_kills += 1
                 self._show_kill_counter()
-                self._try_drop_powerup(hit_enemy.rect.centerx, hit_enemy.rect.centery)
-                wtype = getattr(p, "weapon_type", "default")
-                if wtype in ("nuke", "rocket", "homing_rocket"):
-                    frames = self.assets.get("expl_rocket", [])
-                    fps = self.assets.get("expl_rocket_fps", 30 if wtype=="nuke" else 28)
-                    scale_e = 5.0 if wtype=="nuke" else 3.5
-                else:
-                    frames = self.assets.get("expl_laser", [])
-                    fps    = self.assets.get("expl_laser_fps", 26)
-                    scale_e = 2.0
-                self.explosion_manager.add_explosion(hit_enemy.rect.centerx, hit_enemy.rect.centery, frames, fps=fps, scale=scale_e)
+                self._try_drop_powerup(enemy_x, enemy_y)
+                
                 if hit_enemy in self.enemies:
                     self.enemies.remove(hit_enemy)
+                    print(f"[{timestamp}ms]   Removed from self.enemies")
                 elif hit_enemy in self.fly_in_enemies:
                     self.fly_in_enemies.remove(hit_enemy)
                     self._fly_in_spawn_count = max(0, self._fly_in_spawn_count - 1)
+                    print(f"[{timestamp}ms]   Removed from self.fly_in_enemies")
+            else:
+                print(f"[{timestamp}ms]   Enemy survived (HP: {hit_enemy.hp})")
+            print()  # Leerzeile für Übersichtlichkeit
 
         self.explosion_manager.update()
 
