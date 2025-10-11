@@ -6,6 +6,19 @@ Release history and detailed change logs for the Space Invaders game.
 
 ## 🚀 Version History
 
+### [v1.4.0 - Missing Explosions & Unicode Fix](v1.4.0_2025-10-11_missing-explosions-unicode-fix.md)
+**October 11, 2025** - *"Polish & Stability"*
+- 🐛 **CRITICAL**: Fixed invisible explosions (Object Pool bug)
+- 💥 **FIXED**: Missing DESTROY explosions for AoE-killed enemies
+- 🖥️ **FIXED**: Unicode encoding crash on Windows (cp1252)
+- 📊 Statistics accuracy improvements (100% explosion/kill ratio)
+
+### [v1.2.0 - Menu System Overhaul](v1.2.0_2025-10-07_menu-system-overhaul.md)
+**October 7, 2025** - *"User Experience"*
+- 🎮 Complete menu system redesign
+- ⚙️ Settings management and configuration
+- 🎨 Visual improvements and polish
+
 ### [v1.1.0 - EMP System Overhaul](v1.1.0_2025-10-07_emp-system-overhaul.md) 
 **October 7, 2025** - *"Electromagnetic Warfare"*
 - ⚡ **NEW**: EMP Weapon System with area-of-effect enemy disable
@@ -33,9 +46,9 @@ Each patch note includes:
 
 ## 🎯 Quick Navigation
 
-- **Latest Version**: v1.1.0 (EMP System)
-- **Stable Version**: v1.0.0 (Display Overhaul)
-- **Development Focus**: Advanced weapon systems and tactical gameplay
+- **Latest Version**: v1.4.0 (Explosions & Unicode Fix)
+- **Stable Version**: v1.2.0 (Menu System)
+- **Development Focus**: Bug fixes, stability, and visual polish
 
 ## 📁 **File Naming Convention**
 
