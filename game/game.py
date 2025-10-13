@@ -17,7 +17,7 @@ class Game:
 
         # Pygame Setup (optional: vsync wenn verfügbar)
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))  # , pygame.SCALED, vsync=1
-        pygame.display.set_caption("Space Invaders")
+        pygame.display.set_caption("Nova Strike")
         self.clock = pygame.time.Clock()
 
         # Game State

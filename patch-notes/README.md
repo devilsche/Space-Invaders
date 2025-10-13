@@ -1,8 +1,8 @@
-# 📋 Space Invaders - Patch Notes Overview
+# 📋 Nova Strike - Patch Notes Overview
 
-# 📋 Space Invaders - Patch Notes
+# 📋 Nova Strike - Patch Notes
 
-Release history and detailed change logs for the Space Invaders game.
+Release history and detailed change logs for the Nova Strike game.
 
 ## 🚀 Version History
 

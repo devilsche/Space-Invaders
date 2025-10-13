@@ -1,4 +1,4 @@
-# Font Installation für Space Invaders
+# Font Installation für Nova Strike
 
 ## 📋 Benötigte Fonts
 
@@ -146,7 +146,7 @@ Stelle sicher, dass du die Fonts legal verwenden darfst:
 
 ## 💡 Tipp
 
-Für den besten Space-Invaders-Look empfehle ich:
+Für den besten Nova Strike-Look empfehle ich:
 - **Titel:** Eine bold/futuristische Display-Font
 - **Menü:** Eine klare, gut lesbare Sans-Serif
 - **HUD:** Eine Monospace-Font für technischen Look

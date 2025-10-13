@@ -1,6 +1,6 @@
-# 🚀 Space Invaders - Feature Roadmap
+# 🚀 Nova Strike - Feature Roadmap
 
-Ein hochperformantes Space Invaders Spiel mit modernen Optimierungen und spannenden Features!
+Ein hochperformantes Nova Strike Spiel mit modernen Optimierungen und spannenden Features!
 
 ## 📋 **Patch Notes & Updates**
 
@@ -11,7 +11,7 @@ Ein hochperformantes Space Invaders Spiel mit modernen Optimierungen und spannen
 
 ### 🎨 **NEW: Professional Menu System**
 
-- **Animated Title Effects**: "SPACE INVADERS" with multi-layered pulsating blue glow
+- **Animated Title Effects**: "NOVA STRIKE" with multi-layered pulsating blue glow
 - **Smart Scaling**: All menu elements scale perfectly across resolutions
 - **Intuitive Navigation**: UP/DOWN arrows with animated selection highlighting
 - **Fullscreen Support**: F11 maximize, Alt+Enter fullscreen in all menu states
@@ -47,7 +47,7 @@ Ein hochperformantes Space Invaders Spiel mit modernen Optimierungen und spannen
 - **⚡ CPU-Optimierung**: 60-80% weniger CPU-Last durch Frame-Caching
 - **🚀 Keine Einfrierungen**: Auch bei 50+ gleichzeitigen Explosionen flüssiges Gameplay
 
-Spannende Ideen für weitere Verbesserungen des Space Invaders Spiels:
+Spannende Ideen für weitere Verbesserungen des Nova Strike Spiels:
 
 ## 🚀 Gameplay-Erweiterungen
 

@@ -10,7 +10,7 @@
 ## 🎯 **Core Concept Overview**
 
 ### **Vision Statement**
-Transform Space Invaders from simple horizontal scrolling to strategic multi-layered combat with **3D-depth targeting** in a 2D environment. Players can attack different "floors" or "decks" of massive space stations while maintaining classic Space Invaders movement mechanics.
+Transform Nova Strike from simple horizontal scrolling to strategic multi-layered combat with **3D-depth targeting** in a 2D environment. Players can attack different "floors" or "decks" of massive space stations while maintaining classic Nova Strike movement mechanics.
 
 ### **Key Innovation**
 - **Parallax Multi-Level Architecture**: 3 distinct combat layers with strategic interdependencies
@@ -46,7 +46,7 @@ Transform Space Invaders from simple horizontal scrolling to strategic multi-lay
 ### **Scrolling Behavior Per Layer**
 - **Layer 3 (Upper)**: **STATIC** - Large structures remain fixed like background elements
 - **Layer 2 (Middle)**: **SLOW PARALLAX** - 50% of normal scroll speed with depth effect
-- **Layer 1 (Lower)**: **NORMAL** - Standard Space Invaders scrolling mechanics
+- **Layer 1 (Lower)**: **NORMAL** - Standard Nova Strike scrolling mechanics
 
 ---
 
