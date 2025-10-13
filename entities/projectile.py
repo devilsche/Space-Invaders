@@ -232,6 +232,11 @@ class Laser(Projectile):
         Laser HIT-Explosion: Nur 4 Frames für visuelles Feedback.
         DESTROY-Explosion wird in game.py für getötete Enemies erstellt.
         """
+        # Hit-Sound abspielen
+        if self.owner == "player" and game.assets.get("laser_sound_hit"):
+            game.assets["laser_sound_hit"].set_volume(MASTER_VOLUME * SFX_VOLUME)
+            game.assets["laser_sound_hit"].play()
+        
         frames, fps = _expl_frames(game, "expl_laser")
         
         # Nur erste 4 Frames für HIT-Explosion
@@ -276,6 +281,11 @@ class DoubleLaser(Projectile):
         DoubleLaser HIT-Explosion: Nur 4 Frames für visuelles Feedback.
         DESTROY-Explosion wird in game.py für getötete Enemies erstellt.
         """
+        # Hit-Sound abspielen
+        if self.owner == "player" and game.assets.get("laser_sound_hit"):
+            game.assets["laser_sound_hit"].set_volume(MASTER_VOLUME * SFX_VOLUME)
+            game.assets["laser_sound_hit"].play()
+        
         frames, fps = _expl_frames(game, "expl_laser")
         
         # Nur erste 4 Frames für HIT-Explosion

@@ -1104,6 +1104,14 @@ class Game:
         self.speed_boost_active  = False
         self.powerup_shield = None
 
+        # Musik starten
+        try:
+            if not pygame.mixer.music.get_busy():
+                pygame.mixer.music.set_volume(MASTER_VOLUME * MUSIC_VOLUME)
+                pygame.mixer.music.play(-1)
+        except pygame.error:
+            pass
+
     def _reset_game(self):
         self.paused = False
         self.score = 0
