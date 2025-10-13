@@ -304,6 +304,12 @@ class Game:
         # Kollisionserkennung mit Player
         for powerup in self.powerup_manager.powerups[:]:
             if powerup.rect.colliderect(self.player.rect):
+                # Powerup-Pickup Sound abspielen (mit reduzierter Lautstärke)
+                if self.assets.get("powerup_pickup_sound"):
+                    sound = self.assets["powerup_pickup_sound"]
+                    sound.set_volume(0.4)  # Reduzierte Lautstärke (40%)
+                    sound.play()
+                
                 effect_result = powerup.apply_effect(self.player)
                 if isinstance(effect_result, dict) and effect_result.get("type") == "shield":
                     self._activate_powerup_shield(effect_result["duration"], effect_result["config"])
@@ -1008,6 +1014,10 @@ class Game:
         pygame.quit()
 
     def _handle_menu(self):
+        # Starte Menu-Musik wenn noch nicht gestartet
+        if not self.menu.menu_music_playing:
+            self.menu.start_menu_music()
+        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False; return
@@ -1021,6 +1031,7 @@ class Game:
                 else:
                     action = self.menu.handle_input(event)
                     if action == "start_game":
+                        self.menu.stop_menu_music()  # Stoppe Menu-Musik
                         self.game_state = "playing"
                         self._start_new_game()
                     elif action == "quit_game":
@@ -1061,6 +1072,7 @@ class Game:
                         self.game_state = "menu"
                         self.paused = False
                         self.menu.set_pause_mode(False)
+                        self.menu.start_menu_music()  # Starte Menu-Musik wieder
                         self._reset_game()
         self.menu.draw(self.screen)
         pygame.display.flip()

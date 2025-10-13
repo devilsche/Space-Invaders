@@ -27,6 +27,10 @@ class GameMenu:
         self.selected_color = (255, 255, 100, 128)  # Gelb mit Transparenz
         self.normal_color = (255, 255, 255, 64)     # Weiß mit Transparenz
         self.border_color = (255, 255, 100)         # Gelber Rahmen
+        
+        # Menu music channel
+        self.menu_music_channel = None
+        self.menu_music_playing = False
 
     def load_assets(self, assets):
         """Lade Menü-Assets"""
@@ -92,10 +96,16 @@ class GameMenu:
             if event.key == pygame.K_UP:
                 self.selected_option = (self.selected_option - 1) % len(self.current_options)
                 print(f"UP pressed - selected_option: {self.selected_option}, total options: {len(self.current_options)}")
+                # Menu switch sound
+                if hasattr(self, 'assets') and self.assets.get("menu_switch_sound"):
+                    self.assets["menu_switch_sound"].play()
                 return "navigate"
             elif event.key == pygame.K_DOWN:
                 self.selected_option = (self.selected_option + 1) % len(self.current_options)
                 print(f"DOWN pressed - selected_option: {self.selected_option}, total options: {len(self.current_options)}")
+                # Menu switch sound
+                if hasattr(self, 'assets') and self.assets.get("menu_switch_sound"):
+                    self.assets["menu_switch_sound"].play()
                 return "navigate"
             elif event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
                 # Nur ENTER allein soll Menü auswählen, nicht Alt+ENTER (das ist für Vollbild)
@@ -368,3 +378,26 @@ class GameMenu:
         else:
             # Dünner Rahmen für nicht-ausgewählte Option
             pygame.draw.rect(screen, (128, 128, 128), rect, 1)
+
+    def start_menu_music(self):
+        """Starte Menu-Hintergrundmusik als Loop"""
+        if not self.menu_music_playing and hasattr(self, 'assets'):
+            sound = self.assets.get("menu_background_sound")
+            if sound:
+                try:
+                    # Nutze einen eigenen Channel für Menu-Musik
+                    if self.menu_music_channel is None:
+                        self.menu_music_channel = pygame.mixer.Channel(29)
+                    self.menu_music_channel.play(sound, loops=-1)  # Endlosschleife
+                    self.menu_music_playing = True
+                except Exception as e:
+                    print(f"Failed to play menu music: {e}")
+
+    def stop_menu_music(self):
+        """Stoppe Menu-Hintergrundmusik"""
+        if self.menu_music_playing and self.menu_music_channel:
+            try:
+                self.menu_music_channel.stop()
+                self.menu_music_playing = False
+            except Exception as e:
+                print(f"Failed to stop menu music: {e}")

@@ -281,5 +281,39 @@ def load_assets() -> AssetProxy:
     except Exception:
         manager._cache["shield_activate_sound"] = None
 
+    # Menu sounds
+    try:
+        snd = manager.load_sound("assets/sound/menu-backghround-sound.mp3")
+        manager._cache["menu_background_sound"] = snd
+    except Exception:
+        manager._cache["menu_background_sound"] = None
+
+    try:
+        snd = manager.load_sound("assets/sound/menu-switch.mp3")
+        manager._cache["menu_switch_sound"] = snd
+    except Exception:
+        manager._cache["menu_switch_sound"] = None
+
+    # Powerup sound
+    try:
+        snd = manager.load_sound("assets/sound/powerup-pickup.mp3")
+        manager._cache["powerup_pickup_sound"] = snd
+    except Exception:
+        manager._cache["powerup_pickup_sound"] = None
+
+    # EMP sound
+    try:
+        snd = manager.load_sound("assets/sound/emp-fire.mp3")
+        manager._cache["emp_fire_sound"] = snd
+    except Exception:
+        manager._cache["emp_fire_sound"] = None
+
+    # Rocket fly loop sound
+    try:
+        snd = manager.load_sound("assets/sound/rocket-fly-loop.mp3")
+        manager._cache["rocket_fly_loop_sound"] = snd
+    except Exception:
+        manager._cache["rocket_fly_loop_sound"] = None
+
     return proxy
 
