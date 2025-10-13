@@ -149,14 +149,27 @@ class GameMenu:
 
     def draw(self, screen):
         """Zeichne das Menü mit Rahmen um die vorhandenen Optionen im Bild"""
-        # Hintergrund zeichnen - skaliert auf aktuelle Bildschirmgröße
+        # Hintergrund zeichnen mit sanfter Zoom-Animation
         if self.background_image:
             current_size = screen.get_size()
-            if self.background_image.get_size() != current_size:
-                scaled_background = pygame.transform.scale(self.background_image, current_size)
-                screen.blit(scaled_background, (0, 0))
-            else:
-                screen.blit(self.background_image, (0, 0))
+            current_time = pygame.time.get_ticks()
+            
+            # Langsame Zoom-Animation zwischen 100% und 110%
+            zoom_speed = 0.0003  # Sehr langsam für sanfte Bewegung
+            zoom_factor = 1.0 + (math.sin(current_time * zoom_speed) + 1) * 0.05  # 1.0 bis 1.1
+            
+            # Berechne Zielgröße mit Zoom
+            target_width = int(current_size[0] * zoom_factor)
+            target_height = int(current_size[1] * zoom_factor)
+            
+            # Skaliere Hintergrund
+            scaled_background = pygame.transform.scale(self.background_image, (target_width, target_height))
+            
+            # Zentriere das gezoomte Bild (so dass es über die Ränder hinausgeht)
+            offset_x = (target_width - current_size[0]) // 2
+            offset_y = (target_height - current_size[1]) // 2
+            
+            screen.blit(scaled_background, (-offset_x, -offset_y))
 
         if self.is_pause_menu:
             # Pause-Menü: Zeichne Rahmen um Resume/Quit Optionen
