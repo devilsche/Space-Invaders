@@ -12,7 +12,7 @@ class GameMenu:
         self.font = pygame.font.Font(None, FONT_SIZE)
         self.title_font = pygame.font.Font(None, FONT_SIZE * 2)
         self.selected_option = 0
-        self.menu_options = ["Start", "Quit"]  # Passend zum Startscreen-Bild
+        self.menu_options = ["Start", "Survivor", "Quit"]
         self.pause_options = ["Resume", "Quit to Menu"]
         self.current_options = self.menu_options
         self.is_pause_menu = False
@@ -128,6 +128,8 @@ class GameMenu:
         else:
             if selected == "Start":
                 return "start_game"
+            elif selected == "Survivor":
+                return "start_survivor"
             elif selected == "Quit":
                 return "quit_game"
 

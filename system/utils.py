@@ -81,3 +81,28 @@ def save_highscore(value):
             json.dump({"highscore": value}, f)
     except Exception:
         pass
+
+SURVIVOR_HIGHSCORE_FILE = "data/survivor_highscores.json"
+
+def load_survivor_highscores():
+    """Lädt die Top 10 Survivor Zeiten"""
+    if os.path.exists(SURVIVOR_HIGHSCORE_FILE):
+        try:
+            with open(SURVIVOR_HIGHSCORE_FILE, "r") as f:
+                scores = json.load(f)
+                return sorted(scores, key=lambda x: x["time"], reverse=True)[:10]
+        except Exception:
+            return []
+    return []
+
+def save_survivor_score(time_seconds):
+    """Speichert eine neue Survivor Zeit und hält Top 10"""
+    scores = load_survivor_highscores()
+    scores.append({"time": time_seconds})
+    scores = sorted(scores, key=lambda x: x["time"], reverse=True)[:10]
+    try:
+        with open(SURVIVOR_HIGHSCORE_FILE, "w") as f:
+            json.dump(scores, f, indent=2)
+    except Exception:
+        pass
+    return scores

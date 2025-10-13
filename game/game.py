@@ -24,9 +24,14 @@ class Game:
         self.running    = True
         self.paused     = False
         self.game_state = "menu"
+        self.game_mode  = "normal"  # "normal" oder "survivor"
         self.score      = 0
         self.highscore  = load_highscore()
         self.lives      = LIVES
+        
+        # Survivor Mode
+        self.survivor_start_time = 0
+        self.survivor_time = 0
 
         # Display-Modi
         self.is_fullscreen = False
@@ -629,6 +634,10 @@ class Game:
             self.speed_boost_active, self.speed_boost_until,
             game_time
         )
+        
+        # Survivor Mode: Timer aktualisieren
+        if self.game_mode == "survivor" and not self.player_dead:
+            self.survivor_time = (pygame.time.get_ticks() - self.survivor_start_time) / 1000.0
 
         if not self.player_dead:
             self.health_bar.update(self.player.get_health_percentage())
@@ -969,12 +978,43 @@ class Game:
                 self.shield_health_bar.health_colors = old_colors
 
         self.hud.draw(self.screen)
+        
+        # Survivor Mode Timer anzeigen
+        if self.game_mode == "survivor" and not self.player_dead:
+            timer_font = pygame.font.Font(None, int(60 * ui_scale))
+            minutes = int(self.survivor_time // 60)
+            seconds = int(self.survivor_time % 60)
+            millis = int((self.survivor_time % 1) * 100)
+            timer_str = f"{minutes:02d}:{seconds:02d}.{millis:02d}"
+            
+            timer_text = timer_font.render(timer_str, True, (255, 100, 100))
+            timer_rect = timer_text.get_rect(center=(cw // 2, int(50 * ui_scale)))
+            
+            # Schatten
+            shadow = timer_font.render(timer_str, True, (0, 0, 0))
+            shadow_rect = shadow.get_rect(center=(cw // 2 + 2, int(50 * ui_scale) + 2))
+            self.screen.blit(shadow, shadow_rect)
+            self.screen.blit(timer_text, timer_rect)
+            
+            # "SURVIVOR MODE" Text
+            mode_font = pygame.font.Font(None, int(30 * ui_scale))
+            mode_text = mode_font.render("SURVIVOR MODE", True, (255, 150, 150))
+            mode_rect = mode_text.get_rect(center=(cw // 2, int(20 * ui_scale)))
+            self.screen.blit(mode_text, mode_rect)
+        
         pygame.display.flip()
 
     def kill_player(self):
         if self.player_dead: return
         self.player_dead = True
-        self._respawn_ready_at = pygame.time.get_ticks() + self.lives_cooldown
+        
+        # Survivor Mode: Sofort Game Over, speichere Zeit
+        if self.game_mode == "survivor":
+            from system.utils import save_survivor_score
+            save_survivor_score(self.survivor_time)
+            self.game_state = "survivor_game_over"
+        else:
+            self._respawn_ready_at = pygame.time.get_ticks() + self.lives_cooldown
 
     def _respawn(self):
         if self.lives > 0:
@@ -1009,6 +1049,8 @@ class Game:
                 self._handle_pause_menu()
             elif self.game_state == "victory":
                 self._handle_victory_screen()
+            elif self.game_state == "survivor_game_over":
+                self._handle_survivor_game_over()
             elif self.game_state == "game_over":
                 self.game_state = "menu"
 
@@ -1043,7 +1085,13 @@ class Game:
                     if action == "start_game":
                         self.menu.stop_menu_music()  # Stoppe Menu-Musik
                         self.game_state = "playing"
+                        self.game_mode = "normal"
                         self._start_new_game()
+                    elif action == "start_survivor":
+                        self.menu.stop_menu_music()  # Stoppe Menu-Musik
+                        self.game_state = "playing"
+                        self.game_mode = "survivor"
+                        self._start_survivor_mode()
                     elif action == "quit_game":
                         self.running = False
         self.menu.draw(self.screen)
@@ -1176,6 +1224,111 @@ class Game:
         
         pygame.display.flip()
 
+    def _handle_survivor_game_over(self):
+        """Survivor Mode Game Over Screen mit Bestenliste"""
+        from system.utils import load_survivor_highscores
+        
+        # Hintergrund verdunkeln
+        overlay = pygame.Surface(self.screen.get_size())
+        overlay.set_alpha(200)
+        overlay.fill((0, 0, 0))
+        
+        # Spielfeld mit Overlay zeichnen
+        if self._bg_scaled:
+            self.screen.blit(self._bg_scaled, (0, 0))
+        else:
+            self.screen.fill((0, 0, 0))
+        
+        self.screen.blit(overlay, (0, 0))
+        
+        # Game Over Text
+        cw, ch = self.screen.get_size()
+        ui_scale = max(cw / 1920, ch / 1080) * 1.2
+        
+        # Title
+        title_font = pygame.font.Font(None, int(100 * ui_scale))
+        title_text = title_font.render("SURVIVOR MODE", True, (255, 100, 100))
+        title_rect = title_text.get_rect(center=(cw // 2, ch // 6))
+        
+        shadow_text = title_font.render("SURVIVOR MODE", True, (0, 0, 0))
+        shadow_rect = shadow_text.get_rect(center=(cw // 2 + 4, ch // 6 + 4))
+        self.screen.blit(shadow_text, shadow_rect)
+        self.screen.blit(title_text, title_rect)
+        
+        # Your Time
+        time_font = pygame.font.Font(None, int(70 * ui_scale))
+        minutes = int(self.survivor_time // 60)
+        seconds = int(self.survivor_time % 60)
+        millis = int((self.survivor_time % 1) * 100)
+        time_str = f"Your Time: {minutes:02d}:{seconds:02d}.{millis:02d}"
+        time_text = time_font.render(time_str, True, (255, 255, 100))
+        time_rect = time_text.get_rect(center=(cw // 2, ch // 3))
+        
+        shadow = time_font.render(time_str, True, (0, 0, 0))
+        shadow_rect = shadow.get_rect(center=(cw // 2 + 3, ch // 3 + 3))
+        self.screen.blit(shadow, shadow_rect)
+        self.screen.blit(time_text, time_rect)
+        
+        # Bestenliste
+        leaderboard_font = pygame.font.Font(None, int(50 * ui_scale))
+        leaderboard_title = leaderboard_font.render("TOP 10 TIMES", True, (255, 255, 255))
+        leaderboard_title_rect = leaderboard_title.get_rect(center=(cw // 2, ch // 2 - int(30 * ui_scale)))
+        self.screen.blit(leaderboard_title, leaderboard_title_rect)
+        
+        # Top 10 anzeigen
+        scores = load_survivor_highscores()
+        score_font = pygame.font.Font(None, int(35 * ui_scale))
+        start_y = ch // 2 + int(10 * ui_scale)
+        
+        for i, score_entry in enumerate(scores[:10]):
+            time_val = score_entry["time"]
+            mins = int(time_val // 60)
+            secs = int(time_val % 60)
+            ms = int((time_val % 1) * 100)
+            
+            # Highlight aktuelle Zeit
+            if abs(time_val - self.survivor_time) < 0.01:
+                color = (255, 255, 100)
+                text_str = f"#{i+1}  {mins:02d}:{secs:02d}.{ms:02d}  ← YOU"
+            else:
+                color = (200, 200, 200)
+                text_str = f"#{i+1}  {mins:02d}:{secs:02d}.{ms:02d}"
+            
+            score_text = score_font.render(text_str, True, color)
+            score_rect = score_text.get_rect(center=(cw // 2, start_y + i * int(35 * ui_scale)))
+            self.screen.blit(score_text, score_rect)
+        
+        # Controls
+        controls_font = pygame.font.Font(None, int(40 * ui_scale))
+        controls_y = ch - int(80 * ui_scale)
+        
+        controls_text = "SPACE - Try Again     ESC - Main Menu"
+        controls = controls_font.render(controls_text, True, (200, 200, 200))
+        controls_rect = controls.get_rect(center=(cw // 2, controls_y))
+        self.screen.blit(controls, controls_rect)
+        
+        # Event Handling
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+                return
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    # Try Again - Restart Survivor Mode
+                    self.game_state = "playing"
+                    self._start_survivor_mode()
+                elif event.key == pygame.K_ESCAPE:
+                    # Return to Menu
+                    self.game_state = "menu"
+                    self.game_mode = "normal"
+                    self._reset_game()
+                elif event.key == pygame.K_F11:
+                    self.toggle_maximize()
+                elif event.key == pygame.K_RETURN and (pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]):
+                    self.toggle_fullscreen()
+        
+        pygame.display.flip()
+
     def _start_new_game(self):
         self.paused = False
         self.score = 0
@@ -1214,6 +1367,66 @@ class Game:
         self.double_laser_active = False
         self.speed_boost_active  = False
         self.powerup_shield = None
+
+        # Musik starten
+        try:
+            if not pygame.mixer.music.get_busy():
+                pygame.mixer.music.set_volume(MASTER_VOLUME * MUSIC_VOLUME)
+                pygame.mixer.music.play(-1)
+        except pygame.error:
+            pass
+
+    def _start_survivor_mode(self):
+        """Starte Survivor Mode: 1 HP, kein Shield, Zeit-basiert"""
+        self.paused = False
+        self.score = 0
+        self.lives = 1  # Nur 1 Leben
+        self.level = 1
+        self.player_dead = False
+        self._respawn_ready_at = 0
+        
+        # Survivor Timer starten
+        self.survivor_start_time = pygame.time.get_ticks()
+        self.survivor_time = 0
+
+        cw, ch = self.screen.get_size()
+        self.spawn_pos = (cw // 2, ch - 100)
+
+        self.player = Player(cw, ch, self.assets)
+        self.player.rect.center = self.spawn_pos
+        
+        # WICHTIG: Player auf 1 HP setzen
+        self.player.current_health = 1
+        self.player.max_health = 1
+
+        self.enemies.clear()
+        self.fly_in_enemies.clear()
+        self.boss = None
+
+        self.explosion_manager.clear_all()
+        self.powerup_manager.clear_all()
+        self.projectile_manager.clear_all()
+
+        # Reset Laufzeit-Status
+        self.weapon_cooldowns.update({
+            "rocket_last_used": 0,
+            "homing_rocket_last_used": 0,
+            "blaster_last_used": 0,
+            "nuke_last_used": 0,
+            "shield_ready_at": 0
+        })
+        self._total_kills  = 0
+        self._boss_spawned = False
+        self._fly_in_spawn_count = 0
+        self._last_fly_in_spawn = pygame.time.get_ticks()
+        self.powerups.clear()
+        self.double_laser_active = False
+        self.speed_boost_active  = False
+        self.powerup_shield = None
+        
+        # WICHTIG: Kein Shield im Survivor Mode
+        self.shield = None
+        self.shield_until = 0
 
         # Musik starten
         try:
