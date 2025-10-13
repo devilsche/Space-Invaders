@@ -233,6 +233,54 @@ class AssetManager:
             # Fallback: Eine Liste mit einem Fallback-Frame
             return [self._fallbacks[AssetType.IMAGE]]
 
+    def load_font(
+        self,
+        path: str | None,
+        size: int
+    ) -> pygame.font.Font:
+        """
+        Lädt eine TrueType-Font (.ttf) oder OpenType-Font (.otf) oder System-Font
+
+        Args:
+            path: Pfad zur .ttf/.otf Datei oder None für System-Font
+            size: Schriftgröße in Pixeln
+
+        Returns:
+            pygame.font.Font: Die geladene Schriftart
+        """
+        cache_key = f"font_{path}_{size}"
+
+        # Aus Cache laden wenn bereits vorhanden
+        if cache_key in self._cache:
+            self._stats['cached'] += 1
+            return self._cache[cache_key]
+
+        try:
+            if path and os.path.exists(path):
+                # TrueType-Font aus Datei laden
+                font = pygame.font.Font(path, size)
+                logger.debug(f"Font geladen: {path} (size={size})")
+            else:
+                # System-Font (None = pygame default font)
+                font = pygame.font.Font(None, size)
+                if path:
+                    logger.warning(f"Font nicht gefunden: {path}, nutze System-Font")
+                else:
+                    logger.debug(f"System-Font geladen (size={size})")
+
+            # Cache speichern
+            self._cache[cache_key] = font
+            self._stats['loaded'] += 1
+            return font
+
+        except Exception as e:
+            logger.error(f"Fehler beim Laden der Font {path}: {e}")
+            self._stats['failed'] += 1
+            # Fallback: System-Font
+            fallback_font = pygame.font.Font(None, size)
+            self._cache[cache_key] = fallback_font
+            return fallback_font
+
     def load_spritesheet(
         self,
         path:       str,
@@ -286,6 +334,17 @@ class AssetManager:
                 return self.load_image(path)
             elif asset_type == AssetType.SOUND:
                 return self.load_sound(path)
+            elif asset_type == AssetType.FONT:
+                # Font braucht auch eine Größe - diese muss im key kodiert sein
+                # Format: "font_name_size" z.B. "title_font_48"
+                size = 24  # Default
+                if "_" in key:
+                    parts = key.split("_")
+                    try:
+                        size = int(parts[-1])
+                    except ValueError:
+                        pass
+                return self.load_font(path, size)
             else:
                 logger.warning(f"Asset-Typ {asset_type} noch nicht implementiert")
                 return None

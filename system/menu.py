@@ -37,9 +37,12 @@ class GameMenu:
             if self.background_image.get_size() != (WIDTH, HEIGHT):
                 self.background_image = pygame.transform.scale(self.background_image, (WIDTH, HEIGHT))
 
-            # Schriftarten laden - Mit Skalierung für verschiedene Auflösungen
-            self.font = pygame.font.Font(None, scale(FONT_SIZE + 20))  # Skalierte Menü-Schrift
-            self.title_font = pygame.font.Font(None, scale(FONT_SIZE + 60))  # Skalierte Titel-Schrift
+            # Schriftarten laden - Verwende spezifische Fonts:
+            # - Astalight für Titel
+            # - White on Black für Menü
+            self.font = assets.get("menu_font_normal", pygame.font.Font(None, scale(FONT_SIZE + 20)))
+            self.title_font = assets.get("title_font_large", pygame.font.Font(None, scale(FONT_SIZE + 60)))
+            self.controls_font = assets.get("menu_font_small", pygame.font.Font(None, scale(FONT_SIZE + 10)))
 
             # Menü-Positionen definieren (nach pygame.init())
             # Diese Positionen müssen an das tatsächliche Startscreen-Bild angepasst werden
@@ -51,13 +54,21 @@ class GameMenu:
             self.quit_menu_button_rect = pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 120, 200, 50)
 
             print("Menu assets loaded successfully")
+            # Check if fonts were loaded (using get instead of _cache)
+            title_font_loaded = assets.get("title_font_large") is not None
+            menu_font_loaded = assets.get("menu_font_normal") is not None
+            print(f"  - Title font: {'Astralight' if title_font_loaded else 'System Font'}")
+            print(f"  - Menu font: {'White on Black' if menu_font_loaded else 'System Font'}")
         except Exception as e:
             print(f"Error loading menu assets: {e}")
+            import traceback
+            traceback.print_exc()
             # Fallback: Einfarbiger Hintergrund
             self.background_image = pygame.Surface((WIDTH, HEIGHT))
             self.background_image.fill((20, 20, 50))  # Dunkelblau
             self.font = pygame.font.Font(None, scale(FONT_SIZE + 20))
             self.title_font = pygame.font.Font(None, scale(FONT_SIZE + 60))
+            self.controls_font = pygame.font.Font(None, scale(FONT_SIZE + 10))
 
             # Fallback-Positionen
             self.start_button_rect = pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 50, 200, 50)
@@ -148,17 +159,17 @@ class GameMenu:
         """Zeichne eigenes Start-Menü mit Titel und Text-Optionen"""
         # Titel mit coolen Effekten zeichnen
         self._draw_title_with_effects(screen)
-        
+
         # Menü-Optionen mit eigenem Text zeichnen - richtige Skalierung verwenden
         current_width = screen.get_width()
         current_height = screen.get_height()
         start_y = current_height // 2 + scale(80)  # Position unter dem Titel
         option_spacing = scale(100)  # Mehr Abstand zwischen den Optionen
-        
+
         for i, option in enumerate(self.current_options):
             y_pos = start_y + (i * option_spacing)
             is_selected = (i == self.selected_option)
-            
+
             # Text-Farbe basierend auf Auswahl
             if is_selected:
                 text_color = (255, 255, 100)  # Helles Gelb für ausgewählte Option
@@ -168,34 +179,35 @@ class GameMenu:
                 text_color = (200, 200, 200)  # Helles Grau für normale Optionen
                 shadow_color = (50, 50, 50)   # Dunkler Schatten
                 glow_color = None
-            
+
             # Glüheffekt für ausgewählte Option
             if is_selected and glow_color:
                 self._draw_text_glow(screen, option, self.font, current_width // 2, y_pos, glow_color)
-            
+
             # Haupttext mit Schatten
             self.draw_text_with_shadow(
                 screen, option, self.font,
                 current_width // 2, y_pos,
                 text_color, shadow_color
             )
-        
+
         # Steuerungshinweise - besser lesbar machen
-        if self.font:
-            controls_text = "↑↓ Navigate    ENTER Select    ESC Quit"
+        if self.controls_font:
+            controls_text = "UP/DOWN Navigate    ENTER Select    ESC Quit"
             current_width = screen.get_width()
             current_height = screen.get_height()
-            control_font = pygame.font.Font(None, scale(FONT_SIZE + 10))  # Größere Schrift
             self.draw_text_with_shadow(
-                screen, controls_text, control_font,
+                screen, controls_text, self.controls_font,
                 current_width // 2, current_height - scale(60),  # Bessere Positionierung
                 (255, 255, 255), (0, 0, 0)  # Weiß statt blau für bessere Lesbarkeit
             )
 
     def _draw_pause_menu(self, screen):
         """Zeichne Pause-Menü mit Text-Overlay und Glow-Effekten"""
-        # Semi-transparente Überlagerung
-        overlay = pygame.Surface((WIDTH, HEIGHT))
+        # Semi-transparente Überlagerung - IMMER aktuelle Screen-Größe verwenden!
+        current_width = screen.get_width()
+        current_height = screen.get_height()
+        overlay = pygame.Surface((current_width, current_height))
         overlay.set_alpha(128)
         overlay.fill((0, 0, 0))
         screen.blit(overlay, (0, 0))
@@ -203,8 +215,6 @@ class GameMenu:
         # Pause-Titel
         if self.title_font:
             pause_text = "GAME PAUSED"
-            current_width = screen.get_width()
-            current_height = screen.get_height()
             self.draw_text_with_shadow(
                 screen, pause_text, self.title_font,
                 current_width // 2, current_height // 3,
@@ -216,11 +226,11 @@ class GameMenu:
         current_height = screen.get_height()
         start_y = current_height // 2 + scale(50)  # Position unter dem Titel
         option_spacing = scale(100)  # Mehr Abstand zwischen den Optionen
-        
+
         for i, option in enumerate(self.current_options):
             y_pos = start_y + (i * option_spacing)
             is_selected = (i == self.selected_option)
-            
+
             # Text-Farbe basierend auf Auswahl
             if is_selected:
                 text_color = (255, 255, 100)  # Helles Gelb für ausgewählte Option
@@ -230,11 +240,11 @@ class GameMenu:
                 text_color = (200, 200, 200)  # Helles Grau für normale Optionen
                 shadow_color = (50, 50, 50)   # Dunkler Schatten
                 glow_color = None
-            
+
             # Glüheffekt für ausgewählte Option
             if is_selected and glow_color:
                 self._draw_text_glow(screen, option, self.font, current_width // 2, y_pos, glow_color)
-            
+
             # Haupttext mit Schatten
             self.draw_text_with_shadow(
                 screen, option, self.font,
@@ -247,41 +257,41 @@ class GameMenu:
         title_text = "SPACE INVADERS"
         current_height = screen.get_height()
         title_y = current_height // 4
-        
+
         if self.title_font:
             # Animierter Glüheffekt mit pulsierender Animation
             current_time = pygame.time.get_ticks()
             pulse_speed = 0.003  # Geschwindigkeit der Pulsation
-            
+
             # Sinus-basierte Pulsation für smooth Animation
             pulse_factor = (math.sin(current_time * pulse_speed) + 1) * 0.5  # 0.0 bis 1.0
-            
+
             # Basis-Glow-Farben mit Animation
             base_glow_colors = [
                 (100, 100, 255),   # Blauer Glow (äußerster)
                 (150, 150, 255),   # Mittlerer Glow
                 (200, 200, 255),   # Innerer Glow
             ]
-            
+
             # Animierte Alpha-Werte basierend auf Pulsation
             base_alphas = [25, 45, 65]
             animated_glow_colors = []
-            
+
             for i, (base_color, base_alpha) in enumerate(zip(base_glow_colors, base_alphas)):
                 # Verschiedene Pulsations-Phasen für jeden Layer
                 phase_offset = i * 0.5
                 layer_pulse = (math.sin(current_time * pulse_speed + phase_offset) + 1) * 0.5
-                
+
                 # Alpha zwischen 50% und 150% des Basiswerts variieren
                 animated_alpha = int(base_alpha * (0.5 + layer_pulse))
                 animated_glow_colors.append((base_color[0], base_color[1], base_color[2], animated_alpha))
-            
+
             # Mehrere Glow-Schichten zeichnen mit Animation
             for i, glow_color in enumerate(animated_glow_colors):
                 # Größe der Glow-Schicht auch leicht animieren
                 size_pulse = (math.sin(current_time * pulse_speed * 0.7 + i) + 1) * 0.1 + 0.9  # 0.9 bis 1.1
                 offset = int(scale((len(animated_glow_colors) - i) * 3) * size_pulse)
-                
+
                 for dx in range(-offset, offset + 1, 2):
                     for dy in range(-offset, offset + 1, 2):
                         if dx*dx + dy*dy <= offset*offset:
@@ -290,7 +300,7 @@ class GameMenu:
                             current_width = screen.get_width()
                             glow_rect = glow_surface.get_rect(center=(current_width // 2 + dx, title_y + dy))
                             screen.blit(glow_surface, glow_rect)
-            
+
             # Schatten (mehrfach für Tiefe)
             shadow_offsets = [(scale(4), scale(4)), (scale(3), scale(3)), (scale(2), scale(2))]
             current_width = screen.get_width()
@@ -299,38 +309,38 @@ class GameMenu:
                 shadow_surface.set_alpha(100)
                 shadow_rect = shadow_surface.get_rect(center=(current_width // 2 + offset[0], title_y + offset[1]))
                 screen.blit(shadow_surface, shadow_rect)
-            
+
             # Haupttitel in hellem Weiß mit leichtem Blaustich und subtiler Farbanimation
             # Leichte Farbvariation für lebendigen Effekt
             color_pulse = (math.sin(current_time * pulse_speed * 0.5) + 1) * 0.1  # 0.0 bis 0.2
             title_color = (
                 min(255, int(255 - color_pulse * 50)),  # Leichte Rot-Reduktion
-                min(255, int(255 - color_pulse * 30)),  # Leichte Grün-Reduktion  
+                min(255, int(255 - color_pulse * 30)),  # Leichte Grün-Reduktion
                 255  # Blau bleibt konstant
             )
-            
+
             main_surface = self.title_font.render(title_text, True, title_color)
             main_rect = main_surface.get_rect(center=(current_width // 2, title_y))
             screen.blit(main_surface, main_rect)
-    
+
     def _draw_text_glow(self, screen, text, font, x, y, glow_color):
         """Zeichne einen animierten Glüheffekt um Text"""
         # Animation für Menü-Optionen
         current_time = pygame.time.get_ticks()
         menu_pulse = (math.sin(current_time * 0.005) + 1) * 0.3 + 0.4  # 0.4 bis 1.0
-        
+
         # Animierte Glow-Farbe
         animated_glow = (
             int(glow_color[0] * menu_pulse),
-            int(glow_color[1] * menu_pulse), 
+            int(glow_color[1] * menu_pulse),
             int(glow_color[2] * menu_pulse)
         )
-        
+
         # Radius auch leicht animieren
         base_radius = scale(8)
         radius_pulse = (math.sin(current_time * 0.004) + 1) * 0.2 + 0.8  # 0.8 bis 1.2
         glow_radius = int(base_radius * radius_pulse)
-        
+
         for dx in range(-glow_radius, glow_radius + 1, 2):
             for dy in range(-glow_radius, glow_radius + 1, 2):
                 distance = (dx*dx + dy*dy) ** 0.5
@@ -338,7 +348,7 @@ class GameMenu:
                     # Basis-Alpha mit Animation
                     base_alpha = 50 * (1 - distance / glow_radius)
                     animated_alpha = int(base_alpha * menu_pulse)
-                    
+
                     if animated_alpha > 0:
                         glow_surface = font.render(text, True, animated_glow)
                         glow_surface.set_alpha(animated_alpha)

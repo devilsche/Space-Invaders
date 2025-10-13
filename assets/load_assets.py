@@ -190,6 +190,84 @@ def load_assets() -> AssetProxy:
     proxy["shield_cooldown"] = scfg.get("cooldown")
     proxy["shield_scale"]    = scfg.get("scale")
 
+    # ===== Fonts =====
+    # Lade spezifische Fonts für verschiedene Bereiche:
+    # - Astralight für Titel
+    # - White on Black für Menü
+    # - Monofonto für HUD/Rest
+    
+    import os
+    try:
+        from config.fonts import FONTS
+        print("Font config loaded successfully")
+    except Exception as e:
+        print(f"Error loading font config: {e}")
+        # Fallback: Nutze System-Fonts
+        FONTS = {
+            "title": {"file": None, "sizes": {"huge": 96, "large": 64, "medium": 48}},
+            "menu": {"file": None, "sizes": {"large": 48, "normal": 32, "small": 24}},
+            "hud": {"file": None, "sizes": {"large": 32, "normal": 24, "small": 20, "tiny": 16}}
+        }
+    
+    # Hilfsfunktion zum Laden mit Fallback
+    def load_font_with_fallback(font_path, size, fallback_path=None):
+        """Versucht Font zu laden, nutzt Fallback oder System-Font"""
+        try:
+            if font_path and os.path.exists(font_path):
+                font = manager.load_font(font_path, size)
+                print(f"  [OK] Loaded: {os.path.basename(font_path)} ({size}px)")
+                return font
+            elif fallback_path and os.path.exists(fallback_path):
+                font = manager.load_font(fallback_path, size)
+                print(f"  [OK] Loaded fallback: {os.path.basename(fallback_path)} ({size}px)")
+                return font
+            else:
+                font = manager.load_font(None, size)  # System font
+                print(f"  [WARN] Using system font ({size}px)")
+                return font
+        except Exception as e:
+            print(f"  [ERROR] Error loading font: {e}")
+            return manager.load_font(None, size)
+    
+    # Lade Titel-Fonts (Astralight)
+    print("Loading title fonts...")
+    title_config = FONTS["title"]
+    for size_name, size_px in title_config["sizes"].items():
+        key = f"title_font_{size_name}"  # z.B. "title_font_huge"
+        proxy[key] = load_font_with_fallback(
+            title_config["file"], 
+            size_px,
+            title_config.get("fallback")
+        )
+    
+    # Lade Menü-Fonts (White on Black)
+    print("Loading menu fonts...")
+    menu_config = FONTS["menu"]
+    for size_name, size_px in menu_config["sizes"].items():
+        key = f"menu_font_{size_name}"  # z.B. "menu_font_normal"
+        proxy[key] = load_font_with_fallback(
+            menu_config["file"],
+            size_px,
+            menu_config.get("fallback")
+        )
+    
+    # Lade HUD-Fonts (Monofonto)
+    print("Loading HUD fonts...")
+    hud_config = FONTS["hud"]
+    for size_name, size_px in hud_config["sizes"].items():
+        key = f"hud_font_{size_name}"  # z.B. "hud_font_normal"
+        proxy[key] = load_font_with_fallback(
+            hud_config["file"],
+            size_px,
+            hud_config.get("fallback")
+        )
+    
+    # Backward compatibility: Alte Keys mit Pixel-Größen
+    proxy["menu_font_24"] = proxy.get("menu_font_small")
+    proxy["menu_font_32"] = proxy.get("menu_font_normal")
+    proxy["title_font_48"] = proxy.get("title_font_medium")
+    proxy["title_font_64"] = proxy.get("title_font_large")
+
     # Shield sounds
     try:
         snd = manager.load_sound("assets/sound/shieldImpact.mp3")
