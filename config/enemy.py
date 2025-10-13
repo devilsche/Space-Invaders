@@ -132,7 +132,7 @@ ENEMY_CONFIG = {
     # --- Endgegner ---
     "boss": {
         "img"   : "assets/images/enemy/boss.png",
-        "size"  : (140, 100),
+        "size"  : (140, 140),  # Quadratisch für korrektes Seitenverhältnis
         "hp"    : 1000,
         "points": 1000,
         "move"  : {

@@ -478,7 +478,7 @@ class Game:
             boss.move_cfg["type"] = "fly_in"
             boss.move_cfg["target_y"] = random.randint(100, 140)
             boss.move_cfg["path"] = "sine"
-            boss.move_cfg["speed"] = 1.5
+            boss.move_cfg["speed"] = 3.0  # 100% schneller (war 1.5)
             boss.move_cfg["amplitude"] = 30
             boss.move_cfg["frequency"] = 0.5
             self.fly_in_enemies.append(boss)
@@ -911,6 +911,14 @@ class Game:
             print()  # Leerzeile für Übersichtlichkeit
 
         self.explosion_manager.update()
+        
+        # Victory Check: Boss spawned, all enemies defeated, no active explosions
+        if (self.game_state == "playing" and 
+            self._boss_spawned and 
+            len(self.enemies) == 0 and 
+            len(self.fly_in_enemies) == 0):
+            self.game_state = "victory"
+            print(f">>> LEVEL COMPLETE! Victory Screen activated! <<<")
 
     # ---------------- Draw ----------------
     def _draw(self):
@@ -999,6 +1007,8 @@ class Game:
                 self._draw()
             elif self.game_state == "paused":
                 self._handle_pause_menu()
+            elif self.game_state == "victory":
+                self._handle_victory_screen()
             elif self.game_state == "game_over":
                 self.game_state = "menu"
 
@@ -1075,6 +1085,95 @@ class Game:
                         self.menu.start_menu_music()  # Starte Menu-Musik wieder
                         self._reset_game()
         self.menu.draw(self.screen)
+        pygame.display.flip()
+
+    def _handle_victory_screen(self):
+        """Victory Screen nach Boss-Kill"""
+        # Hintergrund verdunkeln
+        overlay = pygame.Surface(self.screen.get_size())
+        overlay.set_alpha(180)
+        overlay.fill((0, 0, 0))
+        
+        # Spielfeld mit Overlay zeichnen
+        if self._bg_scaled:
+            self.screen.blit(self._bg_scaled, (0, 0))
+        else:
+            self.screen.fill((0, 0, 0))
+        
+        self.projectile_manager.draw(self.screen)
+        self.powerup_manager.draw(self.screen)
+        self.explosion_manager.draw(self.screen)
+        
+        if not self.player_dead:
+            self.player.draw(self.screen)
+            if self.shield: self.shield.draw(self.screen)
+            if self.powerup_shield: self.powerup_shield.draw(self.screen)
+        
+        self.screen.blit(overlay, (0, 0))
+        
+        # Victory Text
+        cw, ch = self.screen.get_size()
+        ui_scale = max(cw / 1920, ch / 1080) * 1.2
+        
+        # Große Schrift für Title
+        title_font = pygame.font.Font(None, int(120 * ui_scale))
+        title_text = title_font.render("VICTORY!", True, (255, 255, 100))
+        title_rect = title_text.get_rect(center=(cw // 2, ch // 3))
+        
+        # Schatten für Title
+        shadow_text = title_font.render("VICTORY!", True, (0, 0, 0))
+        shadow_rect = shadow_text.get_rect(center=(cw // 2 + 4, ch // 3 + 4))
+        self.screen.blit(shadow_text, shadow_rect)
+        self.screen.blit(title_text, title_rect)
+        
+        # Stats anzeigen
+        stats_font = pygame.font.Font(None, int(50 * ui_scale))
+        stats_y = ch // 2 - int(20 * ui_scale)
+        
+        stats = [
+            f"Score: {self.score}",
+            f"Total Kills: {self._total_kills}",
+            f"Level Complete: 1"
+        ]
+        
+        for i, stat in enumerate(stats):
+            stat_text = stats_font.render(stat, True, (255, 255, 255))
+            stat_rect = stat_text.get_rect(center=(cw // 2, stats_y + i * int(60 * ui_scale)))
+            
+            # Schatten
+            shadow = stats_font.render(stat, True, (0, 0, 0))
+            shadow_rect = shadow.get_rect(center=(cw // 2 + 2, stats_y + i * int(60 * ui_scale) + 2))
+            self.screen.blit(shadow, shadow_rect)
+            self.screen.blit(stat_text, stat_rect)
+        
+        # Controls
+        controls_font = pygame.font.Font(None, int(40 * ui_scale))
+        controls_y = ch - int(150 * ui_scale)
+        
+        controls_text = "SPACE - Play Again     ESC - Main Menu"
+        controls = controls_font.render(controls_text, True, (200, 200, 200))
+        controls_rect = controls.get_rect(center=(cw // 2, controls_y))
+        self.screen.blit(controls, controls_rect)
+        
+        # Event Handling
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+                return
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    # Play Again - Restart Level 1
+                    self.game_state = "playing"
+                    self._start_new_game()
+                elif event.key == pygame.K_ESCAPE:
+                    # Return to Menu
+                    self.game_state = "menu"
+                    self._reset_game()
+                elif event.key == pygame.K_F11:
+                    self.toggle_maximize()
+                elif event.key == pygame.K_RETURN and (pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]):
+                    self.toggle_fullscreen()
+        
         pygame.display.flip()
 
     def _start_new_game(self):
