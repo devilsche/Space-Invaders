@@ -113,7 +113,7 @@ class Enemy:
             self.emp_effect_timer -= dt
 
     # --- Bewegung ---
-    def update(self, dx=0):
+    def update(self, dx=0, player_x=None):
         if self.move_cfg["type"] == "grid":
             self.rect.x += dx
         elif self.move_cfg["type"] == "float":
@@ -133,9 +133,9 @@ class Enemy:
                 self.rect.x = WIDTH//2 + offset - self.rect.width//2
         elif self.move_cfg["type"] == "fly_in":
             # Fliegt von oben rein und folgt dann einer Laufbahn
-            self._update_fly_in()
+            self._update_fly_in(player_x)
 
-    def _update_fly_in(self):
+    def _update_fly_in(self, player_x=None):
         """Bewegung für 'fly_in' Typ - von oben reinfliegend mit individueller Laufbahn"""
         now = pygame.time.get_ticks()
 
@@ -154,9 +154,11 @@ class Enemy:
         # Phase 1: Von oben einfliegend
         if self.rect.y < self._target_y:
             self.rect.y += self._speed * 2  # Schneller von oben
+            return  # Phase 1 - kein Tracking
 
-        # Phase 2: Horizontale Laufbahn
+        # Phase 2: Horizontale Laufbahn mit sanftem Player-Tracking
         else:
+            # Basis-Bewegung je nach Pfad-Typ
             if self._path_type == "straight":
                 self.rect.x += self._speed * (1 if self._phase > 0 else -1)
             elif self._path_type == "sine":
@@ -181,6 +183,32 @@ class Enemy:
                 self.rect.x = center_x + int(radius * math.cos(angle))
                 # Sehr kleine Y-Variation für sanfte Wellenbewegung
                 self.rect.y = center_y + int(radius * math.sin(angle) * 0.2)
+
+            # Sanftes Player-Tracking: Drifte langsam zum Spieler wenn auf anderer Bildschirmseite
+            if player_x is not None:
+                # Konfigurierbare Tracking-Parameter
+                tracking_speed = self.move_cfg.get("player_tracking_speed", 0.3)  # Langsam driften (Pixel pro Frame)
+                tracking_threshold = self.move_cfg.get("player_tracking_threshold", 200)  # Ab diesem Abstand tracken
+                
+                # Berechne horizontalen Abstand zum Spieler
+                enemy_center_x = self.rect.centerx
+                dx = player_x - enemy_center_x
+                distance = abs(dx)
+                
+                # Nur tracken wenn Spieler weit genug entfernt ist
+                if distance > tracking_threshold:
+                    # Drifte sanft in Richtung Spieler
+                    drift_direction = 1 if dx > 0 else -1
+                    drift_amount = tracking_speed * drift_direction
+                    
+                    # Zusätzliche Drift für sine/circle paths: Update deren center/base
+                    if self._path_type == "sine" and hasattr(self, '_base_x'):
+                        self._base_x += drift_amount
+                    elif self._path_type == "circle" and hasattr(self, '_center_x'):
+                        self._center_x += drift_amount
+                    elif self._path_type == "straight":
+                        # Für straight path: direkt X-Position anpassen
+                        self.rect.x += drift_amount
 
     def drop(self, dy):
         self.rect.y += dy

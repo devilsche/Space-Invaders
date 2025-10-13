@@ -409,11 +409,14 @@ class Game:
                 for en in enemies: en.update(dx)
 
     def _update_fly_in_enemies(self):
-        for enemy in self.enemies[:]:
-            if getattr(enemy, 'movement_type', None) == "fly_in":
-                enemy.update()
-                if enemy.rect.right < 0 or enemy.rect.left > WIDTH:
-                    enemy.rect.x = WIDTH if enemy.rect.right < 0 else -enemy.rect.width
+        for enemy in self.fly_in_enemies[:]:
+            # Übergebe Spieler-Position für sanftes Tracking
+            player_x = self.player.rect.centerx if self.player else None
+            enemy.update(player_x=player_x)
+            if hasattr(enemy, 'update_emp_effects'): 
+                enemy.update_emp_effects(0.016)  # ~60 FPS
+            if enemy.rect.right < 0 or enemy.rect.left > WIDTH:
+                enemy.rect.x = WIDTH if enemy.rect.right < 0 else -enemy.rect.width
 
     # ---------------- Wellen ----------------
     def _build_wave(self, enemy_type: str):
@@ -445,6 +448,9 @@ class Game:
         enemy.move_cfg = enemy.move_cfg.copy()
         enemy.move_cfg["type"] = "fly_in"
         enemy.move_cfg["path"] = path
+        # Player-Tracking Parameter hinzufügen
+        enemy.move_cfg["player_tracking_speed"] = 1.0
+        enemy.move_cfg["player_tracking_threshold"] = 150
         if path == "sine":
             enemy.move_cfg["amplitude"] = random.randint(30, 50)
             enemy.move_cfg["frequency"] = random.uniform(0.8, 1.5)
@@ -661,9 +667,8 @@ class Game:
         for emp_wave in self.emp_waves[:]:
             if not emp_wave.update(dt, self): self.emp_waves.remove(emp_wave)
 
+        # Fly-in enemies werden bereits in _update_fly_in_enemies() aktualisiert
         for enemy in self.fly_in_enemies[:]:
-            enemy.update()
-            if hasattr(enemy, 'update_emp_effects'): enemy.update_emp_effects(dt)
             if (enemy.rect.y > HEIGHT + 50 or enemy.rect.x < -100 or enemy.rect.x > WIDTH + 100):
                 self.fly_in_enemies.remove(enemy)
                 self._fly_in_spawn_count = max(0, self._fly_in_spawn_count - 1)

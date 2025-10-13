@@ -189,7 +189,9 @@ ENEMY_CONFIG = {
             "speed"      : 3,
             "amplitude"  : 40,       # Kleinere Amplitude für weniger Wackeln
             "frequency"  : 1.2,      # Höhere Frequenz für schnellere, aber sanftere Bewegung
-            "radius"     : 35        # Kleinerer Radius für Kreisbewegung
+            "radius"     : 35,       # Kleinerer Radius für Kreisbewegung
+            "player_tracking_speed": 1.0,      # Wie schnell sie zum Spieler driften (Pixel pro Frame)
+            "player_tracking_threshold": 150   # Ab diesem Abstand tracken (Pixel)
         },
         "formation": {
             "cols"     : 1,
