@@ -263,15 +263,15 @@ class GameMenu:
             )
 
     def _draw_title_with_effects(self, screen):
-        """Zeichne den Titel 'SPACE INVADERS' mit coolen Effekten"""
-        title_text = "SPACE INVADERS"
+        """Zeichne den Titel 'NOVA STRIKE' mit coolen Effekten"""
+        title_text = "NOVA STRIKE"
         current_height = screen.get_height()
         title_y = current_height // 4
 
         if self.title_font:
             # Animierter Glüheffekt mit pulsierender Animation
             current_time = pygame.time.get_ticks()
-            pulse_speed = 0.003  # Geschwindigkeit der Pulsation
+            pulse_speed = 0.002  # Langsame, majestätische Pulsation für Titel
 
             # Sinus-basierte Pulsation für smooth Animation
             pulse_factor = (math.sin(current_time * pulse_speed) + 1) * 0.5  # 0.0 bis 1.0
@@ -334,34 +334,20 @@ class GameMenu:
             screen.blit(main_surface, main_rect)
 
     def _draw_text_glow(self, screen, text, font, x, y, glow_color):
-        """Zeichne einen animierten Glüheffekt um Text"""
-        # Animation für Menü-Optionen
-        current_time = pygame.time.get_ticks()
-        menu_pulse = (math.sin(current_time * 0.005) + 1) * 0.3 + 0.4  # 0.4 bis 1.0
-
-        # Animierte Glow-Farbe
-        animated_glow = (
-            int(glow_color[0] * menu_pulse),
-            int(glow_color[1] * menu_pulse),
-            int(glow_color[2] * menu_pulse)
-        )
-
-        # Radius auch leicht animieren
-        base_radius = scale(8)
-        radius_pulse = (math.sin(current_time * 0.004) + 1) * 0.2 + 0.8  # 0.8 bis 1.2
-        glow_radius = int(base_radius * radius_pulse)
+        """Zeichne einen statischen Glüheffekt um Text"""
+        # Statischer Glow ohne Animation - sieht professioneller aus
+        glow_radius = scale(5)  # Etwas größerer Radius für bessere Sichtbarkeit
 
         for dx in range(-glow_radius, glow_radius + 1, 2):
             for dy in range(-glow_radius, glow_radius + 1, 2):
                 distance = (dx*dx + dy*dy) ** 0.5
                 if distance <= glow_radius:
-                    # Basis-Alpha mit Animation
-                    base_alpha = 50 * (1 - distance / glow_radius)
-                    animated_alpha = int(base_alpha * menu_pulse)
-
-                    if animated_alpha > 0:
-                        glow_surface = font.render(text, True, animated_glow)
-                        glow_surface.set_alpha(animated_alpha)
+                    # Stärkerer Alpha-Wert für bessere Lesbarkeit
+                    alpha = int(20 * (1 - distance / glow_radius))
+                    
+                    if alpha > 0:
+                        glow_surface = font.render(text, True, glow_color)
+                        glow_surface.set_alpha(alpha)
                         glow_rect = glow_surface.get_rect(center=(x + dx, y + dy))
                         screen.blit(glow_surface, glow_rect)
 
