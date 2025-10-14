@@ -1,86 +1,14 @@
 [
   {
-    "time": 39.836,
-    "kills": 30,
+    "time": 13.581,
+    "kills": 9,
     "name": "Nic",
-    "stage": 3
+    "stage": 4
   },
   {
-    "time": 32.791,
-    "kills": 21,
-    "name": "Nic",
-    "stage": 3
-  },
-  {
-    "time": 24.169,
+    "time": 1.512,
     "kills": 0,
     "name": "Player",
-    "stage": 3
-  },
-  {
-    "time": 6.608,
-    "kills": 1,
-    "name": "Player",
-    "stage": 3
-  },
-  {
-    "time": 6.214,
-    "kills": 4,
-    "name": "Player",
-    "stage": 3
-  },
-  {
-    "time": 31.321,
-    "kills": 28,
-    "name": "Nic",
     "stage": 4
-  },
-  {
-    "time": 21.041,
-    "kills": 17,
-    "name": "Nic",
-    "stage": 4
-  },
-  {
-    "time": 12.624,
-    "kills": 13,
-    "name": "Player",
-    "stage": 4
-  },
-  {
-    "time": 3.219,
-    "kills": 0,
-    "name": "Nic",
-    "stage": 4
-  },
-  {
-    "time": 3.062,
-    "kills": 3,
-    "name": "Player",
-    "stage": 4
-  },
-  {
-    "time": 8.22,
-    "kills": 5,
-    "name": "Nic",
-    "stage": 1
-  },
-  {
-    "time": 16.775,
-    "kills": 5,
-    "name": "Player",
-    "stage": 2
-  },
-  {
-    "time": 4.819,
-    "kills": 1,
-    "name": "Player",
-    "stage": 2
-  },
-  {
-    "time": 4.034,
-    "kills": 2,
-    "name": "Player",
-    "stage": 2
   }
 ]

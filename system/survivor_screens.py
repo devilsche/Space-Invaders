@@ -103,12 +103,12 @@ class SurvivorNameInputScreen:
                 if event.key == pygame.K_RETURN:
                     if not self.player_name:
                         self.player_name = "Player"
-                    save_survivor_score(survivor_time, survivor_kills, self.player_name, stage)
+                    _, online_saved = save_survivor_score(survivor_time, survivor_kills, self.player_name, stage)
                     self.player_name = ""
                     result = "submit"
                 elif event.key == pygame.K_ESCAPE:
                     self.player_name = "Player"
-                    save_survivor_score(survivor_time, survivor_kills, self.player_name, stage)
+                    _, online_saved = save_survivor_score(survivor_time, survivor_kills, self.player_name, stage)
                     result = "submit"
                 elif event.key == pygame.K_BACKSPACE:
                     self.player_name = self.player_name[:-1]

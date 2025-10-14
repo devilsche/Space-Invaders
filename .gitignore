@@ -1,6 +1,9 @@
 highscore.json
 data/highscore.json
 
+# Firebase credentials (keep local only!)
+firebase-credentials.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

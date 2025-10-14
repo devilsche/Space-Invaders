@@ -5,6 +5,21 @@ from config.settings import REFERENCE_WIDTH, REFERENCE_HEIGHT
 
 HIGHSCORE_FILE = "data/highscore.json"
 
+# Lazy import für Firebase (nur wenn verfügbar)
+_online_manager = None
+
+def get_online_manager():
+    """Lazy-load Firebase Manager"""
+    global _online_manager
+    if _online_manager is None:
+        try:
+            from system.online_highscore import get_online_manager
+            _online_manager = get_online_manager()
+        except Exception as e:
+            print(f"⚠ Firebase not available: {e}")
+            _online_manager = False  # Mark as unavailable
+    return _online_manager if _online_manager is not False else None
+
 # Dynamische Bildschirmgrößen-Tracking (zur Laufzeit änderbar)
 _current_width = None
 _current_height = None
@@ -98,8 +113,14 @@ def load_survivor_highscores(stage=1):
     return []
 
 def save_survivor_score(time_seconds, kills, player_name, stage=1):
-    """Speichert eine neue Survivor Zeit mit Name, Kills und Stage"""
-    # Lade alle Scores (nicht nur für diese Stage)
+    """
+    Speichert eine neue Survivor Zeit mit Name, Kills und Stage.
+    Speichert sowohl lokal als auch online (wenn verfügbar).
+    
+    Returns:
+        tuple: (local_top_10, online_saved_successfully)
+    """
+    # 1. LOKAL SPEICHERN (immer, auch offline)
     if os.path.exists(SURVIVOR_HIGHSCORE_FILE):
         try:
             with open(SURVIVOR_HIGHSCORE_FILE, "r") as f:
@@ -110,12 +131,13 @@ def save_survivor_score(time_seconds, kills, player_name, stage=1):
         all_scores = []
     
     # Füge neuen Score hinzu
-    all_scores.append({
+    new_score = {
         "time": time_seconds,
         "kills": kills,
         "name": player_name,
         "stage": stage
-    })
+    }
+    all_scores.append(new_score)
     
     # Behalte Top 10 pro Stage (insgesamt max 40 Einträge)
     stage_scores = {}
@@ -137,7 +159,60 @@ def save_survivor_score(time_seconds, kills, player_name, stage=1):
     except Exception:
         pass
     
+    # 2. ONLINE SPEICHERN (wenn verfügbar)
+    online_success = False
+    manager = get_online_manager()
+    if manager and manager.is_connected():
+        try:
+            online_success = manager.save_highscore(
+                name=player_name,
+                time=time_seconds,
+                kills=kills,
+                stage=stage
+            )
+            if online_success:
+                print(f"✓ Highscore saved online: {player_name} - {time_seconds:.2f}s")
+        except Exception as e:
+            print(f"⚠ Failed to save online: {e}")
+    
     # Gib die Top 10 für die aktuelle Stage zurück
-    return sorted([s for s in final_scores if s.get("stage", 1) == stage], 
-                  key=lambda x: x["time"], reverse=True)[:10]
+    local_top_10 = sorted([s for s in final_scores if s.get("stage", 1) == stage], 
+                          key=lambda x: x["time"], reverse=True)[:10]
+    
+    return local_top_10, online_success
 
+
+def get_global_highscores(stage=None, limit=10):
+    """
+    Lädt globale Highscores von Firebase.
+    Fallback zu lokalen Scores wenn offline.
+    
+    Args:
+        stage: Filter by stage (None = all stages)
+        limit: Maximum number of scores
+        
+    Returns:
+        tuple: (scores_list, is_online)
+    """
+    manager = get_online_manager()
+    
+    # Versuche online zu laden
+    if manager and manager.is_connected():
+        try:
+            scores = manager.get_top_scores(stage=stage, limit=limit)
+            if scores:
+                return scores, True
+        except Exception as e:
+            print(f"⚠ Failed to load online scores: {e}")
+    
+    # Fallback zu lokalen Scores
+    local_scores = load_survivor_highscores()
+    
+    # Filter by stage if specified
+    if stage is not None:
+        local_scores = [s for s in local_scores if s.get("stage", 1) == stage]
+    
+    # Sort and limit
+    local_scores = sorted(local_scores, key=lambda x: x["time"], reverse=True)[:limit]
+    
+    return local_scores, False
