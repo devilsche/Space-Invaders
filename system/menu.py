@@ -80,11 +80,15 @@ class GameMenu:
             self.resume_button_rect = pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 50, 200, 50)
             self.quit_menu_button_rect = pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 120, 200, 50)
 
-    def set_pause_mode(self, is_pause=True):
+    def set_pause_mode(self, is_pause=True, game_mode="normal"):
         """Zwischen Start-Menü und Pause-Menü wechseln"""
         self.is_pause_menu = is_pause
         if is_pause:
-            self.current_options = self.pause_options
+            # Survivor Mode hat andere Pause-Optionen
+            if game_mode == "survivor":
+                self.current_options = ["Continue to iterate?", "Quit to Menu"]
+            else:
+                self.current_options = self.pause_options
         else:
             self.current_options = self.menu_options
         self.selected_option = 0  # Zurück zur ersten Option
@@ -121,7 +125,7 @@ class GameMenu:
         selected = self.current_options[self.selected_option]
 
         if self.is_pause_menu:
-            if selected == "Resume":
+            if selected == "Resume" or selected == "Continue to iterate?":
                 return "resume"
             elif selected == "Quit to Menu":
                 return "quit_to_menu"
@@ -188,8 +192,8 @@ class GameMenu:
         # Menü-Optionen mit eigenem Text zeichnen - richtige Skalierung verwenden
         current_width = screen.get_width()
         current_height = screen.get_height()
-        start_y = current_height // 2 + scale(80)  # Position unter dem Titel
-        option_spacing = scale(100)  # Mehr Abstand zwischen den Optionen
+        start_y = current_height // 2 - scale(20)  # 100px höher (war +80, jetzt -20)
+        option_spacing = scale(70)  # Abstand zwischen den Optionen
 
         for i, option in enumerate(self.current_options):
             y_pos = start_y + (i * option_spacing)
@@ -250,7 +254,7 @@ class GameMenu:
         current_width = screen.get_width()
         current_height = screen.get_height()
         start_y = current_height // 2 + scale(50)  # Position unter dem Titel
-        option_spacing = scale(100)  # Mehr Abstand zwischen den Optionen
+        option_spacing = scale(70)  # Abstand zwischen den Optionen
 
         for i, option in enumerate(self.current_options):
             y_pos = start_y + (i * option_spacing)

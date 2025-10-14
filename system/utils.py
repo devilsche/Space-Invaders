@@ -95,10 +95,14 @@ def load_survivor_highscores():
             return []
     return []
 
-def save_survivor_score(time_seconds):
-    """Speichert eine neue Survivor Zeit und hält Top 10"""
+def save_survivor_score(time_seconds, kills, player_name):
+    """Speichert eine neue Survivor Zeit mit Name und Kills, hält Top 10"""
     scores = load_survivor_highscores()
-    scores.append({"time": time_seconds})
+    scores.append({
+        "time": time_seconds,
+        "kills": kills,
+        "name": player_name
+    })
     scores = sorted(scores, key=lambda x: x["time"], reverse=True)[:10]
     try:
         with open(SURVIVOR_HIGHSCORE_FILE, "w") as f:
