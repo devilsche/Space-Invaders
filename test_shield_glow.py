@@ -5,12 +5,16 @@ Zeigt das Shield-Glow animiert um ein Schiff herum
 
 import pygame
 import sys
+import math
 
 # Pygame initialisieren
 pygame.init()
 
+# Globaler Skalierungsfaktor (2.0 = doppelt so groß)
+SCALE = 2.0
+
 # Fenster erstellen
-WIDTH, HEIGHT = 800, 600
+WIDTH, HEIGHT = int(800 * SCALE), int(600 * SCALE)
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("ShieldGlow Sprite Test")
 clock = pygame.time.Clock()
@@ -41,10 +45,37 @@ except Exception as e:
 # Lade alle Stage-Schiffe
 ship_images = {}
 ship_configs = {
-    1: {"file": "assets/images/player/stage1.png", "size": 85, "shield_scale": 0.55, "jet_scale": 0.4, "jet_count": 1, "jet_offset": 0},
-    2: {"file": "assets/images/player/stage2.png", "size": 90, "shield_scale": 0.6, "jet_scale": 0.4, "jet_count": 1, "jet_offset": 0},
-    3: {"file": "assets/images/player/stage3.png", "size": 100, "shield_scale": 0.7, "jet_scale": 0.5, "jet_count": 1, "jet_offset": 0},
-    4: {"file": "assets/images/player/stage4.png", "size": 130, "shield_scale": 1.0, "jet_scale": 0.35, "jet_count": 2, "jet_offset": 6},
+    # jet_anchor_points: Liste von (x, y) Offsets vom Schiffszentrum
+    # Positive Y = nach unten, Negative Y = nach oben
+    # Positive X = nach rechts, Negative X = nach links
+    1: {
+        "file": "assets/images/player/stage1.png",
+        "size": int(85 * SCALE),
+        "shield_scale": 1.2,
+        "jet_scale": 0.4,
+        "jet_anchor_points": [(0, int(32 * SCALE))]  # Ein Jet: mittig, skaliert
+    },
+    2: {
+        "file": "assets/images/player/stage2.png",
+        "size": int(90 * SCALE),
+        "shield_scale": 1.3,
+        "jet_scale": 0.4,
+        "jet_anchor_points": [(0, int(35 * SCALE))]  # Ein Jet: mittig, skaliert
+    },
+    3: {
+        "file": "assets/images/player/stage3.png",
+        "size": int(100 * SCALE),
+        "shield_scale": 1.5,
+        "jet_scale": 0.5,
+        "jet_anchor_points": [(0, int(40 * SCALE))]  # Ein Jet: mittig, skaliert
+    },
+    4: {
+        "file": "assets/images/player/stage4.png",
+        "size": int(130 * SCALE),
+        "shield_scale": 2.0,
+        "jet_scale": 0.35,
+        "jet_anchor_points": [(int(-7.5 * SCALE), int(60 * SCALE)), (int(6.5 * SCALE), int(60 * SCALE))]  # Zwei Jets: skaliert
+    },
 }
 
 current_stage = 1
@@ -129,12 +160,20 @@ jet_enabled = True  # Jet standardmäßig AN
 # Shield Toggle
 shield_enabled = True  # Shield standardmäßig AN
 
+# Flight Animation
+flight_time = 0  # Zeit für Flight-Effekte
+flight_enabled = True  # Flight Animation standardmäßig AN
+
+# Debug Overlays
+debug_lines = True  # Debug-Linien standardmäßig AN
+
 # Ship Position
 ship_x = WIDTH // 2
 ship_y = HEIGHT // 2
 
 # UI
-font = pygame.font.Font(None, 30)
+font = pygame.font.Font(None, int(30 * SCALE))
+small_font = pygame.font.Font(None, int(20 * SCALE))
 small_font = pygame.font.Font(None, 20)
 
 running = True
@@ -205,6 +244,15 @@ while running:
                 # Toggle Shield
                 shield_enabled = not shield_enabled
                 print(f"Shield: {'ON' if shield_enabled else 'OFF'}")
+            elif event.key == pygame.K_f:
+                # Toggle Flight Animation
+                flight_enabled = not flight_enabled
+                print(f"Flight Animation: {'ON' if flight_enabled else 'OFF'}")
+            elif event.key == pygame.K_d:
+                # Toggle Debug Lines
+                debug_lines = not debug_lines
+                print(f"Debug Lines: {'ON' if debug_lines else 'OFF'}")
+                print(f"Flight Animation: {'ON' if flight_enabled else 'OFF'}")
             elif event.key == pygame.K_a:
                 # Erhöhe Transparenz (weniger sichtbar)
                 shield_alpha = max(50, shield_alpha - 20)
@@ -230,36 +278,85 @@ while running:
             jet_frame_timer = 0
             current_jet_frame = (current_jet_frame + 1) % len(jet_frames)
 
+        # Flight Animation Timer
+        flight_time += dt
+
     # Zeichnen
     screen.fill(BLACK)
+
+    # Flight Animation berechnen (wenn aktiviert)
+    if flight_enabled:
+        # Sanftes Schweben (Auf und Ab) - skaliert
+        ship_float = math.sin(flight_time * 1.5) * 2.5 * SCALE  # ±2.5px vertikale Bewegung (skaliert)
+        # Horizontale Drift (Links/Rechts) - skaliert
+        ship_drift = math.sin(flight_time * 1.2) * 3 * SCALE  # ±3px horizontale Bewegung (skaliert)
+        # Leichtes Kippen (Banking) - bleibt gleich (Rotation in Grad)
+        ship_tilt = math.sin(flight_time * 1.2) * 2.5  # ±2.5° Rotation (synchron mit Drift)
+        # Jet Pulsieren - sanfter
+        jet_pulse = 160 + int(math.sin(flight_time * 6) * 20)  # 140-180 Alpha (langsamer, weniger)
+    else:
+        ship_float = 0
+        ship_drift = 0
+        ship_tilt = 0
+        jet_pulse = 180
+
+    # Aktuelle Display-Position mit Float und Drift
+    ship_display_x = ship_x + ship_drift
+    ship_display_y = ship_y + ship_float
+
+    # Schiff mit Tilt rotieren
+    ship_display = pygame.transform.rotate(ship_image, ship_tilt)
+    ship_display_rect = ship_display.get_rect(center=(ship_display_x, ship_display_y))
+    
+    # DEBUG: Zeige Schiffs-Zentrum als rotes Kreuz (wenn aktiviert)
+    if debug_lines:
+        cross_size = int(15 * SCALE)
+        line_width = max(1, int(3 * SCALE))
+        pygame.draw.line(screen, (255, 0, 0), (ship_display_x - cross_size, ship_display_y), (ship_display_x + cross_size, ship_display_y), line_width)
+        pygame.draw.line(screen, (255, 0, 0), (ship_display_x, ship_display_y - cross_size), (ship_display_x, ship_display_y + cross_size), line_width)
 
     # Aktuellen Jet-Frame skalieren und unter dem Schiff positionieren (wenn aktiviert)
     if jet_enabled:
         config = ship_configs[current_stage]
         jet_size = int(config["size"] * config["jet_scale"])
-        current_jet = pygame.transform.scale(jet_frames[current_jet_frame], (jet_size, jet_size))
-        current_jet.set_alpha(180)  # Leicht transparent
-
-        # Jet unter dem Schiff positionieren
-        jet_offset_y = config["size"] - 60
+        jet_base = pygame.transform.scale(jet_frames[current_jet_frame], (jet_size, jet_size))
         
-        # Zeichne Jets basierend auf jet_count
-        if config["jet_count"] == 1:
-            # Ein Jet in der Mitte
-            jet_rect = current_jet.get_rect(center=(ship_x, ship_y + jet_offset_y))
-            screen.blit(current_jet, jet_rect)
-        elif config["jet_count"] == 2:
-            # Zwei Jets links und rechts
-            jet_spacing = config["jet_offset"]
-            jet_offset_y = config["size"] - 70
-            # Linker Jet
-            jet_rect_left = current_jet.get_rect(center=(ship_x - jet_spacing-2, ship_y + jet_offset_y))
-            screen.blit(current_jet, jet_rect_left)
-            # Rechter Jet
-            jet_rect_right = current_jet.get_rect(center=(ship_x + jet_spacing, ship_y + jet_offset_y))
-            screen.blit(current_jet, jet_rect_right)
+        # Rotation Winkel in Radians
+        angle_rad = math.radians(-ship_tilt)
+        
+        # Rotiere Jet um sein eigenes Zentrum
+        current_jet = pygame.transform.rotate(jet_base, ship_tilt)
+        current_jet.set_alpha(jet_pulse)
 
-    # Aktuellen Shield-Frame skalieren und rotieren (wenn aktiviert)
+        # Zeichne Jets basierend auf konfigurierten Ankerpunkten
+        for anchor_x, anchor_y in config["jet_anchor_points"]:
+            # Rotiere den Ankerpunkt um das Schiffszentrum
+            # Ursprünglicher Offset vom Schiffszentrum
+            rotated_x = anchor_x * math.cos(angle_rad) - anchor_y * math.sin(angle_rad)
+            rotated_y = anchor_x * math.sin(angle_rad) + anchor_y * math.cos(angle_rad)
+            
+            # Absolute Position des Jets
+            jet_center_x = ship_display_x + rotated_x
+            jet_center_y = ship_display_y + rotated_y
+            
+            # Positioniere Jet
+            jet_rect = current_jet.get_rect(center=(jet_center_x, jet_center_y))
+            screen.blit(current_jet, jet_rect)
+            
+            # DEBUG: Zeige Jet-Zentrum als grünes Kreuz (wenn aktiviert)
+            if debug_lines:
+                jet_cross_size = int(10 * SCALE)
+                jet_line_width = max(1, int(2 * SCALE))
+                pygame.draw.line(screen, (0, 255, 0), (jet_center_x - jet_cross_size, jet_center_y), (jet_center_x + jet_cross_size, jet_center_y), jet_line_width)
+                pygame.draw.line(screen, (0, 255, 0), (jet_center_x, jet_center_y - jet_cross_size), (jet_center_x, jet_center_y + jet_cross_size), jet_line_width)
+                # DEBUG: Zeige Verbindung vom Schiff zum Jet
+                pygame.draw.line(screen, (255, 255, 0), (ship_display_x, ship_display_y), (jet_center_x, jet_center_y), max(1, int(1 * SCALE)))
+
+    
+    # Schiff zeichnen (mit Tilt, Float und Drift) - JETZT ZUERST
+    screen.blit(ship_display, ship_display_rect)
+
+    # Aktuellen Shield-Frame skalieren und rotieren (wenn aktiviert) - JETZT DARÜBER
     if shield_enabled:
         shield_size = int(max(frame_w, frame_h) * shield_scale)
         current_shield = pygame.transform.scale(shield_frames[current_frame], (shield_size, shield_size))
@@ -270,18 +367,16 @@ while running:
         # Setze Alpha (Transparenz)
         current_shield.set_alpha(shield_alpha)
 
-        # Shield zentriert um das Schiff zeichnen
-        shield_rect = current_shield.get_rect(center=(ship_x, ship_y))
+        # Shield zentriert um das Schiff zeichnen (mit Float und Drift)
+        shield_rect = current_shield.get_rect(center=(ship_display_x, ship_display_y))
         screen.blit(current_shield, shield_rect)
-
-    # Schiff über dem Shield zeichnen
-    ship_rect = ship_image.get_rect(center=(ship_x, ship_y))
-    screen.blit(ship_image, ship_rect)
 
     # Info-Text
     rotation_status = "ON" if rotation_enabled else "OFF"
     jet_status = "ON" if jet_enabled else "OFF"
     shield_status = "ON" if shield_enabled else "OFF"
+    flight_status = "ON" if flight_enabled else "OFF"
+    debug_status = "ON" if debug_lines else "OFF"
     ship_size = ship_configs[current_stage]["size"]
     # Shield size nur berechnen wenn enabled
     display_shield_size = int(max(frame_w, frame_h) * shield_scale) if shield_enabled else 0
@@ -292,6 +387,8 @@ while running:
         f"Rotation: {rotation_status} - {rotation_angle:.1f}° (Press R to toggle)",
         f"Shield: {shield_status} (Press Q to toggle)",
         f"Jet Engine: {jet_status} (Press J to toggle)",
+        f"Flight Animation: {flight_status} (Press F to toggle)",
+        f"Debug Lines: {debug_status} (Press D to toggle)",
         f"Shield Scale: {shield_scale:.1f} (UP/DOWN to adjust)",
         f"Shield Alpha: {shield_alpha} ({shield_alpha/255*100:.0f}%) - A/S to adjust",
         f"Speed: {animation_speed:.2f} (LEFT/RIGHT to adjust)",
@@ -302,6 +399,8 @@ while running:
         "R - Toggle Rotation",
         "Q - Toggle Shield",
         "J - Toggle Jet Engine",
+        "F - Toggle Flight Animation",
+        "D - Toggle Debug Lines",
         "A/S - Adjust Transparency",
         "SPACE - Pause/Resume",
         "ESC - Exit"
