@@ -262,6 +262,17 @@ def load_assets() -> AssetProxy:
             hud_config.get("fallback")
         )
     
+    # Lade Controls-Fonts (KGRedHands)
+    print("Loading controls fonts...")
+    controls_config = FONTS["controls"]
+    for size_name, size_px in controls_config["sizes"].items():
+        key = f"controls_font_{size_name}"  # z.B. "controls_font_normal"
+        proxy[key] = load_font_with_fallback(
+            controls_config["file"],
+            size_px,
+            controls_config.get("fallback")
+        )
+    
     # Backward compatibility: Alte Keys mit Pixel-Größen
     proxy["menu_font_24"] = proxy.get("menu_font_small")
     proxy["menu_font_32"] = proxy.get("menu_font_normal")

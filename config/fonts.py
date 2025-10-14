@@ -42,5 +42,16 @@ FONTS = {
             "tiny": 16,      # Debug
         },
         "fallback": None
+    },
+    
+    # Controls Font
+    "controls": {
+        "file": "assets/fonts/KGRedHands.ttf",  # Handschrift-Font für Controls
+        "sizes": {
+            "large": 48,     # Große Controls
+            "normal": 36,    # Standard Controls
+            "small": 28,     # Kleine Controls
+        },
+        "fallback": None
     }
 }

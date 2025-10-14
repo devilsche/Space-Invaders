@@ -84,29 +84,60 @@ def save_highscore(value):
 
 SURVIVOR_HIGHSCORE_FILE = "data/survivor_highscores.json"
 
-def load_survivor_highscores():
-    """Lädt die Top 10 Survivor Zeiten"""
+def load_survivor_highscores(stage=1):
+    """Lädt die Top 10 Survivor Zeiten für eine bestimmte Stage"""
     if os.path.exists(SURVIVOR_HIGHSCORE_FILE):
         try:
             with open(SURVIVOR_HIGHSCORE_FILE, "r") as f:
-                scores = json.load(f)
-                return sorted(scores, key=lambda x: x["time"], reverse=True)[:10]
+                all_scores = json.load(f)
+                # Filteriere nach Stage
+                stage_scores = [s for s in all_scores if s.get("stage", 1) == stage]
+                return sorted(stage_scores, key=lambda x: x["time"], reverse=True)[:10]
         except Exception:
             return []
     return []
 
-def save_survivor_score(time_seconds, kills, player_name):
-    """Speichert eine neue Survivor Zeit mit Name und Kills, hält Top 10"""
-    scores = load_survivor_highscores()
-    scores.append({
+def save_survivor_score(time_seconds, kills, player_name, stage=1):
+    """Speichert eine neue Survivor Zeit mit Name, Kills und Stage"""
+    # Lade alle Scores (nicht nur für diese Stage)
+    if os.path.exists(SURVIVOR_HIGHSCORE_FILE):
+        try:
+            with open(SURVIVOR_HIGHSCORE_FILE, "r") as f:
+                all_scores = json.load(f)
+        except Exception:
+            all_scores = []
+    else:
+        all_scores = []
+    
+    # Füge neuen Score hinzu
+    all_scores.append({
         "time": time_seconds,
         "kills": kills,
-        "name": player_name
+        "name": player_name,
+        "stage": stage
     })
-    scores = sorted(scores, key=lambda x: x["time"], reverse=True)[:10]
+    
+    # Behalte Top 10 pro Stage (insgesamt max 40 Einträge)
+    stage_scores = {}
+    for score in all_scores:
+        s = score.get("stage", 1)
+        if s not in stage_scores:
+            stage_scores[s] = []
+        stage_scores[s].append(score)
+    
+    # Sortiere jede Stage und behalte Top 10
+    final_scores = []
+    for stage_num, scores in stage_scores.items():
+        top_10 = sorted(scores, key=lambda x: x["time"], reverse=True)[:10]
+        final_scores.extend(top_10)
+    
     try:
         with open(SURVIVOR_HIGHSCORE_FILE, "w") as f:
-            json.dump(scores, f, indent=2)
+            json.dump(final_scores, f, indent=2)
     except Exception:
         pass
-    return scores
+    
+    # Gib die Top 10 für die aktuelle Stage zurück
+    return sorted([s for s in final_scores if s.get("stage", 1) == stage], 
+                  key=lambda x: x["time"], reverse=True)[:10]
+

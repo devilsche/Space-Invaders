@@ -8,26 +8,28 @@ class GameMenu:
     """Start- und Pause-Menü mit Navigation"""
 
     def __init__(self):
-        self.background_image = None
-        self.font = pygame.font.Font(None, FONT_SIZE)
-        self.title_font = pygame.font.Font(None, FONT_SIZE * 2)
-        self.selected_option = 0
-        self.menu_options = ["Start", "Survivor", "Quit"]
-        self.pause_options = ["Resume", "Quit to Menu"]
-        self.current_options = self.menu_options
-        self.is_pause_menu = False
+        self.background_image    = None
+        self.font                = pygame.font.Font(None, FONT_SIZE)
+        self.title_font          = pygame.font.Font(None, FONT_SIZE * 2)
+        self.selected_option     = 0
+        self.menu_options        = ["Start", "Quit"]
+        self.mode_select_options = ["Normal Mode", "Survivor Mode", "Back"]
+        self.pause_options       = ["Resume", "Quit to Menu"]
+        self.current_options     = self.menu_options
+        self.is_pause_menu       = False
+        self.is_mode_select      = False # Neuer State für Spielmodi-Auswahl
 
         # Menü-Positionen werden in load_assets() gesetzt nach pygame.init()
-        self.start_button_rect = None
-        self.quit_button_rect = None
-        self.resume_button_rect = None
+        self.start_button_rect     = None
+        self.quit_button_rect      = None
+        self.resume_button_rect    = None
         self.quit_menu_button_rect = None
 
         # Farben für Rahmen
-        self.selected_color = (255, 255, 100, 128)  # Gelb mit Transparenz
-        self.normal_color = (255, 255, 255, 64)     # Weiß mit Transparenz
-        self.border_color = (255, 255, 100)         # Gelber Rahmen
-        
+        self.selected_color = (255, 255, 100, 128) # Gelb   mit    Transparenz
+        self.normal_color   = (255, 255, 255, 64 ) # Weiß   mit    Transparenz
+        self.border_color   = (255, 255, 100     ) # Gelber Rahmen
+
         # Menu music channel
         self.menu_music_channel = None
         self.menu_music_playing = False
@@ -44,23 +46,24 @@ class GameMenu:
             # Schriftarten laden - Verwende spezifische Fonts:
             # - Astalight für Titel
             # - White on Black für Menü
-            self.font = assets.get("menu_font_normal", pygame.font.Font(None, scale(FONT_SIZE + 20)))
-            self.title_font = assets.get("title_font_large", pygame.font.Font(None, scale(FONT_SIZE + 60)))
-            self.controls_font = assets.get("menu_font_small", pygame.font.Font(None, scale(FONT_SIZE + 10)))
+            # - KGRedHands für Controls
+            self.font          = assets.get("menu_font_normal", pygame.font.Font(None, scale(FONT_SIZE + 20)))
+            self.title_font    = assets.get("title_font_large", pygame.font.Font(None, scale(FONT_SIZE + 60)))
+            self.controls_font = assets.get("controls_font_normal", pygame.font.Font(None, scale(FONT_SIZE + 10)))
 
             # Menü-Positionen definieren (nach pygame.init())
             # Diese Positionen müssen an das tatsächliche Startscreen-Bild angepasst werden
             self.start_button_rect = pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 50, 200, 50)
-            self.quit_button_rect = pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 120, 200, 50)
+            self.quit_button_rect  = pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 120, 200, 50)
 
             # Pause-Menü Positionen
-            self.resume_button_rect = pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 50, 200, 50)
+            self.resume_button_rect    = pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 50, 200, 50)
             self.quit_menu_button_rect = pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 120, 200, 50)
 
             print("Menu assets loaded successfully")
             # Check if fonts were loaded (using get instead of _cache)
             title_font_loaded = assets.get("title_font_large") is not None
-            menu_font_loaded = assets.get("menu_font_normal") is not None
+            menu_font_loaded  = assets.get("menu_font_normal") is not None
             print(f"  - Title font: {'Astralight' if title_font_loaded else 'System Font'}")
             print(f"  - Menu font: {'White on Black' if menu_font_loaded else 'System Font'}")
         except Exception as e:
@@ -68,31 +71,40 @@ class GameMenu:
             import traceback
             traceback.print_exc()
             # Fallback: Einfarbiger Hintergrund
-            self.background_image = pygame.Surface((WIDTH, HEIGHT))
-            self.background_image.fill((20, 20, 50))  # Dunkelblau
-            self.font = pygame.font.Font(None, scale(FONT_SIZE + 20))
-            self.title_font = pygame.font.Font(None, scale(FONT_SIZE + 60))
-            self.controls_font = pygame.font.Font(None, scale(FONT_SIZE + 10))
+            self.background_image = pygame.Surface((WIDTH, HEIGHT ))
+            self.background_image.fill((20, 20, 50    )) # Dunkelblau
+            self.font             = pygame.font.Font(None, scale(FONT_SIZE + 20))
+            self.title_font       = pygame.font.Font(None, scale(FONT_SIZE + 60))
+            self.controls_font    = pygame.font.Font(None, scale(FONT_SIZE + 10))
 
             # Fallback-Positionen
-            self.start_button_rect = pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 50, 200, 50)
-            self.quit_button_rect = pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 120, 200, 50)
-            self.resume_button_rect = pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 50, 200, 50)
+            self.start_button_rect     = pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 50, 200, 50)
+            self.quit_button_rect      = pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 120, 200, 50)
+            self.resume_button_rect    = pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 50, 200, 50)
             self.quit_menu_button_rect = pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 120, 200, 50)
 
-    def set_pause_mode(self, is_pause=True, game_mode="normal"):
+    def set_pause_mode(self, is_pause=True):
         """Zwischen Start-Menü und Pause-Menü wechseln"""
-        self.is_pause_menu = is_pause
+        self.is_pause_menu  = is_pause
+        self.is_mode_select = False
+
         if is_pause:
-            # Survivor Mode hat andere Pause-Optionen
-            if game_mode == "survivor":
-                self.current_options = ["Continue to iterate?", "Quit to Menu"]
-            else:
-                self.current_options = self.pause_options
+            self.current_options = self.pause_options
         else:
             self.current_options = self.menu_options
-        self.selected_option = 0  # Zurück zur ersten Option
+        self.selected_option = 0
         print(f"Set pause mode: {is_pause}, options: {self.current_options}, selected: {self.selected_option}")
+
+    def set_mode_select(self, is_mode_select=True):
+        """Wechsle zur Spielmodi-Auswahl"""
+        self.is_mode_select = is_mode_select
+        self.is_pause_menu  = False
+        if is_mode_select:
+            self.current_options = self.mode_select_options
+        else:
+            self.current_options = self.menu_options
+        self.selected_option = 0
+        print(f"Set mode select: {is_mode_select}, options: {self.current_options}, selected: {self.selected_option}")
 
     def handle_input(self, event):
         """Verarbeite Menü-Eingaben"""
@@ -125,15 +137,20 @@ class GameMenu:
         selected = self.current_options[self.selected_option]
 
         if self.is_pause_menu:
-            if selected == "Resume" or selected == "Continue to iterate?":
+            if selected == "Resume":
                 return "resume"
             elif selected == "Quit to Menu":
                 return "quit_to_menu"
+        elif self.is_mode_select:
+            if selected == "Normal Mode":
+                return "start_game"
+            elif selected == "Survivor Mode":
+                return "start_survivor"
+            elif selected == "Back":
+                return "back_to_menu"
         else:
             if selected == "Start":
-                return "start_game"
-            elif selected == "Survivor":
-                return "start_survivor"
+                return "show_mode_select"
             elif selected == "Quit":
                 return "quit_game"
 
@@ -143,12 +160,12 @@ class GameMenu:
         """Zeichne Text mit Schatten für bessere Lesbarkeit"""
         # Schatten (leicht versetzt)
         shadow_surface = font.render(text, True, shadow_color)
-        shadow_rect = shadow_surface.get_rect(center=(x + 2, y + 2))
+        shadow_rect    = shadow_surface.get_rect(center=(x + 2, y + 2))
         surface.blit(shadow_surface, shadow_rect)
 
         # Haupttext
         text_surface = font.render(text, True, color)
-        text_rect = text_surface.get_rect(center=(x, y))
+        text_rect    = text_surface.get_rect(center=(x, y))
         surface.blit(text_surface, text_rect)
 
         return text_rect
@@ -159,27 +176,30 @@ class GameMenu:
         if self.background_image:
             current_size = screen.get_size()
             current_time = pygame.time.get_ticks()
-            
+
             # Langsame Zoom-Animation zwischen 100% und 110%
-            zoom_speed = 0.0003  # Sehr langsam für sanfte Bewegung
+            zoom_speed  = 0.0003  # Sehr langsam für sanfte Bewegung
             zoom_factor = 1.0 + (math.sin(current_time * zoom_speed) + 1) * 0.05  # 1.0 bis 1.1
-            
+
             # Berechne Zielgröße mit Zoom
-            target_width = int(current_size[0] * zoom_factor)
+            target_width  = int(current_size[0] * zoom_factor)
             target_height = int(current_size[1] * zoom_factor)
-            
+
             # Skaliere Hintergrund
             scaled_background = pygame.transform.scale(self.background_image, (target_width, target_height))
-            
+
             # Zentriere das gezoomte Bild (so dass es über die Ränder hinausgeht)
             offset_x = (target_width - current_size[0]) // 2
             offset_y = (target_height - current_size[1]) // 2
-            
+
             screen.blit(scaled_background, (-offset_x, -offset_y))
 
         if self.is_pause_menu:
             # Pause-Menü: Zeichne Rahmen um Resume/Quit Optionen
             self._draw_pause_menu(screen)
+        elif self.is_mode_select:
+            # Spielmodi-Auswahl
+            self._draw_mode_select_menu(screen)
         else:
             # Start-Menü: Zeichne Rahmen um die Start/Quit Optionen im Bild
             self._draw_start_menu(screen)
@@ -222,7 +242,7 @@ class GameMenu:
 
         # Steuerungshinweise - besser lesbar machen
         if self.controls_font:
-            controls_text = "UP/DOWN Navigate    ENTER Select    ESC Quit"
+            controls_text = "[UP/DOWN] Navigate - [ENTER] Select - [ESC] Quit"
             current_width = screen.get_width()
             current_height = screen.get_height()
             self.draw_text_with_shadow(
@@ -231,10 +251,62 @@ class GameMenu:
                 (255, 255, 255), (0, 0, 0)  # Weiß statt blau für bessere Lesbarkeit
             )
 
+    def _draw_mode_select_menu(self, screen):
+        """Zeichne Spielmodi-Auswahlmenü"""
+        # Titel mit Effekten
+        current_width = screen.get_width()
+        current_height = screen.get_height()
+
+        if self.title_font:
+            title_text = "SELECT GAME MODE"
+            self.draw_text_with_shadow(
+                screen, title_text, self.title_font,
+                current_width // 2, current_height // 3,
+                (100, 200, 255), (0, 0, 0)
+            )
+
+        # Menü-Optionen
+        start_y = current_height // 2 + scale(20)
+        option_spacing = scale(80)
+
+        for i, option in enumerate(self.current_options):
+            y_pos = start_y + (i * option_spacing)
+            is_selected = (i == self.selected_option)
+
+            # Text-Farbe basierend auf Auswahl
+            if is_selected:
+                text_color = (255, 255, 100)
+                shadow_color = (100, 100, 0)
+                glow_color = (255, 255, 150)
+            else:
+                text_color = (200, 200, 200)
+                shadow_color = (50, 50, 50)
+                glow_color = None
+
+            # Glüheffekt für ausgewählte Option
+            if is_selected and glow_color:
+                self._draw_text_glow(screen, option, self.font, current_width // 2, y_pos, glow_color)
+
+            # Haupttext mit Schatten
+            self.draw_text_with_shadow(
+                screen, option, self.font,
+                current_width // 2, y_pos,
+                text_color, shadow_color
+            )
+
+        # Steuerungshinweise
+        if self.controls_font:
+            controls_text = "[UP/DOWN] Navigate - [ENTER] Select - [ESC] Back"
+            self.draw_text_with_shadow(
+                screen, controls_text, self.controls_font,
+                current_width // 2, current_height - scale(60),
+                (255, 255, 255), (0, 0, 0)
+            )
+
     def _draw_pause_menu(self, screen):
         """Zeichne Pause-Menü mit Text-Overlay und Glow-Effekten"""
         # Semi-transparente Überlagerung - IMMER aktuelle Screen-Größe verwenden!
-        current_width = screen.get_width()
+        current_width  = screen.get_width()
         current_height = screen.get_height()
         overlay = pygame.Surface((current_width, current_height))
         overlay.set_alpha(128)
@@ -245,15 +317,18 @@ class GameMenu:
         if self.title_font:
             pause_text = "GAME PAUSED"
             self.draw_text_with_shadow(
-                screen, pause_text, self.title_font,
-                current_width // 2, current_height // 3,
-                (255, 255, 100), (0, 0, 0)
+                screen, pause_text,
+                self.title_font,
+                current_width // 2,
+                current_height // 3,
+                (255, 255, 100),
+                (0, 0, 0)
             )
 
         # Pause-Menü-Optionen mit eigenem Text und Glow-Effekt (wie im Start-Menü)
-        current_width = screen.get_width()
+        current_width  = screen.get_width()
         current_height = screen.get_height()
-        start_y = current_height // 2 + scale(50)  # Position unter dem Titel
+        start_y        = current_height // 2 + scale(50)  # Position unter dem Titel
         option_spacing = scale(70)  # Abstand zwischen den Optionen
 
         for i, option in enumerate(self.current_options):
@@ -276,16 +351,20 @@ class GameMenu:
 
             # Haupttext mit Schatten
             self.draw_text_with_shadow(
-                screen, option, self.font,
-                current_width // 2, y_pos,
-                text_color, shadow_color
+                screen,
+                option,
+                self.font,
+                current_width // 2,
+                y_pos,
+                text_color,
+                shadow_color
             )
 
     def _draw_title_with_effects(self, screen):
         """Zeichne den Titel 'NOVA STRIKE' mit coolen Effekten"""
-        title_text = "NOVA STRIKE"
+        title_text     = "NOVA STRIKE"
         current_height = screen.get_height()
-        title_y = current_height // 4
+        title_y        = current_height // 4
 
         if self.title_font:
             # Animierter Glüheffekt mit pulsierender Animation
@@ -363,7 +442,7 @@ class GameMenu:
                 if distance <= glow_radius:
                     # Stärkerer Alpha-Wert für bessere Lesbarkeit
                     alpha = int(20 * (1 - distance / glow_radius))
-                    
+
                     if alpha > 0:
                         glow_surface = font.render(text, True, glow_color)
                         glow_surface.set_alpha(alpha)
