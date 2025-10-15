@@ -1,13 +1,13 @@
-# system/survivor_screens.py - Survivor Mode specific screens
+# system/normal_mode_screens.py - Normal Mode specific screens
 import pygame
 import time
-from system.utils import load_survivor_highscores, save_survivor_score, get_online_manager
+from system.utils import save_normal_score, get_online_manager
 
 
 def draw_saving_progress(screen, phase="local", progress=0.0, status_text="Saving..."):
     """
     Zeichnet eine kleine Progress Bar unten rechts.
-
+    
     Args:
         screen: Pygame Surface
         phase: "local", "online", oder "done"
@@ -15,16 +15,16 @@ def draw_saving_progress(screen, phase="local", progress=0.0, status_text="Savin
         status_text: Text unter der Bar
     """
     cw, ch = screen.get_size()
-
+    
     # Dimensionen (klein und kompakt)
     bar_width = 200
     bar_height = 8
     padding = 20
-
+    
     # Position: Unten rechts
     x = cw - bar_width - padding
     y = ch - bar_height - 50
-
+    
     # Farben
     bg_color = (40, 40, 40)
     if phase == "local":
@@ -35,39 +35,39 @@ def draw_saving_progress(screen, phase="local", progress=0.0, status_text="Savin
         bar_color = (255, 200, 50)   # Gold
     else:
         bar_color = (150, 150, 150)  # Grau
-
+    
     # Hintergrund
     pygame.draw.rect(screen, bg_color, (x, y, bar_width, bar_height))
-
+    
     # Fortschrittsbalken
     filled_width = int(bar_width * min(progress, 1.0))
     if filled_width > 0:
         pygame.draw.rect(screen, bar_color, (x, y, filled_width, bar_height))
-
+    
     # Rahmen
     pygame.draw.rect(screen, (100, 100, 100), (x, y, bar_width, bar_height), 1)
-
+    
     # Status Text
     try:
         font = pygame.font.Font("assets/fonts/monofonto rg.otf", 14)
     except:
         font = pygame.font.Font(None, 16)
-
+    
     text_surface = font.render(status_text, True, (200, 200, 200))
     text_rect = text_surface.get_rect()
     text_rect.midtop = (x + bar_width // 2, y + bar_height + 4)
     screen.blit(text_surface, text_rect)
 
 
-def save_with_progress_animation(screen, bg_scaled, survivor_time, survivor_kills, player_name, stage):
+def save_with_progress_animation(screen, bg_scaled, score, player_name, kills=0, level=1):
     """
-    Speichert Highscore mit animierter Progress Bar.
-
+    Speichert Normal Mode Score mit animierter Progress Bar.
+    
     Returns:
         tuple: (local_top_10, online_saved_successfully)
     """
     clock = pygame.time.Clock()
-
+    
     # Phase 1: Lokales Speichern (schnell)
     for progress in [0.3, 0.6, 1.0]:
         # Hintergrund neu zeichnen
@@ -75,20 +75,20 @@ def save_with_progress_animation(screen, bg_scaled, survivor_time, survivor_kill
             screen.blit(bg_scaled, (0, 0))
         else:
             screen.fill((0, 0, 0))
-
+        
         overlay = pygame.Surface(screen.get_size())
         overlay.set_alpha(200)
         overlay.fill((0, 0, 0))
         screen.blit(overlay, (0, 0))
-
+        
         # Progress Bar zeichnen
         draw_saving_progress(screen, "local", progress, "Saving locally...")
         pygame.display.flip()
         clock.tick(60)  # 60 FPS
-
+    
     # Tatsächlich lokal speichern
-    local_top_10, online_saved = save_survivor_score(survivor_time, survivor_kills, player_name, stage)
-
+    local_top_10, online_saved = save_normal_score(score, player_name, kills, level)
+    
     # Phase 2: Online Speichern (falls verbunden)
     if online_saved or get_online_manager().is_connected():
         for progress in [0.3, 0.6, 1.0]:
@@ -96,50 +96,56 @@ def save_with_progress_animation(screen, bg_scaled, survivor_time, survivor_kill
                 screen.blit(bg_scaled, (0, 0))
             else:
                 screen.fill((0, 0, 0))
-
+            
             overlay = pygame.Surface(screen.get_size())
             overlay.set_alpha(200)
             overlay.fill((0, 0, 0))
             screen.blit(overlay, (0, 0))
-
+            
             draw_saving_progress(screen, "online", progress, "Uploading online...")
             pygame.display.flip()
             clock.tick(60)
-
+    
     # Phase 3: Fertig!
     for _ in range(15):  # 0.25 Sekunden anzeigen
         if bg_scaled:
             screen.blit(bg_scaled, (0, 0))
         else:
             screen.fill((0, 0, 0))
-
+        
         overlay = pygame.Surface(screen.get_size())
         overlay.set_alpha(200)
         overlay.fill((0, 0, 0))
         screen.blit(overlay, (0, 0))
-
+        
         status = "✓ Saved!" if online_saved else "✓ Saved locally"
         draw_saving_progress(screen, "done", 1.0, status)
         pygame.display.flip()
         clock.tick(60)
-
+    
     return local_top_10, online_saved
 
-class SurvivorNameInputScreen:
-    """Namenseingabe-Screen für Survivor-Mode Highscore"""
+
+class NormalModeNameInputScreen:
+    """Namenseingabe-Screen für Normal Mode Highscore"""
 
     def __init__(self):
         self.player_name = ""
 
-    def handle_and_draw(self, screen, bg_scaled, survivor_time, survivor_kills, stage=1):
+    def handle_and_draw(self, screen, bg_scaled, score, kills=0, level=1):
         """
         Zeichnet und handhabt die Namenseingabe
 
         Args:
-            stage: Die Stage (1-4) für die Highscore-Liste
+            screen: Pygame Screen
+            bg_scaled: Skalierter Hintergrund
+            score: Erreichter Score
+            kills: Anzahl der Kills
+            level: Erreichtes Level
 
         Returns:
             "submit": Wenn Name eingegeben und ENTER gedrückt
+            "skip": Wenn ESC gedrückt (nicht speichern)
             None: Sonst
         """
         # Hintergrund verdunkeln
@@ -158,13 +164,13 @@ class SurvivorNameInputScreen:
         cw, ch = screen.get_size()
         ui_scale = max(cw / 1920, ch / 1080) * 1.2
 
-        # Fonts mit Unicode-Support laden
+        # Fonts
         try:
-            title_font       = pygame.font.Font("assets/fonts/Astralight.ttf"    , int(80 * ui_scale))
-            stats_font       = pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(45 * ui_scale))
-            prompt_font      = pygame.font.Font("assets/fonts/White On Black.ttf", int(40 * ui_scale))
-            name_font        = pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(60 * ui_scale))
-            instruction_font = pygame.font.Font("assets/fonts/White On Black.ttf", int(28 * ui_scale))
+            title_font       = pygame.font.Font("assets/fonts/Astralight.ttf"    , int(100 * ui_scale))
+            stats_font       = pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(60  * ui_scale))
+            prompt_font      = pygame.font.Font("assets/fonts/White On Black.ttf", int(40  * ui_scale))
+            name_font        = pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(70  * ui_scale))
+            instruction_font = pygame.font.Font("assets/fonts/White On Black.ttf", int(28  * ui_scale))
         except:
             title_font       = pygame.font.Font(None, int(80 * ui_scale))
             stats_font       = pygame.font.Font(None, int(50 * ui_scale))
@@ -181,27 +187,29 @@ class SurvivorNameInputScreen:
         screen.blit(shadow_text, shadow_rect)
         screen.blit(title_text, title_rect)
 
-        # Stats
-        minutes = int(survivor_time // 60)
-        seconds = int(survivor_time % 60)
-        millis = int((survivor_time % 1) * 100)
-        time_str = f"Time: {minutes:02d}:{seconds:02d}.{millis:02d}"
-        time_text = stats_font.render(time_str, True, (255, 255, 100))
-        time_rect = time_text.get_rect(center=(cw // 2, ch // 2 - int(110 * ui_scale)))
-        screen.blit(time_text, time_rect)
+        # Score, Kills und Level
+        score_text = stats_font.render(f"SCORE: {score:,}", True, (255, 255, 100))
+        score_rect = score_text.get_rect(center=(cw // 2, ch // 2 - int(130 * ui_scale)))
+        screen.blit(score_text, score_rect)
 
-        kills_str = f"Kills: {survivor_kills}"
-        kills_text = stats_font.render(kills_str, True, (100, 255, 100))
-        kills_rect = kills_text.get_rect(center=(cw // 2, ch // 2 - int(60 * ui_scale)))
+        kills_text = stats_font.render(f"KILLS: {kills}", True, (255, 100, 100))
+        kills_rect = kills_text.get_rect(center=(cw // 2, ch // 2 - int(70 * ui_scale)))
         screen.blit(kills_text, kills_rect)
 
-        # Name Input Prompt
-        prompt_text = prompt_font.render("Enter your name:", True, (200, 200, 200))
-        prompt_rect = prompt_text.get_rect(center=(cw // 2, ch // 2 + int(30 * ui_scale)))
+        level_text = stats_font.render(f"LEVEL: {level}", True, (100, 255, 255))
+        level_rect = level_text.get_rect(center=(cw // 2, ch // 2 - int(10 * ui_scale)))
+        screen.blit(level_text, level_rect)
+
+        # Prompt
+        prompt_text = prompt_font.render("Enter Your Name:", True, (200, 200, 200))
+        prompt_rect = prompt_text.get_rect(center=(cw // 2, ch // 2 + int(50 * ui_scale)))
         screen.blit(prompt_text, prompt_rect)
 
-        # Name Display (mit Cursor)
-        display_name = self.player_name + "_"
+        # Name Input mit Cursor
+        display_name = self.player_name + "|"
+        if not self.player_name:
+            display_name = "Player|"
+        
         name_text = name_font.render(display_name, True, (255, 255, 255))
         name_rect = name_text.get_rect(center=(cw // 2, ch // 2 + int(110 * ui_scale)))
 
@@ -227,7 +235,7 @@ class SurvivorNameInputScreen:
                     if not self.player_name:
                         self.player_name = "Player"
                     _, online_saved = save_with_progress_animation(
-                        screen, bg_scaled, survivor_time, survivor_kills, self.player_name, stage
+                        screen, bg_scaled, score, self.player_name, kills, level
                     )
                     self.player_name = ""
                     result = "submit"
@@ -249,114 +257,106 @@ class SurvivorNameInputScreen:
         return result
 
 
-class SurvivorGameOverScreen:
-    """Game Over Screen mit Bestenliste für Survivor-Mode"""
+class NormalModeTop10Screen:
+    """Zeigt die Top 10 Highscores für Normal Mode"""
 
-    def handle_and_draw(self, screen, bg_scaled, survivor_time, survivor_kills, stage=1):
+    def __init__(self):
+        pass
+
+    def handle_and_draw(self, screen, bg_scaled, top_10_list):
         """
-        Zeichnet und handhabt den Game Over Screen mit Leaderboard
+        Zeichnet die Top 10 Highscore Liste
 
         Args:
-            stage: Die Stage (1-4) für die Highscore-Liste
+            screen: Pygame Screen
+            bg_scaled: Skalierter Hintergrund
+            top_10_list: Liste der Top 10 Scores
 
         Returns:
-            "retry": Wenn SPACE gedrückt
-            "menu": Wenn ESC gedrückt
-            None: Sonst
+            "menu": Zurück zum Menü
+            "quit": Spiel beenden
         """
-        # Hintergrund verdunkeln
-        overlay = pygame.Surface(screen.get_size())
-        overlay.set_alpha(200)
-        overlay.fill((0, 0, 0))
-
-        # Spielfeld mit Overlay zeichnen
+        # Hintergrund
         if bg_scaled:
             screen.blit(bg_scaled, (0, 0))
         else:
             screen.fill((0, 0, 0))
 
+        # Overlay
+        overlay = pygame.Surface(screen.get_size())
+        overlay.set_alpha(200)
+        overlay.fill((0, 0, 0))
         screen.blit(overlay, (0, 0))
 
         cw, ch = screen.get_size()
         ui_scale = max(cw / 1920, ch / 1080) * 1.2
 
-        # Fonts mit Unicode-Support laden
+        # Fonts
         try:
-            title_font       = pygame.font.Font("assets/fonts/Astralight.ttf"    , int(120 * ui_scale))
-            time_font        = pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(60  * ui_scale))
-            leaderboard_font = pygame.font.Font("assets/fonts/White On Black.ttf", int(50  * ui_scale))
-            score_font       = pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(28  * ui_scale))
-            controls_font    = pygame.font.Font("assets/fonts/KGRedHands.ttf"    , int(24  * ui_scale))
+            title_font = pygame.font.Font("assets/fonts/Astralight.ttf", int(80 * ui_scale))
+            rank_font = pygame.font.Font("assets/fonts/monofonto rg.otf", int(32 * ui_scale))
+            instruction_font = pygame.font.Font("assets/fonts/White On Black.ttf", int(28 * ui_scale))
         except:
-            title_font       = pygame.font.Font(None, int(120 * ui_scale))
-            time_font        = pygame.font.Font(None, int(70 * ui_scale))
-            leaderboard_font = pygame.font.Font(None, int(50 * ui_scale))
-            score_font       = pygame.font.Font(None, int(32 * ui_scale))
-            controls_font    = pygame.font.Font(None, int(24 * ui_scale))
+            title_font = pygame.font.Font(None, int(70 * ui_scale))
+            rank_font = pygame.font.Font(None, int(28 * ui_scale))
+            instruction_font = pygame.font.Font(None, int(24 * ui_scale))
 
         # Title
-        title_text = title_font.render("SURVIVOR MODE", True, (255, 100, 100))
-        title_rect = title_text.get_rect(center=(cw // 2, ch // 4))
-
-        shadow_text = title_font.render("SURVIVOR MODE", True, (0, 0, 0))
-        shadow_rect = shadow_text.get_rect(center=(cw // 2 + 4, ch // 4 + 4))
-        screen.blit(shadow_text, shadow_rect)
+        title_text = title_font.render("TOP 10 HIGHSCORES", True, (255, 215, 0))
+        title_rect = title_text.get_rect(center=(cw // 2, int(80 * ui_scale)))
         screen.blit(title_text, title_rect)
 
-        # Your Time
-        minutes   = int(survivor_time // 60)
-        seconds   = int(survivor_time % 60)
-        millis    = int((survivor_time % 1) * 100)
-        time_str  = f"Your Time: {minutes:02d}:{seconds:02d}.{millis:02d}"
-        time_text = time_font.render(time_str, True, (255, 255, 100))
-        time_rect = time_text.get_rect(center=(cw // 2, ch // 3))
+        # Header
+        header_y = int(160 * ui_scale)
+        col_rank_x = int(cw * 0.15)
+        col_name_x = int(cw * 0.3)
+        col_score_x = int(cw * 0.5)
+        col_kills_x = int(cw * 0.65)
+        col_level_x = int(cw * 0.8)
 
-        shadow = time_font.render(time_str, True, (0, 0, 0))
-        shadow_rect = shadow.get_rect(center=(cw // 2 + 3, ch // 3 + 3))
-        screen.blit(shadow, shadow_rect)
-        screen.blit(time_text, time_rect)
+        header_font = rank_font
+        header_color = (200, 200, 200)
+        
+        screen.blit(header_font.render("RANK", True, header_color), (col_rank_x, header_y))
+        screen.blit(header_font.render("NAME", True, header_color), (col_name_x, header_y))
+        screen.blit(header_font.render("SCORE", True, header_color), (col_score_x, header_y))
+        screen.blit(header_font.render("KILLS", True, header_color), (col_kills_x, header_y))
+        screen.blit(header_font.render("LEVEL", True, header_color), (col_level_x, header_y))
 
-        # Bestenliste
-        stage_name = ["Rookie", "Veteran", "Elite", "Legend"][stage - 1]
-        leaderboard_title = leaderboard_font.render(f"TOP 10 - {stage_name.upper()}", True, (255, 255, 255))
-        leaderboard_title_rect = leaderboard_title.get_rect(center=(cw // 2, ch // 2 - int(80 * ui_scale)))
-        screen.blit(leaderboard_title, leaderboard_title_rect)
+        # Entries
+        start_y = int(220 * ui_scale)
+        line_height = int(50 * ui_scale)
 
-        # Top 10 anzeigen (für diese Stage)
-        scores = load_survivor_highscores(stage)
-        start_y = ch // 2 - int(30 * ui_scale)
-
-        for i, score_entry in enumerate(scores[:10]):
-            time_val = score_entry.get("time", 0)
-            kills = score_entry.get("kills", 0)
-            name = score_entry.get("name", "Player")
-
-            mins = int(time_val // 60)
-            secs = int(time_val % 60)
-            ms = int((time_val % 1) * 100)
-
-            # Highlight aktuelle Zeit
-            is_current = abs(time_val - survivor_time) < 0.01 and kills == survivor_kills
-            if is_current:
-                color = (255, 255, 100)
-                marker = " ←"
+        for i, entry in enumerate(top_10_list[:10]):
+            y = start_y + i * line_height
+            
+            # Farbe basierend auf Rang
+            if i == 0:
+                color = (255, 215, 0)  # Gold
+            elif i == 1:
+                color = (192, 192, 192)  # Silber
+            elif i == 2:
+                color = (205, 127, 50)  # Bronze
             else:
-                color = (200, 200, 200)
-                marker = ""
+                color = (255, 255, 255)  # Weiß
 
-            # Format: #1  Name           00:34.56  (42 kills)
-            text_str = f"#{i+1}  {name:<15}  {mins:02d}:{secs:02d}.{ms:02d}  ({kills} kills){marker}"
+            rank_text = rank_font.render(f"#{i+1}", True, color)
+            name_text = rank_font.render(entry.get("name", "Unknown"), True, color)
+            score_text = rank_font.render(f"{entry.get('score', 0):,}", True, (255, 255, 100))
+            kills_text = rank_font.render(str(entry.get("kills", 0)), True, (255, 100, 100))
+            level_text = rank_font.render(str(entry.get("level", 1)), True, (100, 255, 255))
 
-            score_text = score_font.render(text_str, True, color)
-            score_rect = score_text.get_rect(center=(cw // 2, start_y + i * int(35 * ui_scale)))
-            screen.blit(score_text, score_rect)
+            screen.blit(rank_text, (col_rank_x, y))
+            screen.blit(name_text, (col_name_x, y))
+            screen.blit(score_text, (col_score_x, y))
+            screen.blit(kills_text, (col_kills_x, y))
+            screen.blit(level_text, (col_level_x, y))
 
-        # Controls
-        controls_y    = ch - int(80 * ui_scale)
-        controls_text = "[SPACE] Try Again - [ESC] Main Menu"
-        controls      = controls_font.render(controls_text, True, (200, 200, 200))
-        controls_rect = controls.get_rect(center=(cw // 2, controls_y))
-        screen.blit(controls, controls_rect)
+        # Instruktionen (zwei Zeilen)
+        instruction_font_small = pygame.font.Font(None, int(28 * ui_scale))
+        instruction1_text = instruction_font.render("Press ENTER to try again  |  ESC for menu", True, (200, 200, 200))
+        instruction1_rect = instruction1_text.get_rect(center=(cw // 2, ch - int(100 * ui_scale)))
+        screen.blit(instruction1_text, instruction1_rect)
 
         # Event Handling
         result = None
@@ -364,8 +364,8 @@ class SurvivorGameOverScreen:
             if event.type == pygame.QUIT:
                 return "quit"
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    result = "retry"
+                if event.key == pygame.K_RETURN:
+                    result = "retry"  # Try Again
                 elif event.key == pygame.K_ESCAPE:
                     result = "menu"
                 elif event.key == pygame.K_F11:

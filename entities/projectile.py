@@ -49,9 +49,20 @@ def _apply_aoe(
                     if hasattr(game, '_total_kills'):
                         game._total_kills += 1
                     
+                    # Tracke Kills je nach Mode
+                    if hasattr(game, 'game_mode'):
+                        if game.game_mode == "survivor":
+                            game.survivor_kills += 1
+                        else:
+                            game.kills += 1  # Normal Mode
+                    
                     # Weapon-Statistik: Kill registrieren
                     if weapon_type:
                         game.explosion_manager.register_enemy_death(weapon_type)
+                    
+                    # Kill-Counter anzeigen
+                    if hasattr(game, '_show_kill_counter'):
+                        game._show_kill_counter()
                     
                     game._try_drop_powerup(ex, ey)
                     
@@ -91,9 +102,20 @@ def _apply_aoe(
                         if hasattr(game, '_total_kills'):
                             game._total_kills += 1
                         
+                        # Tracke Kills je nach Mode
+                        if hasattr(game, 'game_mode'):
+                            if game.game_mode == "survivor":
+                                game.survivor_kills += 1
+                            else:
+                                game.kills += 1  # Normal Mode
+                        
                         # Weapon-Statistik: Kill registrieren
                         if weapon_type:
                             game.explosion_manager.register_enemy_death(weapon_type)
+                        
+                        # Kill-Counter anzeigen
+                        if hasattr(game, '_show_kill_counter'):
+                            game._show_kill_counter()
                         
                         game._try_drop_powerup(ex, ey)
                         
@@ -132,9 +154,23 @@ def _apply_aoe(
                     game.score     = game.score + getattr(game.boss, "points", 600)
                     game.highscore = max(game.highscore, game.score)
                     
+                    if hasattr(game, '_total_kills'):
+                        game._total_kills += 1
+                    
+                    # Tracke Kills je nach Mode
+                    if hasattr(game, 'game_mode'):
+                        if game.game_mode == "survivor":
+                            game.survivor_kills += 1
+                        else:
+                            game.kills += 1  # Normal Mode
+                    
                     # Weapon-Statistik: Kill registrieren
                     if weapon_type:
                         game.explosion_manager.register_enemy_death(weapon_type)
+                    
+                    # Kill-Counter anzeigen
+                    if hasattr(game, '_show_kill_counter'):
+                        game._show_kill_counter()
                     
                     game._try_drop_powerup(bx, by)
                     

@@ -1,8 +1,26 @@
 [
   {
+    "time": 118.987,
+    "kills": 112,
+    "name": "Nic",
+    "stage": 4
+  },
+  {
+    "time": 21.903,
+    "kills": 20,
+    "name": "Nic",
+    "stage": 4
+  },
+  {
     "time": 13.581,
     "kills": 9,
     "name": "Nic",
+    "stage": 4
+  },
+  {
+    "time": 4.688,
+    "kills": 0,
+    "name": "Player",
     "stage": 4
   },
   {
@@ -10,5 +28,23 @@
     "kills": 0,
     "name": "Player",
     "stage": 4
+  },
+  {
+    "time": 27.742,
+    "kills": 17,
+    "name": "Nic",
+    "stage": 2
+  },
+  {
+    "time": 13.481,
+    "kills": 8,
+    "name": "Nic",
+    "stage": 3
+  },
+  {
+    "time": 13.217,
+    "kills": 12,
+    "name": "Nic",
+    "stage": 3
   }
 ]

@@ -60,16 +60,18 @@ class OnlineHighscoreManager:
         name: str,
         time: float,
         kills: int,
-        stage: int
+        stage: int,
+        level: int = 1
     ) -> bool:
         """
         Save a highscore to Firebase.
         
         Args:
             name: Player name
-            time: Survival time in seconds
+            time: Survival time in seconds (Survivor) OR Score (Normal Mode)
             kills: Number of kills
-            stage: Ship stage (1-4)
+            stage: Ship stage (1-4) or 0 for Normal Mode
+            level: Level reached (only for Normal Mode)
             
         Returns:
             True if saved successfully, False otherwise
@@ -78,14 +80,25 @@ class OnlineHighscoreManager:
             return False
         
         try:
-            # Add to Firestore
-            self.db.collection('survivor_highscores').add({
-                'name': name,
-                'time': time,
-                'kills': kills,
-                'stage': stage,
-                'timestamp': firestore.SERVER_TIMESTAMP
-            })
+            # Separate collections for Normal Mode and Survivor Mode
+            if stage == 0:
+                # Normal Mode: separate collection, use 'score' field
+                self.db.collection('normal_highscores').add({
+                    'name': name,
+                    'score': int(time),  # time parameter contains score for Normal Mode
+                    'kills': kills,
+                    'level': level,
+                    'timestamp': firestore.SERVER_TIMESTAMP
+                })
+            else:
+                # Survivor Mode: existing collection, use 'time' field
+                self.db.collection('survivor_highscores').add({
+                    'name': name,
+                    'time': time,
+                    'kills': kills,
+                    'stage': stage,
+                    'timestamp': firestore.SERVER_TIMESTAMP
+                })
             return True
             
         except Exception as e:
@@ -101,25 +114,33 @@ class OnlineHighscoreManager:
         Get top highscores from Firebase.
         
         Args:
-            stage: Filter by stage (None = all stages)
+            stage: Filter by stage (0=Normal Mode, 1-4=Survivor Stages, None = all)
             limit: Maximum number of scores to return
             
         Returns:
-            List of highscore dictionaries sorted by time (descending)
+            List of highscore dictionaries sorted by score/time (descending)
         """
         if not self.is_connected():
             return []
         
         try:
-            query = self.db.collection('survivor_highscores')
-            
-            # Filter by stage if specified
-            if stage is not None:
-                query = query.where('stage', '==', stage)
-            
-            # Sort by time (descending) and limit
-            query = query.order_by('time', direction=firestore.Query.DESCENDING)
-            query = query.limit(limit)
+            # Use different collections for Normal Mode vs Survivor Mode
+            if stage == 0:
+                # Normal Mode: 'normal_highscores' collection, sort by 'score'
+                query = self.db.collection('normal_highscores')
+                query = query.order_by('score', direction=firestore.Query.DESCENDING)
+                query = query.limit(limit)
+            else:
+                # Survivor Mode: 'survivor_highscores' collection, sort by 'time'
+                query = self.db.collection('survivor_highscores')
+                
+                # Filter by stage if specified
+                if stage is not None:
+                    query = query.where('stage', '==', stage)
+                
+                # Sort by time (descending) and limit
+                query = query.order_by('time', direction=firestore.Query.DESCENDING)
+                query = query.limit(limit)
             
             # Fetch data
             docs = query.stream()
@@ -148,7 +169,7 @@ class OnlineHighscoreManager:
         
         Args:
             name: Player name
-            stage: Ship stage (1-4)
+            stage: Ship stage (0=Normal Mode, 1-4=Survivor Stages)
             
         Returns:
             Rank (1-based) or None if player not found
@@ -157,11 +178,18 @@ class OnlineHighscoreManager:
             return None
         
         try:
-            # Get all scores for this stage, ordered by time
-            docs = self.db.collection('survivor_highscores')\
-                .where('stage', '==', stage)\
-                .order_by('time', direction=firestore.Query.DESCENDING)\
-                .stream()
+            # Use different collections and sort fields
+            if stage == 0:
+                # Normal Mode: sort by score
+                docs = self.db.collection('normal_highscores')\
+                    .order_by('score', direction=firestore.Query.DESCENDING)\
+                    .stream()
+            else:
+                # Survivor Mode: sort by time
+                docs = self.db.collection('survivor_highscores')\
+                    .where('stage', '==', stage)\
+                    .order_by('time', direction=firestore.Query.DESCENDING)\
+                    .stream()
             
             # Find player's position
             for rank, doc in enumerate(docs, 1):
@@ -180,7 +208,7 @@ class OnlineHighscoreManager:
         Get total number of players in leaderboard.
         
         Args:
-            stage: Filter by stage (None = all stages)
+            stage: Filter by stage (0=Normal Mode, 1-4=Survivor, None = all)
             
         Returns:
             Number of unique players
@@ -189,10 +217,16 @@ class OnlineHighscoreManager:
             return 0
         
         try:
-            query = self.db.collection('survivor_highscores')
-            
-            if stage is not None:
-                query = query.where('stage', '==', stage)
+            # Use different collections
+            if stage == 0:
+                # Normal Mode
+                query = self.db.collection('normal_highscores')
+            else:
+                # Survivor Mode
+                query = self.db.collection('survivor_highscores')
+                
+                if stage is not None:
+                    query = query.where('stage', '==', stage)
             
             # Count documents
             docs = list(query.stream())

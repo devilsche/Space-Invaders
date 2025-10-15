@@ -31,6 +31,8 @@ class Game:
         self.score      = 0
         self.highscore  = load_highscore()
         self.lives      = LIVES
+        self.kills      = 0  # Kills für Normal Mode
+        self.level      = 1  # Aktuelles Level im Normal Mode
 
         # Survivor Mode
         self.survivor_start_time = 0
@@ -60,6 +62,11 @@ class Game:
         self.victory_screen = VictoryScreen()
         self.survivor_name_input_screen = SurvivorNameInputScreen()
         self.survivor_game_over_screen = SurvivorGameOverScreen()
+        
+        # Normal Mode Screens
+        from system.normal_mode_screens import NormalModeNameInputScreen, NormalModeTop10Screen
+        self.normal_mode_name_input_screen = NormalModeNameInputScreen()
+        self.normal_mode_top10_screen = NormalModeTop10Screen()
 
         # Audio
         pygame.mixer.set_num_channels(32)
@@ -143,6 +150,11 @@ class Game:
         self.kill_display_text     = ""
         self.kill_display_timer    = 0
         self.kill_display_duration = 2000
+        
+        # Life Lost Overlay
+        self.life_lost_display_text = ""
+        self.life_lost_display_timer = 0
+        self.life_lost_display_duration = 2000
 
         # Player+HUD
         current_width, current_height = self.screen.get_size()
@@ -719,7 +731,7 @@ class Game:
 
         # Respawn nur im Normal Mode, nicht im Survivor Mode
         if self.player_dead and self.game_mode != "survivor":
-            if (self.lives == -1 or self.lives > 0) and now >= self._respawn_ready_at:
+            if self.lives > 0 and now >= self._respawn_ready_at:
                 self._respawn()
 
         if not self.player_dead:
@@ -847,7 +859,11 @@ class Game:
                             self.survivor_player_name = ""
                             self.game_state = "survivor_name_input"
                         else:
-                            self._respawn_ready_at = now + self.lives_cooldown
+                            # Normal Mode: Nur bei letztem Leben (Game Over) Namen eingeben
+                            if self.lives <= 0:
+                                self.game_state = "normal_name_input"
+                            else:
+                                self._respawn_ready_at = now + self.lives_cooldown
                     break
 
         # Player->Enemy
@@ -988,9 +1004,11 @@ class Game:
                 self.highscore = max(self.highscore, self.score)
                 self._total_kills += 1
 
-                # Survivor Mode: Tracke Kills
+                # Tracke Kills je nach Mode
                 if self.game_mode == "survivor":
                     self.survivor_kills += 1
+                else:
+                    self.kills += 1  # Normal Mode
 
                 self._show_kill_counter()
                 self._try_drop_powerup(enemy_x, enemy_y)
@@ -1014,8 +1032,14 @@ class Game:
             len(self.enemies) == 0 and
             len(self.fly_in_enemies) == 0 and
             len(self.explosion_manager.explosions) == 0):
-            self.game_state = "victory"
-            print(f">>> LEVEL COMPLETE! Victory Screen activated! <<<")
+            # Normal Mode → direkt zur Namenseingabe
+            # Survivor Mode → Victory Screen (kann wiederholen)
+            if self.game_mode == "normal":
+                self.game_state = "normal_name_input"
+                print(f">>> LEVEL COMPLETE! Normal Mode → Name Input <<<")
+            else:
+                self.game_state = "victory"
+                print(f">>> LEVEL COMPLETE! Victory Screen activated! <<<")
 
     # ---------------- Draw ----------------
     def _draw(self):
@@ -1047,12 +1071,45 @@ class Game:
         if not self.game_mode == "survivor":
             self.screen.blit(self.font.render(f"Score: {self.score}", True, (255,255,255)), (score_x, score_y))
             self.screen.blit(self.font.render(f"High Score: {self.highscore}", True, (255,255,255)), (score_x, highscore_y))
+            
+            # Leben-Anzeige mit kleinen Schiffen (immer anzeigen)
+            lives_y = int(95 * ui_scale)
+            
+            # Benutze das aktuelle Schiffsbild vom Player
+            ship_icon = None
+            if self.player and hasattr(self.player, 'base_img') and self.player.base_img:
+                ship_icon = self.player.base_img
+            
+            if ship_icon:
+                # Skaliere das Schiff auf Icon-Größe (30x30)
+                icon_size = 30
+                ship_icon_scaled = pygame.transform.scale(ship_icon, (icon_size, icon_size))
+                
+                # "Lives:" Label
+                lives_label = self.font.render("Lives:", True, (255, 255, 255))
+                self.screen.blit(lives_label, (score_x, lives_y))
+                
+                # Zeichne so viele Schiffe wie Leben übrig sind (nach dem Label)
+                label_width = lives_label.get_width() + int(10 * ui_scale)
+                for i in range(max(0, self.lives)):
+                    icon_x = score_x + label_width + i * 35  # 35px Abstand zwischen Icons
+                    self.screen.blit(ship_icon_scaled, (icon_x, lives_y))
+            else:
+                # Fallback: Text-Anzeige wenn Player noch nicht existiert
+                lives_text = self.font.render(f"Lives: {self.lives}", True, (255, 255, 255))
+                self.screen.blit(lives_text, (score_x, lives_y))
 
         current_time = pygame.time.get_ticks()
         if self.kill_display_timer > 0 and current_time - self.kill_display_timer < self.kill_display_duration:
             kill_surface = self.font.render(self.kill_display_text, True, (255, 255, 0))
             kill_rect = kill_surface.get_rect(center=(cw // 2, int(100 * ui_scale)))
             self.screen.blit(kill_surface, kill_rect)
+        
+        # Life Lost Anzeige (rot, unter Kill-Display)
+        if self.life_lost_display_timer > 0 and current_time - self.life_lost_display_timer < self.life_lost_display_duration:
+            life_lost_surface = self.font.render(self.life_lost_display_text, True, (255, 50, 50))
+            life_lost_rect = life_lost_surface.get_rect(center=(cw // 2, int(150 * ui_scale)))
+            self.screen.blit(life_lost_surface, life_lost_rect)
 
         if not self.player_dead:
             self.health_bar.draw(self.screen, self.player.get_health_percentage(), self.player.current_health, self.player.max_health)
@@ -1142,6 +1199,9 @@ class Game:
     def _respawn(self):
         if self.lives > 0:
             self.lives -= 1
+            # Zeige "Life Lost" Nachricht
+            self.life_lost_display_text = f"LIFE LOST! {self.lives} remaining"
+            self.life_lost_display_timer = pygame.time.get_ticks()
         cw, ch = self.screen.get_size()
         self.player = Player(cw, ch, self.assets)
         self.player.rect.center = self.spawn_pos
@@ -1215,17 +1275,22 @@ class Game:
                     self.game_state = "playing"  # Setze State auf playing
                     self._start_game_mode()
                 elif action == "menu":
-                    self.game_state = "menu"
-                    self.game_mode = "normal"
-                    self.paused = False
-                    self.menu.set_pause_mode(False)  # Hauptmenü, kein Pause-Menü
-                    # Stoppe Spielmusik und starte Menümusik
-                    try:
-                        pygame.mixer.music.stop()
-                    except pygame.error:
-                        pass
-                    self.menu.start_menu_music()
-                    self._reset_game()
+                    # Nach Victory Screen → Namenseingabe für Normal Mode
+                    if self.game_mode == "normal":
+                        self.game_state = "normal_name_input"
+                    else:
+                        # Survivor Mode geht direkt zum Menü
+                        self.game_state = "menu"
+                        self.game_mode = "normal"
+                        self.paused = False
+                        self.menu.set_pause_mode(False)  # Hauptmenü, kein Pause-Menü
+                        # Stoppe Spielmusik und starte Menümusik
+                        try:
+                            pygame.mixer.music.stop()
+                        except pygame.error:
+                            pass
+                        self.menu.start_menu_music()
+                        self._reset_game()
                 elif action == "maximize":
                     self.toggle_maximize()
                 elif action == "fullscreen":
@@ -1246,6 +1311,9 @@ class Game:
                 if action == "quit":
                     self.running = False
                 elif action == "submit":
+                    self.game_state = "survivor_game_over"
+                elif action == "skip":
+                    # ESC gedrückt - nicht speichern, direkt zu Game Over
                     self.game_state = "survivor_game_over"
                 elif action == "maximize":
                     self.toggle_maximize()
@@ -1273,6 +1341,98 @@ class Game:
                     except pygame.error:
                         pass
                     self.menu.start_menu_music()
+                    self._reset_game()
+                elif action == "maximize":
+                    self.toggle_maximize()
+                elif action == "fullscreen":
+                    self.toggle_fullscreen()
+            elif self.game_state == "normal_name_input":
+                # Starte Menümusik wenn noch nicht gestartet (Spielmusik stoppen)
+                if not self.menu.menu_music_playing:
+                    try:
+                        pygame.mixer.music.stop()
+                    except pygame.error:
+                        pass
+                    self.menu.start_menu_music()
+                
+                action = self.normal_mode_name_input_screen.handle_and_draw(
+                    self.screen, self._bg_scaled, self.score, self._total_kills, self.level
+                )
+                if action == "quit":
+                    self.running = False
+                elif action == "submit":
+                    # Score wurde gespeichert, zeige Top 10
+                    self.game_state = "normal_top10"
+                elif action == "skip":
+                    # ESC gedrückt - nicht speichern, zeige Top 10
+                    self.game_state = "normal_top10"
+                elif action == "maximize":
+                    self.toggle_maximize()
+                elif action == "fullscreen":
+                    self.toggle_fullscreen()
+            elif self.game_state == "normal_top10":
+                # Zeige Top 10 Liste - kombiniere lokale UND Online-Daten (EINMAL beim State-Wechsel)
+                if not hasattr(self, '_normal_top10_loaded') or not self._normal_top10_loaded:
+                    from system.utils import load_normal_top10
+                    
+                    # Lade lokale Daten (immer verfügbar)
+                    local_scores = load_normal_top10()
+                    print(f"✓ Loaded {len(local_scores)} local highscores")
+                    
+                    # Versuche Online-Daten zu holen (wenn Firebase verfügbar)
+                    online_scores = []
+                    if hasattr(self, 'online_highscore'):
+                        print(f"[DEBUG] online_highscore exists: {self.online_highscore is not None}")
+                        if self.online_highscore:
+                            is_connected = self.online_highscore.is_connected()
+                            print(f"[DEBUG] Firebase is_connected(): {is_connected}")
+                            
+                            if is_connected:
+                                try:
+                                    online_scores = self.online_highscore.get_top_scores(stage=0, limit=100)  # Hole mehr, um zu vergleichen
+                                    print(f"✓ Loaded {len(online_scores)} online highscores from Firebase")
+                                except Exception as e:
+                                    print(f"⚠ Failed to load online highscores: {e}")
+                            else:
+                                print(f"⚠ Firebase not connected, skipping online scores")
+                    else:
+                        print(f"⚠ online_highscore attribute not found")
+                    
+                    # Kombiniere beide Listen und entferne Duplikate
+                    all_scores = []
+                    seen = set()  # Track (name, score, kills) um Duplikate zu vermeiden
+                    
+                    for score in local_scores + online_scores:
+                        key = (score.get('name', ''), score.get('score', 0), score.get('kills', 0))
+                        if key not in seen:
+                            seen.add(key)
+                            all_scores.append(score)
+                    
+                    # Sortiere kombinierte Liste: Primär nach Score, Sekundär nach Kills
+                    all_scores.sort(key=lambda x: (x.get('score', 0), x.get('kills', 0)), reverse=True)
+                    
+                    # Nehme Top 10
+                    self._normal_top10_data = all_scores[:10]
+                    print(f"✓ Combined Top 10: {len(self._normal_top10_data)} unique entries (from {len(local_scores)} local + {len(online_scores)} online)")
+                    
+                    self._normal_top10_loaded = True
+                
+                action = self.normal_mode_top10_screen.handle_and_draw(
+                    self.screen, self._bg_scaled, self._normal_top10_data
+                )
+                if action == "quit":
+                    self.running = False
+                elif action == "retry":
+                    self._normal_top10_loaded = False  # Reset für nächstes Mal
+                    self.menu.stop_menu_music()  # Stoppe Menümusik
+                    self.game_state = "playing"
+                    self._start_game_mode()  # Starte Normal Mode neu
+                elif action == "menu":
+                    self._normal_top10_loaded = False  # Reset für nächstes Mal
+                    self.game_state = "menu"
+                    self.game_mode = "normal"
+                    self.paused = False
+                    self.menu.set_pause_mode(False)
                     self._reset_game()
                 elif action == "maximize":
                     self.toggle_maximize()
@@ -1513,6 +1673,7 @@ class Game:
     def _reset_game(self):
         self.paused = False
         self.score = 0
+        self.kills = 0  # Normal Mode Kills zurücksetzen
         self.highscore = load_highscore()
         self.lives = 3
         self.level = 1

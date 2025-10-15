@@ -81,21 +81,211 @@ def scale_size(width, height):
     return (scale(width), scale(height))
 
 def load_highscore():
+    """
+    Lädt den höchsten Normal Mode Highscore.
+    
+    Priorität:
+    1. Online von Firebase (wenn verbunden)
+    2. Lokale Datei (neues Format - Liste von Scores)
+    3. Lokale Datei (altes Format - {"highscore": 0})
+    
+    Returns:
+        int: Der höchste Score
+    """
+    best_score = 0
+    
+    # 1. Versuche Online-Daten zu holen (schnellste Quelle für aktuellste Daten)
+    try:
+        manager = get_online_manager()
+        if manager and manager.is_connected():
+            online_scores = manager.get_top_scores(stage=0, limit=1)
+            if online_scores and len(online_scores) > 0:
+                best_score = online_scores[0].get('score', 0)
+                print(f"✓ Loaded highscore from Firebase: {best_score}")
+                return best_score
+    except Exception as e:
+        print(f"⚠ Could not load highscore from Firebase: {e}")
+    
+    # 2. Fallback: Lokale Datei laden
     if os.path.exists(HIGHSCORE_FILE):
         try:
             with open(HIGHSCORE_FILE, "r") as f:
                 data = json.load(f)
-                return data.get("highscore", 0)
+                
+                # Neues Format: Liste von Scores
+                if isinstance(data, list) and len(data) > 0:
+                    # Sortiere nach Score (primär) und Kills (sekundär)
+                    sorted_scores = sorted(data, key=lambda x: (x.get("score", 0), x.get("kills", 0)), reverse=True)
+                    best_score = sorted_scores[0].get("score", 0)
+                    print(f"✓ Loaded highscore from local file (new format): {best_score}")
+                    return best_score
+                
+                # Altes Format: {"highscore": 12345}
+                elif isinstance(data, dict):
+                    best_score = data.get("highscore", 0)
+                    print(f"✓ Loaded highscore from local file (old format): {best_score}")
+                    return best_score
+                    
+        except Exception as e:
+            print(f"⚠ Error loading local highscore: {e}")
+    
+    print(f"✓ No highscore found, starting with: {best_score}")
+    return best_score
+
+def load_normal_top10():
+    """
+    Lädt die Top 10 Normal Mode Highscores.
+    
+    Returns:
+        list: Top 10 Scores sortiert nach Score (primär) und Kills (sekundär)
+    """
+    if os.path.exists(HIGHSCORE_FILE):
+        try:
+            with open(HIGHSCORE_FILE, "r") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    # Stelle sicher, dass alle Felder vorhanden sind
+                    for entry in data:
+                        if "kills" not in entry:
+                            entry["kills"] = 0
+                        if "level" not in entry:
+                            entry["level"] = 1
+                    return data[:10]  # Top 10
+                else:
+                    # Altes Format
+                    return []
         except Exception:
-            return 0
-    return 0
+            return []
+    return []
 
 def save_highscore(value):
+    """
+    Legacy-Funktion: Aktualisiert den Highscore in der Liste falls höher.
+    Wird beim Beenden des Spiels aufgerufen.
+    WARNUNG: Überschreibt NICHT mehr die ganze Datei im neuen Format!
+    """
+    # Neues Format: Liste von Scores - nur aktualisieren wenn nötig
+    if not os.path.exists(HIGHSCORE_FILE):
+        return  # Keine Datei vorhanden, nichts zu tun
+    
+    try:
+        with open(HIGHSCORE_FILE, "r") as f:
+            data = json.load(f)
+            
+        # Wenn alte Format: {"highscore": 12345} -> konvertiere zu neuem Format
+        if isinstance(data, dict) and "highscore" in data:
+            old_score = data.get("highscore", 0)
+            if old_score > 0:
+                all_scores = [{"score": old_score, "name": "Player", "kills": 0, "level": 1}]
+            else:
+                all_scores = []
+        elif isinstance(data, list):
+            # Neues Format: Bereits eine Liste von Scores
+            all_scores = data
+        else:
+            all_scores = []
+        
+        # Prüfe ob der neue Highscore höher ist als der beste Score
+        if all_scores:
+            best_score = max(s.get("score", 0) for s in all_scores)
+            if value <= best_score:
+                return  # Kein Update nötig
+        
+        # Füge neuen Highscore hinzu (ohne Name, da Legacy)
+        all_scores.append({"score": value, "name": "Player", "kills": 0, "level": 1})
+        
+        # Sortiere und behalte Top 10
+        top_10 = sorted(all_scores, key=lambda x: (x.get("score", 0), x.get("kills", 0)), reverse=True)[:10]
+        
+        # Speichere im neuen Format
+        with open(HIGHSCORE_FILE, "w") as f:
+            json.dump(top_10, f, indent=2)
+            
+    except Exception as e:
+        print(f"⚠ save_highscore failed: {e}")
+        pass
+
+
+def save_normal_score(score, player_name, kills=0, level=1):
+    """
+    Speichert einen Normal Mode Score mit Name, Kills und Level.
+    Speichert sowohl lokal als auch online (wenn verfügbar).
+    
+    Args:
+        score: Der erreichte Score
+        player_name: Name des Spielers
+        kills: Anzahl der Kills
+        level: Erreichtes Level
+        
+    Returns:
+        tuple: (local_top_10, online_saved_successfully)
+    """
+    # 1. LOKAL SPEICHERN (immer, auch offline)
+    if os.path.exists(HIGHSCORE_FILE):
+        try:
+            with open(HIGHSCORE_FILE, "r") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    # Alte Format-Kompatibilität: {"highscore": 12345}
+                    old_highscore = data.get("highscore", 0)
+                    all_scores = []
+                    if old_highscore > 0:
+                        all_scores.append({"score": old_highscore, "name": "Player", "kills": 0, "level": 1})
+                else:
+                    all_scores = data if isinstance(data, list) else []
+                    # Füge kills und level hinzu, falls nicht vorhanden (Kompatibilität)
+                    for entry in all_scores:
+                        if "kills" not in entry:
+                            entry["kills"] = 0
+                        if "level" not in entry:
+                            entry["level"] = 1
+        except Exception:
+            all_scores = []
+    else:
+        all_scores = []
+    
+    # Füge neuen Score hinzu
+    new_score = {
+        "score": score,
+        "name": player_name,
+        "kills": kills,
+        "level": level
+    }
+    all_scores.append(new_score)
+    
+    # Behalte Top 10 - Sortiere nach Score (primär), dann nach Kills (sekundär)
+    top_10 = sorted(all_scores, key=lambda x: (x["score"], x.get("kills", 0)), reverse=True)[:10]
+    
+    print(f"[save_normal_score] Saving to {HIGHSCORE_FILE}: {player_name} - {score} points, {kills} kills, level {level}")
+    print(f"[save_normal_score] Top 10 list has {len(top_10)} entries")
+    
     try:
         with open(HIGHSCORE_FILE, "w") as f:
-            json.dump({"highscore": value}, f)
-    except Exception:
-        pass
+            json.dump(top_10, f, indent=2)
+        print(f"✓ Saved {len(top_10)} scores locally to {HIGHSCORE_FILE}")
+    except Exception as e:
+        print(f"✗ Failed to save locally: {e}")
+    
+    # 2. ONLINE SPEICHERN (wenn verfügbar)
+    online_success = False
+    manager = get_online_manager()
+    if manager and manager.is_connected():
+        try:
+            # Firebase save_highscore nimmt andere Parameter - wir nutzen die gleiche Funktion
+            # aber mit stage=0 für Normal Mode
+            online_success = manager.save_highscore(
+                name=player_name,
+                time=score,  # Score als "time" speichern
+                kills=kills,  # Kills mit speichern
+                stage=0,     # stage=0 = Normal Mode
+                level=level  # Level mit speichern
+            )
+            if online_success:
+                print(f"✓ Highscore saved online: {player_name} - {score} points, {kills} kills, level {level}")
+        except Exception as e:
+            print(f"⚠ Failed to save online: {e}")
+    
+    return top_10, online_success
 
 SURVIVOR_HIGHSCORE_FILE = "data/survivor_highscores.json"
 

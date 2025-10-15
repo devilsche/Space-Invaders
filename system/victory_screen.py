@@ -87,7 +87,7 @@ class VictoryScreen:
             controls_font = pygame.font.Font(None, int(24 * ui_scale))
         controls_y    = ch - int(50 * ui_scale)
 
-        controls_text = "[SPACE] Play Again - [ESC] Main Menu"
+        controls_text = "[SPACE] Try Again - [ESC] Continue"
         controls = controls_font.render(controls_text, True, (200, 200, 200))
         controls_rect = controls.get_rect(center=(cw // 2, controls_y))
         screen.blit(controls, controls_rect)
