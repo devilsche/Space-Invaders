@@ -8,19 +8,19 @@ class GameMenu:
     """Start- und Pause-Menü mit Navigation"""
 
     def __init__(self):
-        self.background_image    = None
-        self.font                = pygame.font.Font(None, FONT_SIZE)
-        self.title_font          = pygame.font.Font(None, FONT_SIZE * 2)
-        self.selected_option     = 0
-        self.menu_options        = ["Start", "Highscores", "Quit"]
-        self.mode_select_options = ["Normal Mode", "Survivor Mode", "Back"]
-        self.highscore_options   = ["Normal Mode", "Survivor Mode", "Back"]
-        self.survivor_stage_options = ["Stage 1 - Rookie", "Stage 2 - Veteran", "Stage 3 - Elite", "Stage 4 - Legend", "Back"]
-        self.pause_options       = ["Resume", "Quit to Menu"]
-        self.current_options     = self.menu_options
-        self.is_pause_menu       = False
-        self.is_mode_select      = False # Neuer State für Spielmodi-Auswahl
-        self.is_highscore_menu   = False # Neuer State für Highscore-Menü
+        self.background_image         = None
+        self.font                     = pygame.font.Font(None, FONT_SIZE)
+        self.title_font               = pygame.font.Font(None, FONT_SIZE * 2)
+        self.selected_option          = 0
+        self.menu_options             = ["Start", "Highscores", "Quit"]
+        self.mode_select_options      = ["Normal Mode", "Survivor Mode", "Back"]
+        self.highscore_options        = ["Normal Mode", "Survivor Mode", "Back"]
+        self.survivor_stage_options   = ["Rookie", "Veteran", "Elite", "Legend", "Back"]
+        self.pause_options            = ["Resume", "Quit to Menu"]
+        self.current_options          = self.menu_options
+        self.is_pause_menu            = False
+        self.is_mode_select           = False # Neuer State für Spielmodi-Auswahl
+        self.is_highscore_menu        = False # Neuer State für Highscore-Menü
         self.is_survivor_stage_select = False # Neuer State für Survivor-Stage-Auswahl bei Highscores
 
         # Menü-Positionen werden in load_assets() gesetzt nach pygame.init()
@@ -297,16 +297,74 @@ class GameMenu:
                 text_color, shadow_color
             )
 
-        # Steuerungshinweise - besser lesbar machen
+        self._draw_controls_text(screen)
+
+    def draw_controls_text(self, screen, text="[UP/DOWN] Navigate - [ENTER] Select - [ESC] Quit", y_position=None, color=None):
+        """
+        Zentrale Control-Text Anzeige für alle Screens
+        
+        Args:
+            screen: Pygame Surface
+            text: Control-Text
+            y_position: Int - Y-Position (default: height - 60)
+            color: Tuple - Text-Farbe (default: (255, 255, 255))
+        """
         if self.controls_font:
-            controls_text = "[UP/DOWN] Navigate - [ENTER] Select - [ESC] Quit"
-            current_width = screen.get_width()
+            current_width  = screen.get_width()
             current_height = screen.get_height()
+            
+            if y_position is None:
+                y_position = current_height - scale(60)
+            if color is None:
+                color = (255, 255, 255)
+            
             self.draw_text_with_shadow(
-                screen, controls_text, self.controls_font,
-                current_width // 2, current_height - scale(60),  # Bessere Positionierung
-                (255, 255, 255), (0, 0, 0)  # Weiß statt blau für bessere Lesbarkeit
+                screen, text, self.controls_font,
+                current_width // 2, y_position,
+                color, (0, 0, 0)
             )
+    
+    def _draw_controls_text(self, screen, text="[UP/DOWN] Navigate - [ENTER] Select - [ESC] Quit"):
+        """Legacy wrapper - ruft neue public Methode auf"""
+        self.draw_controls_text(screen, text)
+
+    def draw_title(self, screen, text, animated=False, color=None, y_position=None):
+        """
+        Zentrale Titel-Anzeige für alle Screens
+        
+        Args:
+            screen: Pygame Surface
+            text: Titel-Text
+            animated: Bool - Mit Glow/Pulse Animation
+            color: Tuple - Hauptfarbe (default: (255, 255, 100))
+            y_position: Int - Y-Position (default: height // 4)
+        """
+        current_width = screen.get_width()
+        current_height = screen.get_height()
+        
+        if y_position is None:
+            y_position = current_height // 4
+        if color is None:
+            color = (255, 255, 100)
+        
+        if animated:
+            # Nutze existierende Animation (TODO: Code extrahieren)
+            # Für jetzt: Einfacher Titel
+            pass
+        
+        # Einfacher Titel mit Schatten
+        title_surface = self.title_font.render(text, True, color)
+        title_rect = title_surface.get_rect(center=(current_width // 2, y_position))
+        
+        # Schatten
+        shadow_surface = self.title_font.render(text, True, (0, 0, 0))
+        shadow_rect = shadow_surface.get_rect(center=(current_width // 2 + 4, y_position + 4))
+        screen.blit(shadow_surface, shadow_rect)
+        screen.blit(title_surface, title_rect)
+
+    def _draw_title_text( self, screen, text ):
+        pass
+
 
     def _draw_mode_select_menu(self, screen):
         """Zeichne Spielmodi-Auswahlmenü"""
@@ -351,14 +409,7 @@ class GameMenu:
                 text_color, shadow_color
             )
 
-        # Steuerungshinweise
-        if self.controls_font:
-            controls_text = "[UP/DOWN] Navigate - [ENTER] Select - [ESC] Back"
-            self.draw_text_with_shadow(
-                screen, controls_text, self.controls_font,
-                current_width // 2, current_height - scale(60),
-                (255, 255, 255), (0, 0, 0)
-            )
+        self._draw_controls_text(screen)
 
     def _draw_pause_menu(self, screen):
         """Zeichne Pause-Menü mit Text-Overlay und Glow-Effekten"""

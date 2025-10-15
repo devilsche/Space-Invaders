@@ -14,6 +14,6 @@ SCALE_FACTOR       = min(SCALE_X, SCALE_Y)  # Uniform scaling für proportionale
 LIVES              = 3
 LIVES_COOLDOWN     = 1000
 RESPAWN_PROTECTION = 3000
-MASTER_VOLUME      = 0.1
+MASTER_VOLUME      = 0.0
 MUSIC_VOLUME       = 0.3
 SFX_VOLUME         = 0.5

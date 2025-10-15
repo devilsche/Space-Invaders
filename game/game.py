@@ -9,10 +9,14 @@ from config.powerup     import POWERUP_CONFIG
 from config.shield      import SHIELD_CONFIG
 from entities           import *
 from manager import ExplosionManager, PowerUpManager, ProjectileManager
-from system.menu import GameMenu
-from system.ship_select import ShipSelectScreen
-from system.victory_screen import VictoryScreen
-from system.survivor_screens import SurvivorNameInputScreen, SurvivorGameOverScreen
+from system.screens.menu import GameMenu
+from system.screens.ship_select import ShipSelectScreen
+from system.screens.victory_screen import VictoryScreen
+from system.screens.survivor_screens import SurvivorNameInputScreen, SurvivorGameOverScreen
+from system.screens.game_over import GameOverScreen
+from system.screens.top10_normal import NormalTop10Screen
+from system.screens.top10_survivor import SurvivorTop10Screen
+from system.saving_overlay import SavingOverlay
 
 class Game:
     def __init__(self):
@@ -26,13 +30,18 @@ class Game:
         # Game State
         self.running    = True
         self.paused     = False
-        self.game_state = "menu"
+        self.game_state = "menu"  # 'loading', 'menu', 'playing', 'game_over', 'top10_normal', 'top10_survivor', etc.
+        self.current_screen = "menu"  # Tracking des aktuellen Screens
+        self.came_from = None  # Woher kamen wir (für Navigation)
         self.game_mode  = "normal"  # "normal" oder "survivor"
         self.score      = 0
         self.highscore  = load_highscore()
         self.lives      = LIVES
         self.kills      = 0  # Kills für Normal Mode
         self.level      = 1  # Aktuelles Level im Normal Mode
+
+        # Online Verfügbarkeit (wird EINMAL beim Start geprüft)
+        self.online_available = False
 
         # Survivor Mode
         self.survivor_start_time = 0
@@ -58,15 +67,16 @@ class Game:
         self.menu.set_pause_mode(False)
 
         # Screen Modules
-        self.ship_select_screen = ShipSelectScreen()
-        self.victory_screen = VictoryScreen()
+        self.ship_select_screen         = ShipSelectScreen()
+        self.victory_screen             = VictoryScreen()
         self.survivor_name_input_screen = SurvivorNameInputScreen()
-        self.survivor_game_over_screen = SurvivorGameOverScreen()
-        
-        # Normal Mode Screens
-        from system.normal_mode_screens import NormalModeNameInputScreen, NormalModeTop10Screen
-        self.normal_mode_name_input_screen = NormalModeNameInputScreen()
-        self.normal_mode_top10_screen = NormalModeTop10Screen()
+        self.survivor_game_over_screen  = SurvivorGameOverScreen()
+
+        # New unified screens
+        self.game_over_screen = GameOverScreen()
+        self.saving_overlay = SavingOverlay()
+        self.top10_normal_screen = NormalTop10Screen()
+        self.top10_survivor_screen = SurvivorTop10Screen()
 
         # Audio
         pygame.mixer.set_num_channels(32)
@@ -78,6 +88,19 @@ class Game:
                 pygame.mixer.music.load(self.assets["music_paths"]["raining_bits"])
             except pygame.error:
                 pass
+
+        # Prüfe Firebase-Verbindung EINMAL beim Start
+        try:
+            from system.online_highscore import get_online_manager
+            manager = get_online_manager()
+            self.online_available = manager.is_connected()
+            if self.online_available:
+                print('✓ Online mode available')
+            else:
+                print('⚠ Playing in offline mode')
+        except Exception as e:
+            print(f'⚠ Firebase unavailable: {e}')
+            self.online_available = False
 
         # Fixed timestep
         self.fixed_timestep      = 1.0 / 60.0
@@ -150,7 +173,7 @@ class Game:
         self.kill_display_text     = ""
         self.kill_display_timer    = 0
         self.kill_display_duration = 2000
-        
+
         # Life Lost Overlay
         self.life_lost_display_text = ""
         self.life_lost_display_timer = 0
@@ -1071,24 +1094,24 @@ class Game:
         if not self.game_mode == "survivor":
             self.screen.blit(self.font.render(f"Score: {self.score}", True, (255,255,255)), (score_x, score_y))
             self.screen.blit(self.font.render(f"High Score: {self.highscore}", True, (255,255,255)), (score_x, highscore_y))
-            
+
             # Leben-Anzeige mit kleinen Schiffen (immer anzeigen)
             lives_y = int(95 * ui_scale)
-            
+
             # Benutze das aktuelle Schiffsbild vom Player
             ship_icon = None
             if self.player and hasattr(self.player, 'base_img') and self.player.base_img:
                 ship_icon = self.player.base_img
-            
+
             if ship_icon:
                 # Skaliere das Schiff auf Icon-Größe (30x30)
                 icon_size = 30
                 ship_icon_scaled = pygame.transform.scale(ship_icon, (icon_size, icon_size))
-                
+
                 # "Lives:" Label
                 lives_label = self.font.render("Lives:", True, (255, 255, 255))
                 self.screen.blit(lives_label, (score_x, lives_y))
-                
+
                 # Zeichne so viele Schiffe wie Leben übrig sind (nach dem Label)
                 label_width = lives_label.get_width() + int(10 * ui_scale)
                 for i in range(max(0, self.lives)):
@@ -1104,7 +1127,7 @@ class Game:
             kill_surface = self.font.render(self.kill_display_text, True, (255, 255, 0))
             kill_rect = kill_surface.get_rect(center=(cw // 2, int(100 * ui_scale)))
             self.screen.blit(kill_surface, kill_rect)
-        
+
         # Life Lost Anzeige (rot, unter Kill-Display)
         if self.life_lost_display_timer > 0 and current_time - self.life_lost_display_timer < self.life_lost_display_duration:
             life_lost_surface = self.font.render(self.life_lost_display_text, True, (255, 50, 50))
@@ -1354,7 +1377,7 @@ class Game:
                     except pygame.error:
                         pass
                     self.menu.start_menu_music()
-                
+
                 action = self.normal_mode_name_input_screen.handle_and_draw(
                     self.screen, self._bg_scaled, self.score, self._total_kills, self.level
                 )
@@ -1362,9 +1385,11 @@ class Game:
                     self.running = False
                 elif action == "submit":
                     # Score wurde gespeichert, zeige Top 10
+                    self.came_from = 'game'
                     self.game_state = "normal_top10"
                 elif action == "skip":
                     # ESC gedrückt - nicht speichern, zeige Top 10
+                    self.came_from = 'game'
                     self.game_state = "normal_top10"
                 elif action == "maximize":
                     self.toggle_maximize()
@@ -1374,11 +1399,11 @@ class Game:
                 # Zeige Top 10 Liste - kombiniere lokale UND Online-Daten (EINMAL beim State-Wechsel)
                 if not hasattr(self, '_normal_top10_loaded') or not self._normal_top10_loaded:
                     from system.utils import load_normal_top10
-                    
+
                     # Lade lokale Daten (immer verfügbar)
                     local_scores = load_normal_top10()
                     print(f"✓ Loaded {len(local_scores)} local highscores")
-                    
+
                     # Versuche Online-Daten zu holen (wenn Firebase verfügbar)
                     online_scores = []
                     if hasattr(self, 'online_highscore'):
@@ -1386,7 +1411,7 @@ class Game:
                         if self.online_highscore:
                             is_connected = self.online_highscore.is_connected()
                             print(f"[DEBUG] Firebase is_connected(): {is_connected}")
-                            
+
                             if is_connected:
                                 try:
                                     online_scores = self.online_highscore.get_top_scores(stage=0, limit=100)  # Hole mehr, um zu vergleichen
@@ -1397,28 +1422,29 @@ class Game:
                                 print(f"⚠ Firebase not connected, skipping online scores")
                     else:
                         print(f"⚠ online_highscore attribute not found")
-                    
+
                     # Kombiniere beide Listen und entferne Duplikate
                     all_scores = []
                     seen = set()  # Track (name, score, kills) um Duplikate zu vermeiden
-                    
+
                     for score in local_scores + online_scores:
                         key = (score.get('name', ''), score.get('score', 0), score.get('kills', 0))
                         if key not in seen:
                             seen.add(key)
                             all_scores.append(score)
-                    
+
                     # Sortiere kombinierte Liste: Primär nach Score, Sekundär nach Kills
                     all_scores.sort(key=lambda x: (x.get('score', 0), x.get('kills', 0)), reverse=True)
-                    
+
                     # Nehme Top 10
                     self._normal_top10_data = all_scores[:10]
                     print(f"✓ Combined Top 10: {len(self._normal_top10_data)} unique entries (from {len(local_scores)} local + {len(online_scores)} online)")
-                    
+
                     self._normal_top10_loaded = True
-                
-                action = self.normal_mode_top10_screen.handle_and_draw(
-                    self.screen, self._bg_scaled, self._normal_top10_data
+
+                action = self.top10_normal_screen.handle_and_draw(
+                    self.screen, self._bg_scaled, self._normal_top10_data,
+                    self.menu, came_from=self.came_from if self.came_from else 'menu'
                 )
                 if action == "quit":
                     self.running = False
@@ -1429,6 +1455,7 @@ class Game:
                     self._start_game_mode()  # Starte Normal Mode neu
                 elif action == "menu":
                     self._normal_top10_loaded = False  # Reset für nächstes Mal
+                    self.came_from = None  # Reset Navigation
                     self.game_state = "menu"
                     self.game_mode = "normal"
                     self.paused = False
@@ -1440,28 +1467,40 @@ class Game:
                     self.toggle_fullscreen()
             elif self.game_state == "survivor_highscores_view":
                 # Survivor Mode Highscores ansehen
-                from system.survivor_screens import SurvivorGameOverScreen
-                
+                from system.screens.survivor_screens import SurvivorGameOverScreen
+
                 # Lade Top 10 für gewählte Stage (nur einmal)
                 if not hasattr(self, '_survivor_highscores_loaded') or not self._survivor_highscores_loaded:
                     from system.utils import load_survivor_highscores
                     stage = getattr(self, '_survivor_highscore_stage', 1)
                     self._survivor_top10_data = load_survivor_highscores(stage)[:10]
                     self._survivor_highscores_loaded = True
+                    # Leere Event-Queue beim ersten Laden, um versehentliche ENTER-Presses zu vermeiden
+                    pygame.event.get()  # Hole alle Events ohne sie zu verarbeiten
+                    self._survivor_view_just_opened = True  # Flag setzen
                     print(f"✓ Loaded {len(self._survivor_top10_data)} Survivor Mode highscores for Stage {stage}")
-                
-                # Erstelle temporären Screen nur für Anzeige (ohne aktuelle Zeit/Kills)
-                if not hasattr(self, '_temp_survivor_screen'):
-                    self._temp_survivor_screen = SurvivorGameOverScreen()
-                
-                # Zeige nur die Leaderboard-Liste (dummy Werte für Zeit/Kills, da wir nur Top 10 zeigen)
-                action = self._show_survivor_highscore_view(self.screen, self._bg_scaled, 
-                                                           getattr(self, '_survivor_highscore_stage', 1))
-                
+
+                # Übergebe Flag, ob View gerade erst geöffnet wurde
+                just_opened = getattr(self, '_survivor_view_just_opened', False)
+
+                # Zeige nur die Leaderboard-Liste mit neuem Screen
+                action = self.top10_survivor_screen.handle_and_draw(
+                    self.screen, self._bg_scaled,
+                    self._survivor_highscores_data,
+                    getattr(self, '_survivor_highscore_stage', 1),
+                    self.menu,
+                    came_from=self.came_from if self.came_from else 'menu'
+                )
+
+                # Flag zurücksetzen nach erstem Frame
+                if just_opened:
+                    self._survivor_view_just_opened = False
+
                 if action == "quit":
                     self.running = False
                 elif action == "menu":
                     self._survivor_highscores_loaded = False
+                    self.came_from = None  # Reset Navigation
                     self.game_state = "menu"
                     self.menu.set_pause_mode(False)
                 elif action == "maximize":
@@ -1517,7 +1556,7 @@ class Game:
                     elif action == "show_survivor_stage_select":
                         # Zeige Survivor Stage-Auswahl für Highscores
                         self.menu.set_survivor_stage_select(True)
-                    elif action.startswith("show_survivor_highscores_"):
+                    elif action and action.startswith("show_survivor_highscores_"):
                         # Zeige Survivor Mode Top 10 für gewählte Stage
                         stage_num = int(action.split("_")[-1])
                         self._survivor_highscore_stage = stage_num
@@ -1755,93 +1794,3 @@ class Game:
             base_frames = self.assets["shield_frames"]
             base_scale_factor = self.assets["shield_scale"]
             self.powerup_shield.rescale_for_player(self.player.rect, base_frames, base_scale_factor)
-
-    def _show_survivor_highscore_view(self, screen, bg_scaled, stage):
-        """Zeige Survivor Mode Highscores für eine bestimmte Stage (nur Ansicht, kein aktives Spiel)"""
-        # Hintergrund verdunkeln
-        overlay = pygame.Surface(screen.get_size())
-        overlay.set_alpha(200)
-        overlay.fill((0, 0, 0))
-
-        if bg_scaled:
-            screen.blit(bg_scaled, (0, 0))
-        else:
-            screen.fill((0, 0, 0))
-
-        screen.blit(overlay, (0, 0))
-
-        cw, ch = screen.get_size()
-        ui_scale = max(cw / 1920, ch / 1080) * 1.2
-
-        # Fonts laden
-        try:
-            title_font       = pygame.font.Font("assets/fonts/Astralight.ttf", int(120 * ui_scale))
-            leaderboard_font = pygame.font.Font("assets/fonts/White On Black.ttf", int(50 * ui_scale))
-            score_font       = pygame.font.Font("assets/fonts/monofonto rg.otf", int(28 * ui_scale))
-            controls_font    = pygame.font.Font("assets/fonts/KGRedHands.ttf", int(24 * ui_scale))
-        except:
-            title_font       = pygame.font.Font(None, int(120 * ui_scale))
-            leaderboard_font = pygame.font.Font(None, int(50 * ui_scale))
-            score_font       = pygame.font.Font(None, int(32 * ui_scale))
-            controls_font    = pygame.font.Font(None, int(24 * ui_scale))
-
-        # Title
-        title_text = "SURVIVOR MODE"
-        title_surface = title_font.render(title_text, True, (255, 100, 100))
-        title_rect = title_surface.get_rect(center=(cw // 2, ch // 4))
-
-        shadow_text = title_font.render(title_text, True, (0, 0, 0))
-        shadow_rect = shadow_text.get_rect(center=(cw // 2 + 4, ch // 4 + 4))
-        screen.blit(shadow_text, shadow_rect)
-        screen.blit(title_surface, title_rect)
-
-        # Stage Name
-        stage_names = ["Rookie", "Veteran", "Elite", "Legend"]
-        stage_name = stage_names[stage - 1] if 1 <= stage <= 4 else "Unknown"
-        leaderboard_title = leaderboard_font.render(f"TOP 10 - {stage_name.upper()}", True, (255, 255, 255))
-        leaderboard_title_rect = leaderboard_title.get_rect(center=(cw // 2, ch // 2 - int(80 * ui_scale)))
-        screen.blit(leaderboard_title, leaderboard_title_rect)
-
-        # Top 10 anzeigen
-        from system.utils import load_survivor_highscores
-        scores = load_survivor_highscores(stage)
-        start_y = ch // 2 - int(30 * ui_scale)
-
-        for i, score_entry in enumerate(scores[:10]):
-            time_val = score_entry.get("time", 0)
-            kills = score_entry.get("kills", 0)
-            name = score_entry.get("name", "Player")
-
-            mins = int(time_val // 60)
-            secs = int(time_val % 60)
-            ms = int((time_val % 1) * 100)
-
-            color = (200, 200, 200)
-            text_str = f"#{i+1}  {name:<15}  {mins:02d}:{secs:02d}.{ms:02d}  ({kills} kills)"
-
-            score_text = score_font.render(text_str, True, color)
-            score_rect = score_text.get_rect(center=(cw // 2, start_y + i * int(35 * ui_scale)))
-            screen.blit(score_text, score_rect)
-
-        # Controls
-        controls_y = ch - int(80 * ui_scale)
-        controls_text = "[ESC] Back to Menu"
-        controls = controls_font.render(controls_text, True, (200, 200, 200))
-        controls_rect = controls.get_rect(center=(cw // 2, controls_y))
-        screen.blit(controls, controls_rect)
-
-        # Event Handling
-        result = None
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                return "quit"
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE or event.key == pygame.K_RETURN:
-                    result = "menu"
-                elif event.key == pygame.K_F11:
-                    result = "maximize"
-                elif event.key == pygame.K_RETURN and (pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]):
-                    result = "fullscreen"
-
-        pygame.display.flip()
-        return result
