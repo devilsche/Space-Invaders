@@ -1438,6 +1438,36 @@ class Game:
                     self.toggle_maximize()
                 elif action == "fullscreen":
                     self.toggle_fullscreen()
+            elif self.game_state == "survivor_highscores_view":
+                # Survivor Mode Highscores ansehen
+                from system.survivor_screens import SurvivorGameOverScreen
+                
+                # Lade Top 10 für gewählte Stage (nur einmal)
+                if not hasattr(self, '_survivor_highscores_loaded') or not self._survivor_highscores_loaded:
+                    from system.utils import load_survivor_highscores
+                    stage = getattr(self, '_survivor_highscore_stage', 1)
+                    self._survivor_top10_data = load_survivor_highscores(stage)[:10]
+                    self._survivor_highscores_loaded = True
+                    print(f"✓ Loaded {len(self._survivor_top10_data)} Survivor Mode highscores for Stage {stage}")
+                
+                # Erstelle temporären Screen nur für Anzeige (ohne aktuelle Zeit/Kills)
+                if not hasattr(self, '_temp_survivor_screen'):
+                    self._temp_survivor_screen = SurvivorGameOverScreen()
+                
+                # Zeige nur die Leaderboard-Liste (dummy Werte für Zeit/Kills, da wir nur Top 10 zeigen)
+                action = self._show_survivor_highscore_view(self.screen, self._bg_scaled, 
+                                                           getattr(self, '_survivor_highscore_stage', 1))
+                
+                if action == "quit":
+                    self.running = False
+                elif action == "menu":
+                    self._survivor_highscores_loaded = False
+                    self.game_state = "menu"
+                    self.menu.set_pause_mode(False)
+                elif action == "maximize":
+                    self.toggle_maximize()
+                elif action == "fullscreen":
+                    self.toggle_fullscreen()
             elif self.game_state == "game_over":
                 self.game_state = "menu"
 
@@ -1478,9 +1508,29 @@ class Game:
                     if action == "show_mode_select":
                         # Zeige Spielmodi-Auswahl
                         self.menu.set_mode_select(True)
+                    elif action == "show_highscores":
+                        # Zeige Highscore-Menü
+                        self.menu.set_highscore_menu(True)
+                    elif action == "show_normal_highscores":
+                        # Zeige Normal Mode Top 10
+                        self.game_state = "normal_top10"
+                    elif action == "show_survivor_stage_select":
+                        # Zeige Survivor Stage-Auswahl für Highscores
+                        self.menu.set_survivor_stage_select(True)
+                    elif action.startswith("show_survivor_highscores_"):
+                        # Zeige Survivor Mode Top 10 für gewählte Stage
+                        stage_num = int(action.split("_")[-1])
+                        self._survivor_highscore_stage = stage_num
+                        self.game_state = "survivor_highscores_view"
                     elif action == "back_to_menu":
                         # Zurück zum Hauptmenü
                         self.menu.set_mode_select(False)
+                        self.menu.set_highscore_menu(False)
+                        self.menu.set_survivor_stage_select(False)
+                    elif action == "back_to_highscore_menu":
+                        # Zurück zum Highscore-Menü
+                        self.menu.set_survivor_stage_select(False)
+                        self.menu.set_highscore_menu(True)
                     elif action == "start_game":
                         self.menu.stop_menu_music()  # Stoppe Menu-Musik
                         self.game_state = "playing"
@@ -1705,3 +1755,93 @@ class Game:
             base_frames = self.assets["shield_frames"]
             base_scale_factor = self.assets["shield_scale"]
             self.powerup_shield.rescale_for_player(self.player.rect, base_frames, base_scale_factor)
+
+    def _show_survivor_highscore_view(self, screen, bg_scaled, stage):
+        """Zeige Survivor Mode Highscores für eine bestimmte Stage (nur Ansicht, kein aktives Spiel)"""
+        # Hintergrund verdunkeln
+        overlay = pygame.Surface(screen.get_size())
+        overlay.set_alpha(200)
+        overlay.fill((0, 0, 0))
+
+        if bg_scaled:
+            screen.blit(bg_scaled, (0, 0))
+        else:
+            screen.fill((0, 0, 0))
+
+        screen.blit(overlay, (0, 0))
+
+        cw, ch = screen.get_size()
+        ui_scale = max(cw / 1920, ch / 1080) * 1.2
+
+        # Fonts laden
+        try:
+            title_font       = pygame.font.Font("assets/fonts/Astralight.ttf", int(120 * ui_scale))
+            leaderboard_font = pygame.font.Font("assets/fonts/White On Black.ttf", int(50 * ui_scale))
+            score_font       = pygame.font.Font("assets/fonts/monofonto rg.otf", int(28 * ui_scale))
+            controls_font    = pygame.font.Font("assets/fonts/KGRedHands.ttf", int(24 * ui_scale))
+        except:
+            title_font       = pygame.font.Font(None, int(120 * ui_scale))
+            leaderboard_font = pygame.font.Font(None, int(50 * ui_scale))
+            score_font       = pygame.font.Font(None, int(32 * ui_scale))
+            controls_font    = pygame.font.Font(None, int(24 * ui_scale))
+
+        # Title
+        title_text = "SURVIVOR MODE"
+        title_surface = title_font.render(title_text, True, (255, 100, 100))
+        title_rect = title_surface.get_rect(center=(cw // 2, ch // 4))
+
+        shadow_text = title_font.render(title_text, True, (0, 0, 0))
+        shadow_rect = shadow_text.get_rect(center=(cw // 2 + 4, ch // 4 + 4))
+        screen.blit(shadow_text, shadow_rect)
+        screen.blit(title_surface, title_rect)
+
+        # Stage Name
+        stage_names = ["Rookie", "Veteran", "Elite", "Legend"]
+        stage_name = stage_names[stage - 1] if 1 <= stage <= 4 else "Unknown"
+        leaderboard_title = leaderboard_font.render(f"TOP 10 - {stage_name.upper()}", True, (255, 255, 255))
+        leaderboard_title_rect = leaderboard_title.get_rect(center=(cw // 2, ch // 2 - int(80 * ui_scale)))
+        screen.blit(leaderboard_title, leaderboard_title_rect)
+
+        # Top 10 anzeigen
+        from system.utils import load_survivor_highscores
+        scores = load_survivor_highscores(stage)
+        start_y = ch // 2 - int(30 * ui_scale)
+
+        for i, score_entry in enumerate(scores[:10]):
+            time_val = score_entry.get("time", 0)
+            kills = score_entry.get("kills", 0)
+            name = score_entry.get("name", "Player")
+
+            mins = int(time_val // 60)
+            secs = int(time_val % 60)
+            ms = int((time_val % 1) * 100)
+
+            color = (200, 200, 200)
+            text_str = f"#{i+1}  {name:<15}  {mins:02d}:{secs:02d}.{ms:02d}  ({kills} kills)"
+
+            score_text = score_font.render(text_str, True, color)
+            score_rect = score_text.get_rect(center=(cw // 2, start_y + i * int(35 * ui_scale)))
+            screen.blit(score_text, score_rect)
+
+        # Controls
+        controls_y = ch - int(80 * ui_scale)
+        controls_text = "[ESC] Back to Menu"
+        controls = controls_font.render(controls_text, True, (200, 200, 200))
+        controls_rect = controls.get_rect(center=(cw // 2, controls_y))
+        screen.blit(controls, controls_rect)
+
+        # Event Handling
+        result = None
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return "quit"
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE or event.key == pygame.K_RETURN:
+                    result = "menu"
+                elif event.key == pygame.K_F11:
+                    result = "maximize"
+                elif event.key == pygame.K_RETURN and (pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]):
+                    result = "fullscreen"
+
+        pygame.display.flip()
+        return result

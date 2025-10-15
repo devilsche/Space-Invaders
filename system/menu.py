@@ -12,12 +12,16 @@ class GameMenu:
         self.font                = pygame.font.Font(None, FONT_SIZE)
         self.title_font          = pygame.font.Font(None, FONT_SIZE * 2)
         self.selected_option     = 0
-        self.menu_options        = ["Start", "Quit"]
+        self.menu_options        = ["Start", "Highscores", "Quit"]
         self.mode_select_options = ["Normal Mode", "Survivor Mode", "Back"]
+        self.highscore_options   = ["Normal Mode", "Survivor Mode", "Back"]
+        self.survivor_stage_options = ["Stage 1 - Rookie", "Stage 2 - Veteran", "Stage 3 - Elite", "Stage 4 - Legend", "Back"]
         self.pause_options       = ["Resume", "Quit to Menu"]
         self.current_options     = self.menu_options
         self.is_pause_menu       = False
         self.is_mode_select      = False # Neuer State für Spielmodi-Auswahl
+        self.is_highscore_menu   = False # Neuer State für Highscore-Menü
+        self.is_survivor_stage_select = False # Neuer State für Survivor-Stage-Auswahl bei Highscores
 
         # Menü-Positionen werden in load_assets() gesetzt nach pygame.init()
         self.start_button_rect     = None
@@ -87,6 +91,8 @@ class GameMenu:
         """Zwischen Start-Menü und Pause-Menü wechseln"""
         self.is_pause_menu  = is_pause
         self.is_mode_select = False
+        self.is_highscore_menu = False
+        self.is_survivor_stage_select = False
 
         if is_pause:
             self.current_options = self.pause_options
@@ -99,12 +105,40 @@ class GameMenu:
         """Wechsle zur Spielmodi-Auswahl"""
         self.is_mode_select = is_mode_select
         self.is_pause_menu  = False
+        self.is_highscore_menu = False
+        self.is_survivor_stage_select = False
         if is_mode_select:
             self.current_options = self.mode_select_options
         else:
             self.current_options = self.menu_options
         self.selected_option = 0
         print(f"Set mode select: {is_mode_select}, options: {self.current_options}, selected: {self.selected_option}")
+
+    def set_highscore_menu(self, is_highscore=True):
+        """Wechsle zum Highscore-Menü"""
+        self.is_highscore_menu = is_highscore
+        self.is_mode_select = False
+        self.is_pause_menu = False
+        self.is_survivor_stage_select = False
+        if is_highscore:
+            self.current_options = self.highscore_options
+        else:
+            self.current_options = self.menu_options
+        self.selected_option = 0
+        print(f"Set highscore menu: {is_highscore}, options: {self.current_options}, selected: {self.selected_option}")
+
+    def set_survivor_stage_select(self, is_stage_select=True):
+        """Wechsle zur Survivor-Stage-Auswahl für Highscores"""
+        self.is_survivor_stage_select = is_stage_select
+        self.is_highscore_menu = False
+        self.is_mode_select = False
+        self.is_pause_menu = False
+        if is_stage_select:
+            self.current_options = self.survivor_stage_options
+        else:
+            self.current_options = self.highscore_options
+        self.selected_option = 0
+        print(f"Set survivor stage select: {is_stage_select}, options: {self.current_options}, selected: {self.selected_option}")
 
     def handle_input(self, event):
         """Verarbeite Menü-Eingaben"""
@@ -148,9 +182,26 @@ class GameMenu:
                 return "start_survivor"
             elif selected == "Back":
                 return "back_to_menu"
+        elif self.is_highscore_menu:
+            if selected == "Normal Mode":
+                return "show_normal_highscores"
+            elif selected == "Survivor Mode":
+                return "show_survivor_stage_select"
+            elif selected == "Back":
+                return "back_to_menu"
+        elif self.is_survivor_stage_select:
+            if selected.startswith("Stage"):
+                # Extrahiere Stage-Nummer (z.B. "Stage 1 - Rookie" -> 1)
+                stage_num = int(selected.split()[1])
+                return f"show_survivor_highscores_{stage_num}"
+            elif selected == "Back":
+                return "back_to_highscore_menu"
         else:
+            # Hauptmenü
             if selected == "Start":
                 return "show_mode_select"
+            elif selected == "Highscores":
+                return "show_highscores"
             elif selected == "Quit":
                 return "quit_game"
 
@@ -200,6 +251,12 @@ class GameMenu:
         elif self.is_mode_select:
             # Spielmodi-Auswahl
             self._draw_mode_select_menu(screen)
+        elif self.is_highscore_menu:
+            # Highscore-Menü
+            self._draw_highscore_menu(screen)
+        elif self.is_survivor_stage_select:
+            # Survivor-Stage-Auswahl für Highscores
+            self._draw_survivor_stage_menu(screen)
         else:
             # Start-Menü: Zeichne Rahmen um die Start/Quit Optionen im Bild
             self._draw_start_menu(screen)
@@ -462,6 +519,72 @@ class GameMenu:
         else:
             # Dünner Rahmen für nicht-ausgewählte Option
             pygame.draw.rect(screen, (128, 128, 128), rect, 1)
+
+    def _draw_highscore_menu(self, screen):
+        """Zeichne Highscore-Menü mit Titel und Optionen"""
+        # Titel
+        current_width = screen.get_width()
+        current_height = screen.get_height()
+        
+        title_text = "HIGHSCORES"
+        title_surface = self.title_font.render(title_text, True, (255, 255, 100))
+        title_rect = title_surface.get_rect(center=(current_width // 2, current_height // 4))
+        
+        # Schatten für Titel
+        shadow_surface = self.title_font.render(title_text, True, (0, 0, 0))
+        shadow_rect = shadow_surface.get_rect(center=(current_width // 2 + 4, current_height // 4 + 4))
+        screen.blit(shadow_surface, shadow_rect)
+        screen.blit(title_surface, title_rect)
+        
+        # Menü-Optionen
+        start_y = current_height // 2 - scale(20)
+        option_spacing = scale(70)
+        
+        for i, option in enumerate(self.current_options):
+            y_pos = start_y + (i * option_spacing)
+            is_selected = (i == self.selected_option)
+            
+            if is_selected:
+                text_color = (255, 255, 100)
+                shadow_color = (100, 100, 0)
+            else:
+                text_color = (200, 200, 200)
+                shadow_color = (50, 50, 50)
+            
+            self.draw_text_with_shadow(screen, option, self.font, current_width // 2, y_pos, text_color, shadow_color)
+
+    def _draw_survivor_stage_menu(self, screen):
+        """Zeichne Survivor-Stage-Auswahl für Highscores"""
+        # Titel
+        current_width = screen.get_width()
+        current_height = screen.get_height()
+        
+        title_text = "SURVIVOR HIGHSCORES"
+        title_surface = self.title_font.render(title_text, True, (255, 100, 100))
+        title_rect = title_surface.get_rect(center=(current_width // 2, current_height // 4))
+        
+        # Schatten für Titel
+        shadow_surface = self.title_font.render(title_text, True, (0, 0, 0))
+        shadow_rect = shadow_surface.get_rect(center=(current_width // 2 + 4, current_height // 4 + 4))
+        screen.blit(shadow_surface, shadow_rect)
+        screen.blit(title_surface, title_rect)
+        
+        # Menü-Optionen
+        start_y = current_height // 2 - scale(80)
+        option_spacing = scale(60)
+        
+        for i, option in enumerate(self.current_options):
+            y_pos = start_y + (i * option_spacing)
+            is_selected = (i == self.selected_option)
+            
+            if is_selected:
+                text_color = (255, 255, 100)
+                shadow_color = (100, 100, 0)
+            else:
+                text_color = (200, 200, 200)
+                shadow_color = (50, 50, 50)
+            
+            self.draw_text_with_shadow(screen, option, self.font, current_width // 2, y_pos, text_color, shadow_color)
 
     def start_menu_music(self):
         """Starte Menu-Hintergrundmusik als Loop"""
