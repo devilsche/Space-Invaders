@@ -1,7 +1,7 @@
 import pygame
 import random
 from assets.load_assets import load_assets
-from system.utils       import load_highscore, save_highscore, scale, load_survivor_highscores
+from system.utils       import load_highscore, scale, load_survivor_highscores
 from system.hud         import HUD
 from system.health_bar  import HealthBar
 from config             import *
@@ -64,6 +64,9 @@ class Game:
         self.font   = pygame.font.Font(None, FONT_SIZE)
         self._bg_scaled = self.assets.get("background_img")  # wird in _reinitialize_ui() skaliert
 
+        # AppController Integration - für Menu-freie Nutzung
+        self.app_controller = None  # Wird vom AppController gesetzt
+
         # Menü
         self.menu = GameMenu()
         self.menu.load_assets(self.assets)
@@ -86,24 +89,21 @@ class Game:
         self.shield_channel = pygame.mixer.Channel(30)
         self.music_channel  = pygame.mixer.Channel(31)
         # Musik einmal laden
-        if "music_paths" in self.assets and "raining_bits" in self.assets["music_paths"]:
-            try:
-                pygame.mixer.music.load(self.assets["music_paths"]["raining_bits"])
-            except pygame.error:
-                pass
+        if self.assets.has("music_paths"):
+            music_paths = self.assets.get("music_paths")
+            if music_paths and "raining_bits" in music_paths:
+                try:
+                    pygame.mixer.music.load(music_paths["raining_bits"])
+                except pygame.error:
+                    pass
 
-        # Prüfe Firebase-Verbindung EINMAL beim Start
-        try:
-            from system.online_highscore import get_online_manager
-            manager = get_online_manager()
-            self.online_available = manager.is_connected()
-            if self.online_available:
-                print('✓ Online mode available')
-            else:
-                print('⚠ Playing in offline mode')
-        except Exception as e:
-            print(f'⚠ Firebase unavailable: {e}')
-            self.online_available = False
+        # Firebase-Status aus zentraler Verwaltung holen
+        from system.firebase_manager import is_firebase_available
+        self.online_available = is_firebase_available()
+        if self.online_available:
+            print('✓ Using pre-initialized online mode')
+        else:
+            print('✓ Using pre-initialized offline mode')
 
         # Fixed timestep
         self.fixed_timestep      = 1.0 / 60.0
@@ -349,7 +349,7 @@ class Game:
 
     # ---------------- Power-Up System ----------------
     def _try_drop_powerup(self, x, y):
-        self.powerup_manager.queue_drop_check(x, y)
+        self.powerup_manager.add_drop_to_queue(x, y)
 
     def _update_powerups(self):
         # PowerUpManager Update (verarbeitet Queue und updatet PowerUps)
@@ -368,7 +368,7 @@ class Game:
             if powerup.rect.colliderect(self.player.rect):
                 # Powerup-Pickup Sound abspielen (mit reduzierter Lautstärke)
                 if self.assets.get("powerup_pickup_sound"):
-                    sound = self.assets["powerup_pickup_sound"]
+                    sound = self.assets.get("powerup_pickup_sound")
                     sound.set_volume(0.4)  # Reduzierte Lautstärke (40%)
                     sound.play()
 
@@ -404,9 +404,9 @@ class Game:
 
         # Shield erstellen (nur wenn noch keins aktiv ist)
         if self.powerup_shield is None:
-            frames = self.assets["shield_frames"]
+            frames = self.assets.get("shield_frames")
             fps = shield_config.get("fps", 20)
-            scale_f = max(self.player.rect.w, self.player.rect.h) / frames[0].get_width() * self.assets["shield_scale"]
+            scale_f = max(self.player.rect.w, self.player.rect.h) / frames[0].get_width() * self.assets.get("shield_scale")
             self.powerup_shield = Shield(
                 *self.player.rect.center, frames, fps=fps, scale=scale_f,
                 loop=True, player_health=self.player.max_health, is_powerup_shield=True,
@@ -655,18 +655,23 @@ class Game:
                     if self.game_mode == "survivor":
                         self.player.current_health = 1
                         self.player.max_health = 1
-                elif e.key == pygame.K_F1:
-                    self._build_wave('alien')
-                elif e.key == pygame.K_F2:
-                    self._build_wave('drone')
-                elif e.key == pygame.K_F3:
-                    self._build_wave('tank')
-                elif e.key == pygame.K_F4:
-                    self._build_wave('sniper')
-                elif e.key == pygame.K_F5:
-                    self._build_wave('boss')
-                elif e.key == pygame.K_F12 and not (pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]):
-                    self.enemies = []
+                elif e.key == pygame.K_5:
+                    self.player.set_stage(5); self._update_shield_scale()
+                    if self.game_mode == "survivor":
+                        self.player.current_health = 1
+                        self.player.max_health = 1
+                # elif e.key == pygame.K_F1:
+                #     self._build_wave('alien')
+                # elif e.key == pygame.K_F2:
+                #     self._build_wave('drone')
+                # elif e.key == pygame.K_F3:
+                #     self._build_wave('tank')
+                # elif e.key == pygame.K_F4:
+                #     self._build_wave('sniper')
+                # elif e.key == pygame.K_F5:
+                #     self._build_wave('boss')
+                # elif e.key == pygame.K_F12 and not (pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]):
+                #     self.enemies = []
                 elif e.key == pygame.K_SPACE and not self.paused and not self.player_dead:
                     shots = self.player.shoot_weapon("laser")
                     if self.double_laser_active and shots:
@@ -710,9 +715,10 @@ class Game:
                         break
                     now = pygame.time.get_ticks()
                     if now >= self._shield_ready_at:
-                        frames = self.assets["shield_frames"]
-                        fps    = self.assets["shield_fps"]
-                        scale_f = max(self.player.rect.w, self.player.rect.h) / frames[0].get_width() * self.assets["shield_scale"]
+                        frames = self.assets.get("shield_frames")
+                        fps    = self.assets.get("shield_fps")
+                        scale_f = max(self.player.rect.w, self.player.rect.h) / frames[0].get_width() * self.assets.get("shield_scale")
+
                         new_shield = Shield(*self.player.rect.center, frames, fps=fps, scale=scale_f, loop=True, player_health=self.player.max_health)
                         shield_cfg = SHIELD_CONFIG[1]["shield"]
                         regen_rate = shield_cfg.get("regen_rate", 0.2)
@@ -721,11 +727,11 @@ class Game:
                         health_regen = min(new_shield.max_health, new_shield.max_health * regen_rate * (time_since_last/1000.0))
                         new_shield.current_health = max(min_health, int(health_regen))
                         self.shield = new_shield
-                        self.shield_until     = now + self.assets["shield_duration"]
-                        self._shield_ready_at = now + self.assets["shield_cooldown"]
+                        self.shield_until     = now + self.assets.get("shield_duration")
+                        self._shield_ready_at = now + self.assets.get("shield_cooldown")
                         if self.assets.get("shield_activate_sound"):
-                            self.assets["shield_activate_sound"].set_volume(MASTER_VOLUME * SFX_VOLUME)
-                            self.assets["shield_activate_sound"].play()
+                            self.assets.get("shield_activate_sound").set_volume(MASTER_VOLUME * SFX_VOLUME)
+                            self.assets.get("shield_activate_sound").play()
 
     # ---------------- Update ----------------
     def _update(self):
@@ -939,8 +945,8 @@ class Game:
                 print(f"[{timestamp}ms]   DESTROY-Explosion: Creating at ({enemy_x},{enemy_y})")
                 # Sound abspielen
                 if self.assets.get("laser_sound_destroy"):
-                    self.assets["laser_sound_destroy"].set_volume(MASTER_VOLUME * SFX_VOLUME)
-                    self.assets["laser_sound_destroy"].play()
+                    self.assets.get("laser_sound_destroy").set_volume(MASTER_VOLUME * SFX_VOLUME)
+                    self.assets.get("laser_sound_destroy").play()
 
                 # Volle Explosion für getöteten Enemy (an gespeicherter Position)
                 frames = self.assets.get("expl_laser", [])
@@ -1305,18 +1311,9 @@ class Game:
                     if self.game_mode == "normal":
                         self.game_state = "normal_name_input"
                     else:
-                        # Survivor Mode geht direkt zum Menü
-                        self.game_state = "menu"
-                        self.game_mode = "normal"
-                        self.paused = False
-                        self.menu.set_pause_mode(False)  # Hauptmenü, kein Pause-Menü
-                        # Stoppe Spielmusik und starte Menümusik
-                        try:
-                            pygame.mixer.music.stop()
-                        except pygame.error:
-                            pass
-                        self.menu.start_menu_music()
-                        self._reset_game()
+                        # Survivor Mode: Kehre zum AppController oder Original Menu zurück
+                        if self._handle_menu_return():
+                            return  # AppController übernimmt
                 elif action == "maximize":
                     self.toggle_maximize()
                 elif action == "fullscreen":
@@ -1357,17 +1354,8 @@ class Game:
                     self.game_state = "survivor_ship_select"
                     # Menümusik läuft weiter (kein Stop nötig)
                 elif action == "menu":
-                    self.game_state = "menu"
-                    self.game_mode = "normal"
-                    self.paused = False
-                    self.menu.set_pause_mode(False)  # Wichtig: Normales Hauptmenü, kein Pause-Menü
-                    # Stoppe Spielmusik und starte Menümusik
-                    try:
-                        pygame.mixer.music.stop()
-                    except pygame.error:
-                        pass
-                    self.menu.start_menu_music()
-                    self._reset_game()
+                    if self._handle_menu_return():
+                        return  # AppController übernimmt
                 elif action == "maximize":
                     self.toggle_maximize()
                 elif action == "fullscreen":
@@ -1413,24 +1401,19 @@ class Game:
                     local_scores = load_normal_top10()
                     print(f"✓ Loaded {len(local_scores)} local highscores")
 
-                    # Versuche Online-Daten zu holen (wenn Firebase verfügbar)
+                    # Versuche Online-Daten zu holen (nur wenn zentral verfügbar)
                     online_scores = []
-                    if hasattr(self, 'online_highscore'):
-                        print(f"[DEBUG] online_highscore exists: {self.online_highscore is not None}")
-                        if self.online_highscore:
-                            is_connected = self.online_highscore.is_connected()
-                            print(f"[DEBUG] Firebase is_connected(): {is_connected}")
-
-                            if is_connected:
-                                try:
-                                    online_scores = self.online_highscore.get_top_scores(stage=0, limit=100)  # Hole mehr, um zu vergleichen
-                                    print(f"✓ Loaded {len(online_scores)} online highscores from Firebase")
-                                except Exception as e:
-                                    print(f"⚠ Failed to load online highscores: {e}")
-                            else:
-                                print(f"⚠ Firebase not connected, skipping online scores")
+                    from system.firebase_manager import is_firebase_available, get_firebase_manager
+                    if is_firebase_available():
+                        manager = get_firebase_manager()
+                        if manager:
+                            try:
+                                online_scores = manager.get_top_scores(stage=0, limit=100)  # Hole mehr, um zu vergleichen
+                                print(f"✓ Loaded {len(online_scores)} online highscores from Firebase")
+                            except Exception as e:
+                                print(f"⚠ Failed to load online highscores: {e}")
                     else:
-                        print(f"⚠ online_highscore attribute not found")
+                        print(f"⚠ Firebase not available, using local scores only")
 
                     # Kombiniere beide Listen und entferne Duplikate
                     all_scores = []
@@ -1468,11 +1451,8 @@ class Game:
                 elif action == "menu":
                     self._normal_top10_loaded = False # Reset für nächstes Mal
                     self.came_from            = None # Reset Navigation
-                    self.game_state           = "menu"
-                    self.game_mode            = "normal"
-                    self.paused               = False
-                    self.menu.set_pause_mode(False)
-                    self._reset_game()
+                    if self._handle_menu_return():
+                        return  # AppController übernimmt
                 elif action == "maximize":
                     self.toggle_maximize()
                 elif action == "fullscreen":
@@ -1498,7 +1478,7 @@ class Game:
                 # Zeige nur die Leaderboard-Liste mit neuem Screen
                 action = self.top10_survivor_screen.handle_and_draw(
                     self.screen, self._bg_scaled,
-                    self._survivor_highscores_data,
+                    self._survivor_top10_data,
                     getattr(self, '_survivor_highscore_stage', 1),
                     self.menu,
                     came_from=self.came_from if self.came_from else 'menu'
@@ -1512,9 +1492,12 @@ class Game:
                     self.running = False
                 elif action == "menu":
                     self._survivor_highscores_loaded = False
-                    self.came_from = None  # Reset Navigation
+                    self.came_from  = None
                     self.game_state = "menu"
                     self.menu.set_pause_mode(False)
+                    self.menu.set_survivor_stage_select(False)
+                    self.menu.set_highscore_menu(True)
+
                 elif action == "maximize":
                     self.toggle_maximize()
                 elif action == "fullscreen":
@@ -1530,7 +1513,6 @@ class Game:
                 self._last_stats_log = current_time
 
         self.explosion_manager.print_stats()
-        save_highscore(self.highscore)
         pygame.quit()
 
     def _handle_menu(self):
@@ -1574,10 +1556,8 @@ class Game:
                         self._survivor_highscore_stage = stage_num
                         self.game_state = "survivor_highscores_view"
                     elif action == "back_to_menu":
-                        # Zurück zum Hauptmenü
-                        self.menu.set_mode_select(False)
-                        self.menu.set_highscore_menu(False)
-                        self.menu.set_survivor_stage_select(False)
+                        # Zurück zum Hauptmenü - alle States richtig zurücksetzen
+                        self.menu.reset_to_main_menu()
                     elif action == "back_to_highscore_menu":
                         # Zurück zum Highscore-Menü
                         self.menu.set_survivor_stage_select(False)
@@ -1585,12 +1565,12 @@ class Game:
                     elif action == "start_game":
                         self.menu.stop_menu_music()  # Stoppe Menu-Musik
                         self.game_state = "playing"
-                        self.game_mode = "normal"
+                        self.game_mode  = "normal"
                         self._start_new_game()
                     elif action == "start_survivor":
                         self.menu.stop_menu_music()  # Stoppe Menu-Musik
                         # Zeige Schiffsauswahl-Screen
-                        self.game_mode = "survivor"
+                        self.game_mode  = "survivor"
                         self.game_state = "survivor_ship_select"
                         self.survivor_selected_stage = 1  # Standard: Stage 1
                     elif action == "quit_game":
@@ -1628,16 +1608,25 @@ class Game:
                     elif action == "quit_to_menu":
                         now = pygame.time.get_ticks()
                         self.total_pause_time += now - self.pause_start_time
-                        self.game_state = "menu"
                         self.paused = False
                         self.menu.set_pause_mode(False)
-                        # Stoppe Spielmusik und starte Menümusik
+
+                        # Stoppe Spielmusik
                         try:
                             pygame.mixer.music.stop()
                         except pygame.error:
                             pass
-                        self.menu.start_menu_music()
-                        self._reset_game()
+
+                        # Wenn AppController verfügbar ist: zurück dorthin, sonst Original-Menu
+                        if self.app_controller is not None:
+                            print("🔄 Returning to AppController from pause menu")
+                            self.running = False  # Beende Game-Loop
+                            return
+                        else:
+                            # Fallback: Original Menu System
+                            self.game_state = "menu"
+                            self.menu.start_menu_music()
+                            self._reset_game()
         self.menu.draw(self.screen)
         pygame.display.flip()
 
@@ -1671,14 +1660,14 @@ class Game:
             "nuke_last_used": 0,
             "shield_ready_at": 0
         })
-        self._total_kills  = 0
-        self._boss_spawned = False
+        self._total_kills        = 0
+        self._boss_spawned       = False
         self._fly_in_spawn_count = 0
-        self._last_fly_in_spawn = pygame.time.get_ticks()
+        self._last_fly_in_spawn  = pygame.time.get_ticks()
         self.powerups.clear()
         self.double_laser_active = False
         self.speed_boost_active  = False
-        self.powerup_shield = None
+        self.powerup_shield      = None
 
         # Musik starten
         try:
@@ -1799,10 +1788,36 @@ class Game:
 
     def _update_shield_scale(self):
         if self.shield:
-            base_frames = self.assets["shield_frames"]
-            base_scale_factor = self.assets["shield_scale"]
+            base_frames = self.assets.get("shield_frames")
+            base_scale_factor = self.assets.get("shield_scale")
             self.shield.rescale_for_player(self.player.rect, base_frames, base_scale_factor)
         if self.powerup_shield:
-            base_frames = self.assets["shield_frames"]
-            base_scale_factor = self.assets["shield_scale"]
+            base_frames = self.assets.get("shield_frames")
+            base_scale_factor = self.assets.get("shield_scale")
             self.powerup_shield.rescale_for_player(self.player.rect, base_frames, base_scale_factor)
+
+    def _handle_menu_return(self):
+        """Hilfsfunktion: Kehre zum AppController oder Original Menu zurück"""
+        if self.app_controller is not None:
+            print("🔄 Returning to AppController from game")
+            # Stoppe Musik
+            try:
+                pygame.mixer.music.stop()
+            except pygame.error:
+                pass
+            self.running = False  # Beende Game-Loop, AppController übernimmt
+            return True
+        else:
+            # Fallback: Original Menu System
+            self.game_state = "menu"
+            self.game_mode = "normal"
+            self.paused = False
+            self.menu.set_pause_mode(False)
+            # Stoppe Spielmusik und starte Menümusik
+            try:
+                pygame.mixer.music.stop()
+            except pygame.error:
+                pass
+            self.menu.start_menu_music()
+            self._reset_game()
+            return False

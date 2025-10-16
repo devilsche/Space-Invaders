@@ -17,11 +17,11 @@ logger = logging.getLogger(__name__)
 
 class AssetType(Enum):
     """Enum für Asset-Typen"""
-    IMAGE = "image"
-    SOUND = "sound"
-    MUSIC = "music"
+    IMAGE     = "image"
+    SOUND     = "sound"
+    MUSIC     = "music"
     ANIMATION = "animation"
-    FONT = "font"
+    FONT      = "font"
 
 
 class AssetManager:
@@ -312,15 +312,16 @@ class AssetManager:
             scale        = scale
         )
 
-    def get(self, key: str) -> Any:
+    def get(self, key: str, default: Any = None) -> Any:
         """
         Holt ein Asset aus dem Cache (mit Lazy Loading)
 
         Args:
             key: Asset-Schlüssel
+            default: Rückgabewert wenn Asset nicht gefunden wird
 
         Returns:
-            Das gecachte Asset oder lädt es bei Bedarf
+            Das gecachte Asset, lädt es bei Bedarf, oder default
         """
         # Wenn bereits im Cache, zurückgeben
         if key in self._cache:
@@ -347,10 +348,10 @@ class AssetManager:
                 return self.load_font(path, size)
             else:
                 logger.warning(f"Asset-Typ {asset_type} noch nicht implementiert")
-                return None
+                return default
 
         logger.warning(f"Asset nicht gefunden: {key}")
-        return None
+        return default
 
     def set(self, key: str, value: Any):
         """

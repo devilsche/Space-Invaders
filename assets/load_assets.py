@@ -7,71 +7,22 @@ All assets are registered and loaded on-demand (lazy loading).
 
 import pygame
 from typing import Any
-from config import WIDTH, HEIGHT, SHIP_CONFIG, ENEMY_CONFIG, PROJECTILES_CONFIG, SHIELD_CONFIG
+from config import WIDTH, HEIGHT, SHIP_CONFIG, ENEMY_CONFIG, WEAPON_CONFIG, SHIELD_CONFIG
 from manager.asset_manager import AssetManager
+import os
+
+# AssetProxy entfernt - verwende direkt AssetManager
 
 
-class AssetProxy:
-    """
-    Proxy object that behaves like a dict but uses AssetManager internally.
-    Provides backward compatibility with old dict-based asset access.
-    """
-
-    def __init__(
-        self,
-        manager: AssetManager
-    ):
-        self._manager       = manager
-        self._special_data  = {}  # For non-asset data like fps values, durations, etc.
-
-    def get(
-        self,
-        key:     str,
-        default: Any = None
-    ) -> Any:
-        """Get asset with fallback (dict-style)."""
-        if key in self._special_data:
-            return self._special_data[key]
-        try:
-            return self._manager.get(key)
-        except Exception:
-            return default
-
-    def __getitem__(
-        self,
-        key: str
-    ) -> Any:
-        """Dict-style access: assets['key']"""
-        if key in self._special_data:
-            return self._special_data[key]
-        return self._manager.get(key)
-
-    def __setitem__(
-        self,
-        key:   str,
-        value: Any
-    ) -> None:
-        """Allow setting special data (fps, durations, etc.)"""
-        self._special_data[key] = value
-
-    def __contains__(
-        self,
-        key: str
-    ) -> bool:
-        """Support 'key in assets' checks."""
-        return key in self._special_data or key in self._manager._cache or key in self._manager._asset_registry
-
-
-def load_assets() -> AssetProxy:
+def load_assets() -> AssetManager:
     """
     Load and register all game assets using AssetManager.
-    Returns an AssetProxy that provides dict-like access.
+    Returns the AssetManager directly for modern usage.
 
     Assets are registered but NOT loaded immediately (lazy loading).
     They will be loaded on first access via get() or [].
     """
     manager = AssetManager()
-    proxy   = AssetProxy(manager)
 
     # ===== Background =====
     try:
@@ -99,7 +50,7 @@ def load_assets() -> AssetProxy:
         manager._cache[key] = img
 
     # ===== Projectiles (Images, Sounds, Explosions) =====
-    for weapon_name, pcfg in PROJECTILES_CONFIG.items():
+    for weapon_name, pcfg in WEAPON_CONFIG.items():
         # --- Projectile Image ---
         img_key = f"{weapon_name}_img"
         manager.register_asset(img_key, pcfg["img"])
@@ -166,12 +117,12 @@ def load_assets() -> AssetProxy:
             )
             manager._cache[expl_key] = frames
 
-            # Store fps and keep as special data
-            proxy[f"expl_{weapon_name}_fps"]  = ex.get("fps", 24)
-            proxy[f"expl_{weapon_name}_keep"] = ex.get("keep", None)
+            # Store fps and keep as configuration data
+            manager.set(f"expl_{weapon_name}_fps", ex.get("fps", 24))
+            manager.set(f"expl_{weapon_name}_keep", ex.get("keep", None))
 
     # ===== Music Paths =====
-    proxy["music_paths"] = {"raining_bits": "assets/music/raining_bits.ogg"}
+    manager.set("music_paths", {"raining_bits": "assets/music/raining_bits.ogg"})
 
     # ===== Shield =====
     scfg   = SHIELD_CONFIG[1]["shield"]
@@ -184,19 +135,19 @@ def load_assets() -> AssetProxy:
     )
     manager._cache["shield_frames"] = frames
 
-    # Shield metadata as special data
-    proxy["shield_fps"]      = scfg.get("fps")
-    proxy["shield_duration"] = scfg.get("duration")
-    proxy["shield_cooldown"] = scfg.get("cooldown")
-    proxy["shield_scale"]    = scfg.get("scale")
+    # Shield metadata as configuration data
+    manager.set("shield_fps", scfg.get("fps"))
+    manager.set("shield_duration", scfg.get("duration"))
+    manager.set("shield_cooldown", scfg.get("cooldown"))
+    manager.set("shield_scale", scfg.get("scale"))
 
     # ===== Fonts =====
     # Lade spezifische Fonts für verschiedene Bereiche:
     # - Astralight für Titel
     # - White on Black für Menü
     # - Monofonto für HUD/Rest
-    
-    import os
+
+
     try:
         from config.fonts import FONTS
         print("Font config loaded successfully")
@@ -208,7 +159,7 @@ def load_assets() -> AssetProxy:
             "menu": {"file": None, "sizes": {"large": 48, "normal": 32, "small": 24}},
             "hud": {"file": None, "sizes": {"large": 32, "normal": 24, "small": 20, "tiny": 16}}
         }
-    
+
     # Hilfsfunktion zum Laden mit Fallback
     def load_font_with_fallback(font_path, size, fallback_path=None):
         """Versucht Font zu laden, nutzt Fallback oder System-Font"""
@@ -228,56 +179,56 @@ def load_assets() -> AssetProxy:
         except Exception as e:
             print(f"  [ERROR] Error loading font: {e}")
             return manager.load_font(None, size)
-    
+
     # Lade Titel-Fonts (Astralight)
     print("Loading title fonts...")
     title_config = FONTS["title"]
     for size_name, size_px in title_config["sizes"].items():
         key = f"title_font_{size_name}"  # z.B. "title_font_huge"
-        proxy[key] = load_font_with_fallback(
-            title_config["file"], 
+        manager.set(key, load_font_with_fallback(
+            title_config["file"],
             size_px,
             title_config.get("fallback")
-        )
-    
+        ))
+
     # Lade Menü-Fonts (White on Black)
     print("Loading menu fonts...")
     menu_config = FONTS["menu"]
     for size_name, size_px in menu_config["sizes"].items():
         key = f"menu_font_{size_name}"  # z.B. "menu_font_normal"
-        proxy[key] = load_font_with_fallback(
+        manager.set(key, load_font_with_fallback(
             menu_config["file"],
             size_px,
             menu_config.get("fallback")
-        )
-    
+        ))
+
     # Lade HUD-Fonts (Monofonto)
     print("Loading HUD fonts...")
     hud_config = FONTS["hud"]
     for size_name, size_px in hud_config["sizes"].items():
         key = f"hud_font_{size_name}"  # z.B. "hud_font_normal"
-        proxy[key] = load_font_with_fallback(
+        manager.set(key, load_font_with_fallback(
             hud_config["file"],
             size_px,
             hud_config.get("fallback")
-        )
-    
+        ))
+
     # Lade Controls-Fonts (KGRedHands)
     print("Loading controls fonts...")
     controls_config = FONTS["controls"]
     for size_name, size_px in controls_config["sizes"].items():
         key = f"controls_font_{size_name}"  # z.B. "controls_font_normal"
-        proxy[key] = load_font_with_fallback(
+        manager.set(key, load_font_with_fallback(
             controls_config["file"],
             size_px,
             controls_config.get("fallback")
-        )
-    
+        ))
+
     # Backward compatibility: Alte Keys mit Pixel-Größen
-    proxy["menu_font_24"] = proxy.get("menu_font_small")
-    proxy["menu_font_32"] = proxy.get("menu_font_normal")
-    proxy["title_font_48"] = proxy.get("title_font_medium")
-    proxy["title_font_64"] = proxy.get("title_font_large")
+    manager.set("menu_font_24", manager.get("menu_font_small"))
+    manager.set("menu_font_32", manager.get("menu_font_normal"))
+    manager.set("title_font_48", manager.get("title_font_medium"))
+    manager.set("title_font_64", manager.get("title_font_large"))
 
     # Shield sounds
     try:
@@ -332,7 +283,7 @@ def load_assets() -> AssetProxy:
     FONT_WHITE_ON_BLACK = "assets/fonts/White On Black.ttf"
     FONT_MONOFONTO = "assets/fonts/monofonto rg.otf"
     FONT_KGREDHANDS = "assets/fonts/KGRedHands.ttf"
-    
+
     # Title fonts (Astralight)
     try:
         manager._cache["font_title_huge"] = pygame.font.Font(FONT_ASTRALIGHT, 120)
@@ -342,7 +293,7 @@ def load_assets() -> AssetProxy:
         manager._cache["font_title_huge"] = pygame.font.Font(None, 120)
         manager._cache["font_title_large"] = pygame.font.Font(None, 80)
         manager._cache["font_title_medium"] = pygame.font.Font(None, 60)
-    
+
     # Subtitle fonts (White On Black)
     try:
         manager._cache["font_subtitle_large"] = pygame.font.Font(FONT_WHITE_ON_BLACK, 50)
@@ -352,7 +303,7 @@ def load_assets() -> AssetProxy:
         manager._cache["font_subtitle_large"] = pygame.font.Font(None, 50)
         manager._cache["font_subtitle_medium"] = pygame.font.Font(None, 40)
         manager._cache["font_subtitle_small"] = pygame.font.Font(None, 32)
-    
+
     # Monospace fonts (monofonto rg)
     try:
         manager._cache["font_mono_large"] = pygame.font.Font(FONT_MONOFONTO, 70)
@@ -368,7 +319,7 @@ def load_assets() -> AssetProxy:
         manager._cache["font_mono_small"] = pygame.font.Font(None, 28)
         manager._cache["font_mono_tiny"] = pygame.font.Font(None, 24)
         manager._cache["font_mono_micro"] = pygame.font.Font(None, 14)
-    
+
     # Controls fonts (KGRedHands)
     try:
         manager._cache["font_controls_normal"] = pygame.font.Font(FONT_KGREDHANDS, 24)
@@ -376,12 +327,12 @@ def load_assets() -> AssetProxy:
     except:
         manager._cache["font_controls_normal"] = pygame.font.Font(None, 24)
         manager._cache["font_controls_small"] = pygame.font.Font(None, 20)
-    
+
     # System fonts (None/default)
     manager._cache["font_system_large"] = pygame.font.Font(None, 60)
     manager._cache["font_system_medium"] = pygame.font.Font(None, 40)
     manager._cache["font_system_normal"] = pygame.font.Font(None, 32)
     manager._cache["font_system_small"] = pygame.font.Font(None, 28)
 
-    return proxy
+    return manager
 

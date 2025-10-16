@@ -1,17 +1,16 @@
-# assets/projectiles.py
 import pygame
 import os
-from config.weapon import PROJECTILES_CONFIG
+from config.weapon import WEAPON_CONFIG
 
 
 def load_projectile_assets():
     """
-    Lädt Bilder und Sounds basierend auf PROJECTILES_CONFIG.
+    Lädt Bilder und Sounds basierend auf WEAPON_CONFIG.
     Gibt ein Dict zurück, das direkt von den Projectile-Klassen benutzt werden kann.
     """
     assets = {}
 
-    for key, cfg in PROJECTILES_CONFIG.items():
+    for key, cfg in WEAPON_CONFIG.items():
         # Bild laden
         if "img" in cfg and cfg["img"]:
             if os.path.exists(cfg["img"]):

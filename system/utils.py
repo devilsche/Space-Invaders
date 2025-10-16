@@ -5,20 +5,14 @@ from config.settings import REFERENCE_WIDTH, REFERENCE_HEIGHT
 
 HIGHSCORE_FILE = "data/highscore.json"
 
-# Lazy import für Firebase (nur wenn verfügbar)
-_online_manager = None
-
+# Firebase-Manager wird jetzt zentral verwaltet
 def get_online_manager():
-    """Lazy-load Firebase Manager"""
-    global _online_manager
-    if _online_manager is None:
-        try:
-            from system.online_highscore import get_online_manager
-            _online_manager = get_online_manager()
-        except Exception as e:
-            print(f"⚠ Firebase not available: {e}")
-            _online_manager = False  # Mark as unavailable
-    return _online_manager if _online_manager is not False else None
+    """
+    Holt den Firebase-Manager aus der zentralen Verwaltung.
+    Keine Lazy-Loading mehr - Verfügbarkeit wurde beim Start geprüft.
+    """
+    from system.firebase_manager import get_firebase_manager
+    return get_firebase_manager()
 
 # Dynamische Bildschirmgrößen-Tracking (zur Laufzeit änderbar)
 _current_width = None
@@ -35,7 +29,7 @@ def update_screen_size(width, height):
 def get_current_scale_factors():
     """Berechnet aktuelle Skalierungsfaktoren basierend auf Bildschirmgröße"""
     global _current_width, _current_height
-    
+
     # Verwende Runtime-Größe falls verfügbar, sonst Pygame-Surface
     if _current_width is not None and _current_height is not None:
         current_width, current_height = _current_width, _current_height
@@ -47,11 +41,11 @@ def get_current_scale_factors():
 
     scale_x = current_width / REFERENCE_WIDTH
     scale_y = current_height / REFERENCE_HEIGHT
-    
+
     # Verwende einen aggressiveren Skalierungsfaktor um schwarze Ränder zu vermeiden
     # Verwende den Durchschnitt statt minimum für bessere Ausnutzung
     scale_factor = (scale_x + scale_y) / 2.0
-    
+
     # Mindest-Skalierung für bessere Lesbarkeit
     scale_factor = max(scale_factor, 1.2)
 
@@ -83,35 +77,37 @@ def scale_size(width, height):
 def load_highscore():
     """
     Lädt den höchsten Normal Mode Highscore.
-    
+
     Priorität:
     1. Online von Firebase (wenn verbunden)
     2. Lokale Datei (neues Format - Liste von Scores)
     3. Lokale Datei (altes Format - {"highscore": 0})
-    
+
     Returns:
         int: Der höchste Score
     """
     best_score = 0
-    
-    # 1. Versuche Online-Daten zu holen (schnellste Quelle für aktuellste Daten)
-    try:
-        manager = get_online_manager()
-        if manager and manager.is_connected():
-            online_scores = manager.get_top_scores(stage=0, limit=1)
-            if online_scores and len(online_scores) > 0:
-                best_score = online_scores[0].get('score', 0)
-                print(f"✓ Loaded highscore from Firebase: {best_score}")
-                return best_score
-    except Exception as e:
-        print(f"⚠ Could not load highscore from Firebase: {e}")
-    
+
+    # 1. Versuche Online-Daten zu holen (nur wenn Firebase verfügbar)
+    from system.firebase_manager import is_firebase_available
+    if is_firebase_available():
+        try:
+            manager = get_online_manager()
+            if manager:
+                online_scores = manager.get_top_scores(stage=0, limit=1)
+                if online_scores and len(online_scores) > 0:
+                    best_score = online_scores[0].get('score', 0)
+                    print(f"✓ Loaded highscore from Firebase: {best_score}")
+                    return best_score
+        except Exception as e:
+            print(f"⚠ Could not load highscore from Firebase: {e}")
+
     # 2. Fallback: Lokale Datei laden
     if os.path.exists(HIGHSCORE_FILE):
         try:
             with open(HIGHSCORE_FILE, "r") as f:
                 data = json.load(f)
-                
+
                 # Neues Format: Liste von Scores
                 if isinstance(data, list) and len(data) > 0:
                     # Sortiere nach Score (primär) und Kills (sekundär)
@@ -119,23 +115,23 @@ def load_highscore():
                     best_score = sorted_scores[0].get("score", 0)
                     print(f"✓ Loaded highscore from local file (new format): {best_score}")
                     return best_score
-                
+
                 # Altes Format: {"highscore": 12345}
                 elif isinstance(data, dict):
                     best_score = data.get("highscore", 0)
                     print(f"✓ Loaded highscore from local file (old format): {best_score}")
                     return best_score
-                    
+
         except Exception as e:
             print(f"⚠ Error loading local highscore: {e}")
-    
+
     print(f"✓ No highscore found, starting with: {best_score}")
     return best_score
 
 def load_normal_top10():
     """
     Lädt die Top 10 Normal Mode Highscores.
-    
+
     Returns:
         list: Top 10 Scores sortiert nach Score (primär) und Kills (sekundär)
     """
@@ -144,6 +140,7 @@ def load_normal_top10():
             with open(HIGHSCORE_FILE, "r") as f:
                 data = json.load(f)
                 if isinstance(data, list):
+                    # Neues Format: Liste von Einträgen
                     # Stelle sicher, dass alle Felder vorhanden sind
                     for entry in data:
                         if "kills" not in entry:
@@ -152,71 +149,25 @@ def load_normal_top10():
                             entry["level"] = 1
                     return data[:10]  # Top 10
                 else:
-                    # Altes Format
+                    # Altes/Unbekanntes Format - ignorieren
+                    print(f"[WARNING] Ignoring old/invalid highscore format in {HIGHSCORE_FILE}")
                     return []
         except Exception:
             return []
     return []
-
-def save_highscore(value):
-    """
-    Legacy-Funktion: Aktualisiert den Highscore in der Liste falls höher.
-    Wird beim Beenden des Spiels aufgerufen.
-    WARNUNG: Überschreibt NICHT mehr die ganze Datei im neuen Format!
-    """
-    # Neues Format: Liste von Scores - nur aktualisieren wenn nötig
-    if not os.path.exists(HIGHSCORE_FILE):
-        return  # Keine Datei vorhanden, nichts zu tun
-    
-    try:
-        with open(HIGHSCORE_FILE, "r") as f:
-            data = json.load(f)
-            
-        # Wenn alte Format: {"highscore": 12345} -> konvertiere zu neuem Format
-        if isinstance(data, dict) and "highscore" in data:
-            old_score = data.get("highscore", 0)
-            if old_score > 0:
-                all_scores = [{"score": old_score, "name": "Player", "kills": 0, "level": 1}]
-            else:
-                all_scores = []
-        elif isinstance(data, list):
-            # Neues Format: Bereits eine Liste von Scores
-            all_scores = data
-        else:
-            all_scores = []
-        
-        # Prüfe ob der neue Highscore höher ist als der beste Score
-        if all_scores:
-            best_score = max(s.get("score", 0) for s in all_scores)
-            if value <= best_score:
-                return  # Kein Update nötig
-        
-        # Füge neuen Highscore hinzu (ohne Name, da Legacy)
-        all_scores.append({"score": value, "name": "Player", "kills": 0, "level": 1})
-        
-        # Sortiere und behalte Top 10
-        top_10 = sorted(all_scores, key=lambda x: (x.get("score", 0), x.get("kills", 0)), reverse=True)[:10]
-        
-        # Speichere im neuen Format
-        with open(HIGHSCORE_FILE, "w") as f:
-            json.dump(top_10, f, indent=2)
-            
-    except Exception as e:
-        print(f"⚠ save_highscore failed: {e}")
-        pass
 
 
 def save_normal_score(score, player_name, kills=0, level=1):
     """
     Speichert einen Normal Mode Score mit Name, Kills und Level.
     Speichert sowohl lokal als auch online (wenn verfügbar).
-    
+
     Args:
         score: Der erreichte Score
         player_name: Name des Spielers
         kills: Anzahl der Kills
         level: Erreichtes Level
-        
+
     Returns:
         tuple: (local_top_10, online_saved_successfully)
     """
@@ -243,48 +194,50 @@ def save_normal_score(score, player_name, kills=0, level=1):
             all_scores = []
     else:
         all_scores = []
-    
+
     # Füge neuen Score hinzu
     new_score = {
         "score": score,
-        "name": player_name,
+        "name" : player_name,
         "kills": kills,
         "level": level
     }
     all_scores.append(new_score)
-    
+
     # Behalte Top 10 - Sortiere nach Score (primär), dann nach Kills (sekundär)
     top_10 = sorted(all_scores, key=lambda x: (x["score"], x.get("kills", 0)), reverse=True)[:10]
-    
+
     print(f"[save_normal_score] Saving to {HIGHSCORE_FILE}: {player_name} - {score} points, {kills} kills, level {level}")
     print(f"[save_normal_score] Top 10 list has {len(top_10)} entries")
-    
+
     try:
         with open(HIGHSCORE_FILE, "w") as f:
             json.dump(top_10, f, indent=2)
         print(f"✓ Saved {len(top_10)} scores locally to {HIGHSCORE_FILE}")
     except Exception as e:
         print(f"✗ Failed to save locally: {e}")
-    
-    # 2. ONLINE SPEICHERN (wenn verfügbar)
+
+    # 2. ONLINE SPEICHERN (nur wenn Firebase verfügbar)
     online_success = False
-    manager = get_online_manager()
-    if manager and manager.is_connected():
-        try:
-            # Firebase save_highscore nimmt andere Parameter - wir nutzen die gleiche Funktion
-            # aber mit stage=0 für Normal Mode
-            online_success = manager.save_highscore(
-                name=player_name,
-                time=score,  # Score als "time" speichern
-                kills=kills,  # Kills mit speichern
-                stage=0,     # stage=0 = Normal Mode
-                level=level  # Level mit speichern
-            )
-            if online_success:
-                print(f"✓ Highscore saved online: {player_name} - {score} points, {kills} kills, level {level}")
-        except Exception as e:
-            print(f"⚠ Failed to save online: {e}")
-    
+    from system.firebase_manager import is_firebase_available
+    if is_firebase_available():
+        manager = get_online_manager()
+        if manager:
+            try:
+                # Firebase save_highscore nimmt andere Parameter - wir nutzen die gleiche Funktion
+                # aber mit stage=0 für Normal Mode
+                online_success = manager.save_highscore(
+                    name=player_name,
+                    time=score,  # Score als "time" speichern
+                    kills=kills,  # Kills mit speichern
+                    stage=0,     # stage=0 = Normal Mode
+                    level=level  # Level mit speichern
+                )
+                if online_success:
+                    print(f"✓ Highscore saved online: {player_name} - {score} points, {kills} kills, level {level}")
+            except Exception as e:
+                print(f"⚠ Failed to save online: {e}")
+
     return top_10, online_success
 
 SURVIVOR_HIGHSCORE_FILE = "data/survivor_highscores.json"
@@ -306,7 +259,7 @@ def save_survivor_score(time_seconds, kills, player_name, stage=1):
     """
     Speichert eine neue Survivor Zeit mit Name, Kills und Stage.
     Speichert sowohl lokal als auch online (wenn verfügbar).
-    
+
     Returns:
         tuple: (local_top_10, online_saved_successfully)
     """
@@ -319,7 +272,7 @@ def save_survivor_score(time_seconds, kills, player_name, stage=1):
             all_scores = []
     else:
         all_scores = []
-    
+
     # Füge neuen Score hinzu
     new_score = {
         "time": time_seconds,
@@ -328,7 +281,7 @@ def save_survivor_score(time_seconds, kills, player_name, stage=1):
         "stage": stage
     }
     all_scores.append(new_score)
-    
+
     # Behalte Top 10 pro Stage (insgesamt max 40 Einträge)
     stage_scores = {}
     for score in all_scores:
@@ -336,39 +289,41 @@ def save_survivor_score(time_seconds, kills, player_name, stage=1):
         if s not in stage_scores:
             stage_scores[s] = []
         stage_scores[s].append(score)
-    
+
     # Sortiere jede Stage und behalte Top 10
     final_scores = []
     for stage_num, scores in stage_scores.items():
         top_10 = sorted(scores, key=lambda x: x["time"], reverse=True)[:10]
         final_scores.extend(top_10)
-    
+
     try:
         with open(SURVIVOR_HIGHSCORE_FILE, "w") as f:
             json.dump(final_scores, f, indent=2)
     except Exception:
         pass
-    
-    # 2. ONLINE SPEICHERN (wenn verfügbar)
+
+    # 2. ONLINE SPEICHERN (nur wenn Firebase verfügbar)
     online_success = False
-    manager = get_online_manager()
-    if manager and manager.is_connected():
-        try:
-            online_success = manager.save_highscore(
-                name=player_name,
-                time=time_seconds,
-                kills=kills,
-                stage=stage
-            )
-            if online_success:
-                print(f"✓ Highscore saved online: {player_name} - {time_seconds:.2f}s")
-        except Exception as e:
-            print(f"⚠ Failed to save online: {e}")
-    
+    from system.firebase_manager import is_firebase_available
+    if is_firebase_available():
+        manager = get_online_manager()
+        if manager:
+            try:
+                online_success = manager.save_highscore(
+                    name=player_name,
+                    time=time_seconds,
+                    kills=kills,
+                    stage=stage
+                )
+                if online_success:
+                    print(f"✓ Highscore saved online: {player_name} - {time_seconds:.2f}s")
+            except Exception as e:
+                print(f"⚠ Failed to save online: {e}")
+
     # Gib die Top 10 für die aktuelle Stage zurück
-    local_top_10 = sorted([s for s in final_scores if s.get("stage", 1) == stage], 
+    local_top_10 = sorted([s for s in final_scores if s.get("stage", 1) == stage],
                           key=lambda x: x["time"], reverse=True)[:10]
-    
+
     return local_top_10, online_success
 
 
@@ -376,33 +331,34 @@ def get_global_highscores(stage=None, limit=10):
     """
     Lädt globale Highscores von Firebase.
     Fallback zu lokalen Scores wenn offline.
-    
+
     Args:
         stage: Filter by stage (None = all stages)
         limit: Maximum number of scores
-        
+
     Returns:
         tuple: (scores_list, is_online)
     """
-    manager = get_online_manager()
-    
-    # Versuche online zu laden
-    if manager and manager.is_connected():
-        try:
-            scores = manager.get_top_scores(stage=stage, limit=limit)
-            if scores:
-                return scores, True
-        except Exception as e:
-            print(f"⚠ Failed to load online scores: {e}")
-    
+    # Versuche online zu laden (nur wenn Firebase verfügbar)
+    from system.firebase_manager import is_firebase_available
+    if is_firebase_available():
+        manager = get_online_manager()
+        if manager:
+            try:
+                scores = manager.get_top_scores(stage=stage, limit=limit)
+                if scores:
+                    return scores, True
+            except Exception as e:
+                print(f"⚠ Failed to load online scores: {e}")
+
     # Fallback zu lokalen Scores
     local_scores = load_survivor_highscores()
-    
+
     # Filter by stage if specified
     if stage is not None:
         local_scores = [s for s in local_scores if s.get("stage", 1) == stage]
-    
+
     # Sort and limit
     local_scores = sorted(local_scores, key=lambda x: x["time"], reverse=True)[:limit]
-    
+
     return local_scores, False

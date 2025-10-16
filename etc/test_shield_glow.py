@@ -16,7 +16,7 @@ SCALE = 2.0
 # Fenster erstellen
 WIDTH, HEIGHT = int(800 * SCALE), int(600 * SCALE)
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("ShieldGlow Sprite Test")
+pygame.display.set_caption("Feature Test: Animation")
 clock = pygame.time.Clock()
 
 # Farben

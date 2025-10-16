@@ -6,10 +6,9 @@ Handles global highscore synchronization across multiple game instances.
 import firebase_admin
 from firebase_admin import credentials, firestore
 import os
-from typing import List, Dict, Optional
 
 
-class OnlineHighscoreManager:
+class HighscoreManager:
     """
     Manages online highscores using Firebase Firestore.
 
@@ -107,9 +106,9 @@ class OnlineHighscoreManager:
 
     def get_top_scores(
         self,
-        stage: Optional[int] = None,
+        stage: int = None,
         limit: int = 10
-    ) -> List[Dict]:
+    ) -> dict:
         """
         Get top highscores from Firebase.
 
@@ -136,7 +135,7 @@ class OnlineHighscoreManager:
 
                 # Filter by stage if specified
                 if stage is not None:
-                    query = query.where('stage', '==', stage)
+                    query = query.where(filter=firestore.FieldFilter('stage', '==', stage))
 
                 # Sort by time (descending) and limit
                 query = query.order_by('time', direction=firestore.Query.DESCENDING)
@@ -148,9 +147,18 @@ class OnlineHighscoreManager:
 
             for doc in docs:
                 data = doc.to_dict()
-                # Remove timestamp (not needed for display)
-                if 'timestamp' in data:
-                    del data['timestamp']
+
+                # Convert timestamp to readable format if present
+                if 'timestamp' in data and data['timestamp'] is not None:
+                    try:
+                        # Convert Firestore timestamp to US format
+                        dt = data['timestamp']
+                        # US format: "10/16/2025 2:30 PM"
+                        data['timestamp'] = dt.strftime('%m/%d/%Y %I:%M %p')
+                    except AttributeError:
+                        # If timestamp is already a string or other format, keep as is
+                        pass
+
                 scores.append(data)
 
             return scores
@@ -163,7 +171,7 @@ class OnlineHighscoreManager:
         self,
         name: str,
         stage: int
-    ) -> Optional[int]:
+    ) -> int:
         """
         Get player's rank for a specific stage.
 
@@ -187,7 +195,7 @@ class OnlineHighscoreManager:
             else:
                 # Survivor Mode: sort by time
                 docs = self.db.collection('survivor_highscores')\
-                    .where('stage', '==', stage)\
+                    .where(filter=firestore.FieldFilter('stage', '==', stage))\
                     .order_by('time', direction=firestore.Query.DESCENDING)\
                     .stream()
 
@@ -203,7 +211,7 @@ class OnlineHighscoreManager:
             print(f"⚠ Failed to get player rank: {e}")
             return None
 
-    def get_total_players(self, stage: Optional[int] = None) -> int:
+    def get_total_players(self, stage: int = None) -> int:
         """
         Get total number of players in leaderboard.
 
@@ -226,7 +234,7 @@ class OnlineHighscoreManager:
                 query = self.db.collection('survivor_highscores')
 
                 if stage is not None:
-                    query = query.where('stage', '==', stage)
+                    query = query.where(filter=firestore.FieldFilter('stage', '==', stage))
 
             # Count documents
             docs = list(query.stream())
@@ -240,14 +248,14 @@ class OnlineHighscoreManager:
 # Global instance (initialized on first import)
 _manager = None
 
-def get_online_manager() -> OnlineHighscoreManager:
+def get_online_manager() -> HighscoreManager:
     """
-    Get or create the global OnlineHighscoreManager instance.
+    Get or create the global HighscoreManager instance.
 
     Returns:
-        OnlineHighscoreManager instance
+        HighscoreManager instance
     """
     global _manager
     if _manager is None:
-        _manager = OnlineHighscoreManager()
+        _manager = HighscoreManager()
     return _manager

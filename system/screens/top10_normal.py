@@ -41,14 +41,7 @@ class NormalTop10Screen:
         cw, ch = screen.get_size()
         ui_scale = max(cw / 1920, ch / 1080) * 1.2
 
-        # Fonts - verwende gecachte Fonts aus assets
-        if self.assets:
-            rank_font = self.assets.get('font_mono_normal', pygame.font.Font(None, 32))
-        else:
-            try:
-                rank_font = pygame.font.Font("assets/fonts/monofonto rg.otf", 32)
-            except:
-                rank_font = pygame.font.Font(None, 32)
+        rank_font = self.assets.get('font_mono_normal', pygame.font.Font(None, 32))
 
         # Titel mit GameMenu
         menu_ref.draw_title(screen, "TOP 10 HIGHSCORES", color=(255, 215, 0))

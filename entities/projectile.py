@@ -1,6 +1,6 @@
 import math, pygame
 from config import WIDTH, HEIGHT, MASTER_VOLUME, MUSIC_VOLUME, SFX_VOLUME
-from config.weapon import PROJECTILES_CONFIG
+from config.weapon import WEAPON_CONFIG
 from entities.explosion import Explosion
 
 def _expl_frames(game, key):
@@ -19,10 +19,10 @@ def _apply_aoe(
 ) -> int:
     """
     Wendet Area-of-Effect Schaden an und erstellt IMMER Explosionen für JEDEN getroffenen Gegner.
-    
+
     Args:
         explosion_category: "hit" für Impact-Explosionen, "destroy" für Kill-Explosionen
-    
+
     Returns:
         Anzahl der getroffenen Gegner
     """
@@ -33,39 +33,39 @@ def _apply_aoe(
     for en in game.enemies[:]:  # [:] erstellt Kopie der Liste
         ex, ey = en.rect.center
         dist   = math.hypot(ex - cx, ey - cy)
-        
+
         if dist <= radius:
             dmg = int(max_damage * (1 - dist / radius))
-            
+
             if dmg > 0:
                 enemies_hit += 1
                 is_dead = en.take_damage(dmg)
-                
+
                 if is_dead:
                     # Gegner ist tot - Score, PowerUp, Explosion
                     game.score     = game.score + en.points
                     game.highscore = max(game.highscore, game.score)
-                    
+
                     if hasattr(game, '_total_kills'):
                         game._total_kills += 1
-                    
+
                     # Tracke Kills je nach Mode
                     if hasattr(game, 'game_mode'):
                         if game.game_mode == "survivor":
                             game.survivor_kills += 1
                         else:
                             game.kills += 1  # Normal Mode
-                    
+
                     # Weapon-Statistik: Kill registrieren
                     if weapon_type:
                         game.explosion_manager.register_enemy_death(weapon_type)
-                    
+
                     # Kill-Counter anzeigen
                     if hasattr(game, '_show_kill_counter'):
                         game._show_kill_counter()
-                    
+
                     game._try_drop_powerup(ex, ey)
-                    
+
                     # EXPLOSION GARANTIERT!
                     game.explosion_manager.add_explosion(
                         x                  = ex,
@@ -76,7 +76,7 @@ def _apply_aoe(
                         weapon_type        = weapon_type,
                         explosion_category = explosion_category
                     )
-                    
+
                     # Gegner aus Liste entfernen
                     if en in game.enemies:
                         game.enemies.remove(en)
@@ -86,39 +86,39 @@ def _apply_aoe(
         for en in game.fly_in_enemies[:]:  # [:] erstellt Kopie
             ex, ey = en.rect.center
             dist   = math.hypot(ex - cx, ey - cy)
-            
+
             if dist <= radius:
                 dmg = int(max_damage * (1 - dist / radius))
-                
+
                 if dmg > 0:
                     enemies_hit += 1
                     is_dead = en.take_damage(dmg)
-                    
+
                     if is_dead:
                         # Gegner ist tot
                         game.score     = game.score + en.points
                         game.highscore = max(game.highscore, game.score)
-                        
+
                         if hasattr(game, '_total_kills'):
                             game._total_kills += 1
-                        
+
                         # Tracke Kills je nach Mode
                         if hasattr(game, 'game_mode'):
                             if game.game_mode == "survivor":
                                 game.survivor_kills += 1
                             else:
                                 game.kills += 1  # Normal Mode
-                        
+
                         # Weapon-Statistik: Kill registrieren
                         if weapon_type:
                             game.explosion_manager.register_enemy_death(weapon_type)
-                        
+
                         # Kill-Counter anzeigen
                         if hasattr(game, '_show_kill_counter'):
                             game._show_kill_counter()
-                        
+
                         game._try_drop_powerup(ex, ey)
-                        
+
                         # EXPLOSION GARANTIERT!
                         game.explosion_manager.add_explosion(
                             x                  = ex,
@@ -129,11 +129,11 @@ def _apply_aoe(
                             weapon_type        = weapon_type,
                             explosion_category = explosion_category
                         )
-                        
+
                         # Aus Liste entfernen
                         if en in game.fly_in_enemies:
                             game.fly_in_enemies.remove(en)
-                            
+
                             if hasattr(game, '_fly_in_spawn_count'):
                                 game._fly_in_spawn_count = max(0, game._fly_in_spawn_count - 1)
 
@@ -141,39 +141,39 @@ def _apply_aoe(
     if getattr(game, "boss", None):
         bx, by = game.boss.rect.center
         dist   = math.hypot(bx - cx, by - cy)
-        
+
         if dist <= radius:
             dmg = int(max_damage * (1 - dist / radius))
-            
+
             if dmg > 0:
                 enemies_hit += 1
                 is_dead = game.boss.take_damage(dmg)
-                
+
                 if is_dead:
                     # Boss ist tot
                     game.score     = game.score + getattr(game.boss, "points", 600)
                     game.highscore = max(game.highscore, game.score)
-                    
+
                     if hasattr(game, '_total_kills'):
                         game._total_kills += 1
-                    
+
                     # Tracke Kills je nach Mode
                     if hasattr(game, 'game_mode'):
                         if game.game_mode == "survivor":
                             game.survivor_kills += 1
                         else:
                             game.kills += 1  # Normal Mode
-                    
+
                     # Weapon-Statistik: Kill registrieren
                     if weapon_type:
                         game.explosion_manager.register_enemy_death(weapon_type)
-                    
+
                     # Kill-Counter anzeigen
                     if hasattr(game, '_show_kill_counter'):
                         game._show_kill_counter()
-                    
+
                     game._try_drop_powerup(bx, by)
-                    
+
                     # EXPLOSION GARANTIERT (größer für Boss)!
                     game.explosion_manager.add_explosion(
                         x                  = bx,
@@ -184,7 +184,7 @@ def _apply_aoe(
                         weapon_type        = weapon_type,
                         explosion_category = explosion_category
                     )
-                    
+
                     game.boss = None
 
     return enemies_hit
@@ -214,11 +214,11 @@ class Projectile:
             self._speed *= self.accel
             self.vx = self._dir[0] * self._speed
             self.vy = self._dir[1] * self._speed
-            
+
         # Da wir fixen Timestep haben (z.B. 1/120), müssen wir nicht mehr mit dt multiplizieren
         self.rect.x += int(self.vx)
         self.rect.y += int(self.vy)
-    
+
     def update(self):
         """Legacy update - sollte nicht mehr für Bewegung verwendet werden"""
         pass
@@ -245,7 +245,7 @@ class Laser(Projectile):
     kind = "laser"
     @classmethod
     def create(cls, x, y, assets, owner="player", angle_deg=0):
-        cfg    = PROJECTILES_CONFIG["laser"]
+        cfg    = WEAPON_CONFIG["laser"]
         speed  = cfg.get("enemy_speed", cfg["speed"]) if owner=="enemy" else cfg["speed"]
         accel  = cfg.get("enemy_accel", cfg.get("accel",1.0)) if owner=="enemy" else cfg.get("accel",1.0)
         base   = -1 if owner=="player" else +1
@@ -254,13 +254,13 @@ class Laser(Projectile):
         vy     =  base  * speed * math.cos(rad)
         # Unterschiedliche Bilder für Player und Enemy
         if owner == "enemy":
-            img = assets["laser_yellow_img"]  # Gelbe Version für Enemies
+            img = assets.get("laser_yellow_img")  # Gelbe Version für Enemies
         else:
-            img = assets["laser_img"]         # Normale Version für Player
+            img = assets.get("laser_img")         # Normale Version für Player
 
         if owner=="player" and assets.get("laser_sound_start"):
-            assets["laser_sound_start"].set_volume(MASTER_VOLUME * SFX_VOLUME)
-            assets["laser_sound_start"].play()
+            assets.get("laser_sound_start").set_volume(MASTER_VOLUME * SFX_VOLUME)
+            assets.get("laser_sound_start").play()
         return cls(x, y, vx, vy, img, cfg["dmg"], owner, radius=0, kind="laser", accel=accel)
 
     def on_hit(self, game, hit_pos):
@@ -270,18 +270,18 @@ class Laser(Projectile):
         """
         # Hit-Sound abspielen
         if self.owner == "player" and game.assets.get("laser_sound_hit"):
-            game.assets["laser_sound_hit"].set_volume(MASTER_VOLUME * SFX_VOLUME)
-            game.assets["laser_sound_hit"].play()
-        
+            game.assets.get("laser_sound_hit").set_volume(MASTER_VOLUME * SFX_VOLUME)
+            game.assets.get("laser_sound_hit").play()
+
         frames, fps = _expl_frames(game, "expl_laser")
-        
+
         # Nur erste 4 Frames für HIT-Explosion
         frames = frames[:4]
-        
+
         # Nur Player-Projektile zählen für Statistiken
         weapon_type = "Laser" if self.owner == "player" else None
         explosion_cat = "hit" if self.owner == "player" else None
-        
+
         game.explosion_manager.add_explosion(
             x                  = hit_pos[0],
             y                  = hit_pos[1],
@@ -296,7 +296,7 @@ class DoubleLaser(Projectile):
     kind = "double_laser"
     @classmethod
     def create(cls, x, y, assets, owner="player", angle_deg=0):
-        cfg    = PROJECTILES_CONFIG["laser"]  # Verwende normale Laser-Konfiguration
+        cfg    = WEAPON_CONFIG["laser"]  # Verwende normale Laser-Konfiguration
         speed  = cfg.get("enemy_speed", cfg["speed"]) if owner=="enemy" else cfg["speed"]
         accel  = cfg.get("enemy_accel", cfg.get("accel",1.0)) if owner=="enemy" else cfg.get("accel",1.0)
         base   = -1 if owner=="player" else +1
@@ -308,8 +308,8 @@ class DoubleLaser(Projectile):
         img = assets.get("double_laser_img", assets.get("laser_img"))  # Fallback auf normalen Laser
 
         if owner=="player" and assets.get("laser_sound_start"):
-            assets["laser_sound_start"].set_volume(MASTER_VOLUME * SFX_VOLUME)
-            assets["laser_sound_start"].play()
+            assets.get("laser_sound_start").set_volume(MASTER_VOLUME * SFX_VOLUME)
+            assets.get("laser_sound_start").play()
         return cls(x, y, vx, vy, img, cfg["dmg"], owner, kind="double_laser", accel=accel)
 
     def on_hit(self, game, hit_pos):
@@ -319,18 +319,18 @@ class DoubleLaser(Projectile):
         """
         # Hit-Sound abspielen
         if self.owner == "player" and game.assets.get("laser_sound_hit"):
-            game.assets["laser_sound_hit"].set_volume(MASTER_VOLUME * SFX_VOLUME)
-            game.assets["laser_sound_hit"].play()
-        
+            game.assets.get("laser_sound_hit").set_volume(MASTER_VOLUME * SFX_VOLUME)
+            game.assets.get("laser_sound_hit").play()
+
         frames, fps = _expl_frames(game, "expl_laser")
-        
+
         # Nur erste 4 Frames für HIT-Explosion
         frames = frames[:4]
-        
+
         # Nur Player-Projektile zählen für Statistiken
         weapon_type = "DoubleLaser" if self.owner == "player" else None
         explosion_cat = "hit" if self.owner == "player" else None
-        
+
         game.explosion_manager.add_explosion(
             x                  = hit_pos[0],
             y                  = hit_pos[1],
@@ -345,17 +345,17 @@ class Rocket(Projectile):
     kind = "rocket"
     @classmethod
     def create(cls, x, y, assets, owner="player", angle_deg=0):
-        cfg    = PROJECTILES_CONFIG["rocket"]
+        cfg    = WEAPON_CONFIG["rocket"]
         speed  = cfg.get("enemy_speed", cfg["speed"]) if owner=="enemy" else cfg["speed"]
         accel  = cfg.get("enemy_accel", cfg.get("accel",1.0)) if owner=="enemy" else cfg.get("accel",1.0)
         base   = -1 if owner=="player" else +1
         rad    = math.radians(angle_deg)
         vx     =  speed * math.sin(rad)
         vy     =  base  * speed * math.cos(rad)
-        img    = assets["rocket_img"]
+        img    = assets.get("rocket_img")
         if owner=="player" and assets.get("rocket_sound_start"):
-            assets["rocket_sound_start"].set_volume(MASTER_VOLUME * SFX_VOLUME)
-            assets["rocket_sound_start"].play()
+            assets.get("rocket_sound_start").set_volume(MASTER_VOLUME * SFX_VOLUME)
+            assets.get("rocket_sound_start").play()
         return cls(x, y, vx, vy, img, cfg["dmg"], owner, radius=cfg.get("radius",0), kind="rocket", accel=accel)
 
     def draw(self, screen):
@@ -375,12 +375,12 @@ class Rocket(Projectile):
         """
         cx, cy = hit_pos
         if game.assets.get("rocket_sound_hit"):
-            game.assets["rocket_sound_hit"].set_volume(MASTER_VOLUME * SFX_VOLUME)
-            game.assets["rocket_sound_hit"].play()
-        
+            game.assets.get("rocket_sound_hit").set_volume(MASTER_VOLUME * SFX_VOLUME)
+            game.assets.get("rocket_sound_hit").play()
+
         # Nur Player-Projektile zählen für Statistiken
         weapon_type = "Rocket" if self.owner == "player" else None
-        
+
         # 1. HIT-Explosion am Einschlagspunkt (volle Frames, größer)
         frames, fps = _expl_frames(game, "expl_rocket")
         game.explosion_manager.add_explosion(
@@ -392,7 +392,7 @@ class Rocket(Projectile):
             weapon_type        = weapon_type,
             explosion_category = "hit" if weapon_type else None
         )
-        
+
         # 2. AoE Schaden mit DESTROY-Explosionen für getötete Enemies
         _apply_aoe(
             game               = game,
@@ -424,7 +424,7 @@ class Blaster(Projectile):
 
     @classmethod
     def create(cls, x, y, assets, owner="player", angle_deg=0):
-        cfg = PROJECTILES_CONFIG["blaster"]
+        cfg = WEAPON_CONFIG["blaster"]
         speed = cfg.get("enemy_speed", cfg["speed"]) if owner=="enemy" else cfg["speed"]
         accel = cfg.get("enemy_accel", cfg.get("accel",1.0)) if owner=="enemy" else cfg.get("accel",1.0)
         base = -1 if owner=="player" else +1
@@ -433,7 +433,7 @@ class Blaster(Projectile):
         vy = base * speed * math.cos(rad)
 
         # Blaster-Bild verwenden
-        img = assets["blaster_img"]
+        img = assets.get("blaster_img")
 
         return cls(x, y, vx, vy, img, cfg["dmg"], owner, radius=0, kind="blaster", accel=accel)
 
@@ -579,12 +579,12 @@ class Blaster(Projectile):
         """
         cx, cy = hit_pos
         if game.assets.get("laser_sound_destroy"):
-            game.assets["laser_sound_destroy"].set_volume(MASTER_VOLUME * SFX_VOLUME)
-            game.assets["laser_sound_destroy"].play()
-        
+            game.assets.get("laser_sound_destroy").set_volume(MASTER_VOLUME * SFX_VOLUME)
+            game.assets.get("laser_sound_destroy").play()
+
         # Nur Player-Projektile zählen für Statistiken
         weapon_type = "Blaster" if self.owner == "player" else None
-        
+
         # 1. HIT-Explosion am Einschlagspunkt (kleiner als Raketen)
         frames, fps = _expl_frames(game, "expl_rocket")
         game.explosion_manager.add_explosion(
@@ -596,7 +596,7 @@ class Blaster(Projectile):
             weapon_type        = weapon_type,
             explosion_category = "hit" if weapon_type else None
         )
-        
+
         # 2. AoE Schaden mit DESTROY-Explosionen für getötete Enemies (kleiner Radius)
         _apply_aoe(
             game               = game,
@@ -625,17 +625,17 @@ class HomingRocket(Projectile):
 
     @classmethod
     def create(cls, x, y, assets, owner="player", angle_deg=0):
-        cfg    = PROJECTILES_CONFIG.get("homing_rocket", PROJECTILES_CONFIG["rocket"])
+        cfg    = WEAPON_CONFIG.get("homing_rocket", WEAPON_CONFIG["rocket"])
         speed  = cfg.get("enemy_speed", cfg["speed"]) if owner=="enemy" else cfg["speed"]
         accel  = cfg.get("enemy_accel", cfg.get("accel",1.0)) if owner=="enemy" else cfg.get("accel",1.0)
         base   = -1 if owner=="player" else +1
         rad    = math.radians(angle_deg)
         vx     =  speed * math.sin(rad)
         vy     =  base  * speed * math.cos(rad)
-        img    = assets["homing_rocket_img"]  # Verwendet das spezielle HomingRocket-Bild
+        img    = assets.get("homing_rocket_img")  # Verwendet das spezielle HomingRocket-Bild
         if owner=="player" and assets.get("rocket_sound_start"):
-            assets["rocket_sound_start"].set_volume(MASTER_VOLUME * SFX_VOLUME)
-            assets["rocket_sound_start"].play()
+            assets.get("rocket_sound_start").set_volume(MASTER_VOLUME * SFX_VOLUME)
+            assets.get("rocket_sound_start").play()
         return cls(x, y, vx, vy, img, cfg["dmg"], owner, radius=cfg.get("radius",0), kind="homing_rocket", accel=accel)
 
     def _find_nearest_target(self, game, exclude_current=False):
@@ -793,12 +793,12 @@ class HomingRocket(Projectile):
         """
         cx, cy = hit_pos
         if game.assets.get("rocket_sound_hit"):
-            game.assets["rocket_sound_hit"].set_volume(MASTER_VOLUME * SFX_VOLUME)
-            game.assets["rocket_sound_hit"].play()
-        
+            game.assets.get("rocket_sound_hit").set_volume(MASTER_VOLUME * SFX_VOLUME)
+            game.assets.get("rocket_sound_hit").play()
+
         # Nur Player-Projektile zählen für Statistiken
         weapon_type = "HomingRocket" if self.owner == "player" else None
-        
+
         # 1. HIT-Explosion am Einschlagspunkt (volle Frames, größer als normale Rakete)
         frames, fps = _expl_frames(game, "expl_rocket")
         game.explosion_manager.add_explosion(
@@ -810,7 +810,7 @@ class HomingRocket(Projectile):
             weapon_type        = weapon_type,
             explosion_category = "hit" if weapon_type else None
         )
-        
+
         # 2. AoE Schaden mit DESTROY-Explosionen für getötete Enemies (größerer Radius)
         _apply_aoe(
             game               = game,
@@ -828,17 +828,17 @@ class Nuke(Projectile):
     kind = "nuke"
     @classmethod
     def create(cls, x, y, assets, owner="player", angle_deg=0):
-        cfg    = PROJECTILES_CONFIG["nuke"]
+        cfg    = WEAPON_CONFIG["nuke"]
         speed  = cfg.get("enemy_speed", cfg["speed"]) if owner=="enemy" else cfg["speed"]
         accel  = cfg.get("enemy_accel", cfg.get("accel",1.0)) if owner=="enemy" else cfg.get("accel",1.0)
         base   = -1 if owner=="player" else +1
         rad    = math.radians(angle_deg)
         vx     =  speed * math.sin(rad)
         vy     =  base  * speed * math.cos(rad)
-        img    = assets["nuke_img"]
+        img    = assets.get("nuke_img")
         if owner=="player" and assets.get("nuke_sound_start"):
-            assets["nuke_sound_start"].set_volume(MASTER_VOLUME * SFX_VOLUME)
-            assets["nuke_sound_start"].play()
+            assets.get("nuke_sound_start").set_volume(MASTER_VOLUME * SFX_VOLUME)
+            assets.get("nuke_sound_start").play()
         return cls(x, y, vx, vy, img, cfg["dmg"], owner, radius=cfg.get("radius",0), kind="nuke", accel=accel)
 
     def on_hit(self, game, hit_pos):
@@ -848,18 +848,18 @@ class Nuke(Projectile):
         """
         cx, cy = hit_pos
         print(f"NUKE HIT at {cx},{cy}!")  # Debug
-        
+
         if game.assets.get("nuke_sound_hit"):
-            game.assets["nuke_sound_hit"].set_volume(MASTER_VOLUME * SFX_VOLUME)
-            game.assets["nuke_sound_hit"].play()
-        
+            game.assets.get("nuke_sound_hit").set_volume(MASTER_VOLUME * SFX_VOLUME)
+            game.assets.get("nuke_sound_hit").play()
+
         # Nur Player-Projektile zählen für Statistiken
         weapon_type = "Nuke" if self.owner == "player" else None
-        
+
         # 1. HIT-Explosion am Einschlagspunkt (zentrale Mega-Explosion)
         frames, fps = _expl_frames(game, "expl_nuke")
         print(f"NUKE: Got frames={len(frames) if frames else 0}, fps={fps}")  # Debug
-        
+
         game.explosion_manager.add_explosion(
             x                  = cx,
             y                  = cy,
@@ -870,7 +870,7 @@ class Nuke(Projectile):
             explosion_category = "hit" if weapon_type else None
         )
         print(f"NUKE: Added HIT explosion!")  # Debug
-        
+
         # 2. AoE Schaden - erstellt DESTROY-Explosionen für jeden Kill
         enemies_killed = _apply_aoe(
             game               = game,
@@ -883,22 +883,22 @@ class Nuke(Projectile):
             weapon_type        = weapon_type,
             explosion_category = "destroy" if weapon_type else None
         )
-        
+
         print(f"NUKE: Killed {enemies_killed} enemies!")  # Debug
-        
+
         # 3. Bei ≥10 Kills: Zusätzliche große gruppierte Explosionen für spektakulären Effekt
         if enemies_killed >= 10 and weapon_type:  # Nur für Player-Nukes
             num_groups = enemies_killed // 10
-            
+
             print(f"NUKE: Creating {num_groups} additional large explosions")
-            
+
             # Große gruppierte Explosionen (zusätzlich zu den individuellen)
             for i in range(num_groups):
                 # Leicht versetzt vom Zentrum im Ring
                 offset_angle = i * (2 * math.pi / num_groups) if num_groups > 1 else 0
                 offset_x = 40 * math.cos(offset_angle) if num_groups > 1 else 0
                 offset_y = 40 * math.sin(offset_angle) if num_groups > 1 else 0
-                
+
                 game.explosion_manager.add_explosion(
                     x                  = cx + offset_x,
                     y                  = cy + offset_y,
@@ -908,9 +908,9 @@ class Nuke(Projectile):
                     weapon_type        = weapon_type,
                     explosion_category = "destroy"  # Zählt auch als DESTROY
                 )
-        
+
         print(f"NUKE: Complete!")  # Debug
-        
+
         # Maximale visuelle Effekte
         now = pygame.time.get_ticks()
         game.flash_until     = now + 400   # Längerer Flash

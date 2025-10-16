@@ -106,14 +106,14 @@ class ShipSelectScreen:
                 elif event.key == pygame.K_LEFT:
                     # Play menu switch sound
                     if assets and assets.get("menu_switch_sound"):
-                        assets["menu_switch_sound"].play()
+                        assets.get("menu_switch_sound").play()
                     self.selected_stage -= 1
                     if self.selected_stage < 1:
                         self.selected_stage = 4
                 elif event.key == pygame.K_RIGHT:
                     # Play menu switch sound
                     if assets and assets.get("menu_switch_sound"):
-                        assets["menu_switch_sound"].play()
+                        assets.get("menu_switch_sound").play()
                     self.selected_stage += 1
                     if self.selected_stage > 4:
                         self.selected_stage = 1

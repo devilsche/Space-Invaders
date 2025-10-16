@@ -3,7 +3,7 @@ Script to delete all highscores from Firebase.
 Run this to reset the online leaderboard.
 """
 
-from system.online_highscore import get_online_manager
+from manager.highscore_manager import get_online_manager
 
 def delete_all_highscores():
     """Delete all online highscores from Firebase"""

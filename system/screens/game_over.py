@@ -42,25 +42,11 @@ class GameOverScreen:
 
         screen.blit(overlay, (0, 0))
 
-        cw, ch = screen.get_size()
-        ui_scale = max(cw / 1920, ch / 1080) * 1.2
-
-        # Fonts - verwende gecachte Fonts aus assets direkt (OHNE neu zu laden!)
-        # Hinweis: UI-Scaling wird durch Render-Skalierung gehandhabt, nicht durch Font-Größe
-        if self.assets:
-            stats_font = self.assets.get('font_mono_medium', pygame.font.Font(None, 60))
-            prompt_font = self.assets.get('font_subtitle_medium', pygame.font.Font(None, 40))
-            name_font = self.assets.get('font_mono_large', pygame.font.Font(None, 70))
-        else:
-            # Fallback: Lade einmalig
-            try:
-                stats_font  = pygame.font.Font("assets/fonts/monofonto rg.otf", 60)
-                prompt_font = pygame.font.Font("assets/fonts/White On Black.ttf", 40)
-                name_font   = pygame.font.Font("assets/fonts/monofonto rg.otf", 70)
-            except:
-                stats_font  = pygame.font.Font(None, 60)
-                prompt_font = pygame.font.Font(None, 40)
-                name_font = pygame.font.Font(None, 70)
+        cw, ch      = screen.get_size()
+        ui_scale    = max(cw / 1920, ch / 1080) * 1.2
+        stats_font  = self.assets.get('font_mono_medium')
+        prompt_font = self.assets.get('font_subtitle_medium')
+        name_font   = self.assets.get('font_mono_large')
 
         # Titel mit GameMenu
         menu_ref.draw_title(screen, "GAME OVER", color=(255, 100, 100), y_position=60)
@@ -99,7 +85,7 @@ class GameOverScreen:
 
         # Prompt
         prompt_text = prompt_font.render("Enter Your Name:", True, (200, 200, 200))
-        prompt_rect = prompt_text.get_rect(center=(cw // 2, ch // 2 + int(50 * ui_scale)))
+        prompt_rect = prompt_text.get_rect(center=(cw // 2, ch // 2 + int(80 * ui_scale)))
         screen.blit(prompt_text, prompt_rect)
 
         # Name Input mit Cursor
@@ -130,6 +116,15 @@ class GameOverScreen:
                     # Wenn leer, setze "Player"
                     if not self.player_name:
                         self.player_name = "Player"
+
+                    # SPEICHERE DEN SCORE JETZT!
+                    score = stats_dict.get('Score', 0)
+                    kills = stats_dict.get('Kills', 0)
+                    level = stats_dict.get('Level', 1)
+
+                    from system.utils import save_normal_score
+                    save_normal_score(score, self.player_name, kills, level)
+
                     result = "submit"
                 elif event.key == pygame.K_ESCAPE:
                     # ESC = Nicht speichern

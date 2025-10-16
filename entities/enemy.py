@@ -216,7 +216,7 @@ class Enemy:
     # --- Schießen (nur shoot_weapon) ---
     def shoot_weapon(self, weapon: str, amount: int = 1):
         import pygame, random
-        from config.weapon import PROJECTILES_CONFIG
+        from config.weapon import WEAPON_CONFIG
 
         # EMP-Check: Kann nicht schießen wenn EMP-disabled
         if not self.can_shoot:
@@ -224,7 +224,7 @@ class Enemy:
 
         # 1) Cooldown check
         now = pygame.time.get_ticks()
-        cd  = PROJECTILES_CONFIG[weapon]["cooldown"]
+        cd  = WEAPON_CONFIG[weapon]["cooldown"]
         last = self._last.get(weapon, 0)
         if now - last < cd:
             return []

@@ -129,7 +129,10 @@ class SurvivorTop10Screen:
                 if event.key == pygame.K_RETURN and came_from == 'game':
                     result = "retry"  # Try Again
                 elif event.key == pygame.K_ESCAPE:
-                    result = "menu"
+                    if came_from == 'game':
+                        result = "menu"
+                    else:
+                        result = "back_to_highscore_menu"
                 elif event.key == pygame.K_F11:
                     result = "maximize"
                 elif event.key == pygame.K_RETURN and (pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]):

@@ -89,8 +89,9 @@ def save_with_progress_animation(screen, bg_scaled, survivor_time, survivor_kill
     # Tatsächlich lokal speichern
     local_top_10, online_saved = save_survivor_score(survivor_time, survivor_kills, player_name, stage)
 
-    # Phase 2: Online Speichern (falls verbunden)
-    if online_saved or get_online_manager().is_connected():
+    # Phase 2: Online Speichern (falls zentral verfügbar)
+    from system.firebase_manager import is_firebase_available
+    if online_saved or is_firebase_available():
         for progress in [0.3, 0.6, 1.0]:
             if bg_scaled:
                 screen.blit(bg_scaled, (0, 0))

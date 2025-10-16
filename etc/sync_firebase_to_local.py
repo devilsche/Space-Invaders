@@ -8,12 +8,12 @@ import sys
 import json
 sys.path.insert(0, '.')
 
-from system.online_highscore import OnlineHighscoreManager
+from ..manager.highscore_manager import HighscoreManager
 
 HIGHSCORE_FILE = "data/highscore.json"
 
 # Initialize manager
-manager = OnlineHighscoreManager()
+manager = HighscoreManager()
 
 print("="*70)
 print("Firebase → Local Highscore Synchronization")

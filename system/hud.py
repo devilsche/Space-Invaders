@@ -228,35 +228,35 @@ class HUD:
     def update_weapon_status(self, player, current_time, cooldowns):
         """Aktualisiert den Status der Waffen basierend auf Verfügbarkeit und Cooldowns"""
         from config.ship import SHIP_CONFIG
-        from config.weapon import PROJECTILES_CONFIG
+        from config.weapon import WEAPON_CONFIG
 
         ship_config = SHIP_CONFIG.get(player.stage, {})
         weapons = ship_config.get("weapons", {})
 
         # Rocket Status mit Cooldown
         self.icons["rocket"]["available"] = weapons.get("rocket", 0) > 0
-        rocket_cooldown = PROJECTILES_CONFIG.get("rocket", {}).get("cooldown", 1000)
+        rocket_cooldown = WEAPON_CONFIG.get("rocket", {}).get("cooldown", 1000)
         rocket_last_used = cooldowns.get("rocket_last_used", 0)
         rocket_progress = min(1.0, (current_time - rocket_last_used) / rocket_cooldown) if rocket_cooldown > 0 else 1.0
         self.icons["rocket"]["cooldown_progress"] = rocket_progress
 
         # Homing Rocket Status mit Cooldown
         self.icons["homing_rocket"]["available"] = weapons.get("homing_rocket", 0) > 0
-        homing_cooldown = PROJECTILES_CONFIG.get("homing_rocket", {}).get("cooldown", 2000)
+        homing_cooldown = WEAPON_CONFIG.get("homing_rocket", {}).get("cooldown", 2000)
         homing_last_used = cooldowns.get("homing_rocket_last_used", 0)
         homing_progress = min(1.0, (current_time - homing_last_used) / homing_cooldown) if homing_cooldown > 0 else 1.0
         self.icons["homing_rocket"]["cooldown_progress"] = homing_progress
 
         # Blaster Status mit Cooldown
         self.icons["blaster"]["available"] = weapons.get("blaster", 0) > 0
-        blaster_cooldown = PROJECTILES_CONFIG.get("blaster", {}).get("cooldown", 300)
+        blaster_cooldown = WEAPON_CONFIG.get("blaster", {}).get("cooldown", 300)
         blaster_last_used = cooldowns.get("blaster_last_used", 0)
         blaster_progress = min(1.0, (current_time - blaster_last_used) / blaster_cooldown) if blaster_cooldown > 0 else 1.0
         self.icons["blaster"]["cooldown_progress"] = blaster_progress
 
         # Nuke Status mit Cooldown
         self.icons["nuke"]["available"] = weapons.get("nuke", 0) > 0
-        nuke_cooldown = PROJECTILES_CONFIG.get("nuke", {}).get("cooldown", 5000)
+        nuke_cooldown = WEAPON_CONFIG.get("nuke", {}).get("cooldown", 5000)
         nuke_last_used = cooldowns.get("nuke_last_used", 0)
         nuke_progress = min(1.0, (current_time - nuke_last_used) / nuke_cooldown) if nuke_cooldown > 0 else 1.0
         self.icons["nuke"]["cooldown_progress"] = nuke_progress

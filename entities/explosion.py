@@ -25,15 +25,15 @@ class Explosion:
             return
         now = pygame.time.get_ticks()
         step_ms = 1000 // self.fps
-        
+
         if now - self._t_last >= step_ms:
             # Berechne die Anzahl der zu überspringenden Frames
             steps = (now - self._t_last) // step_ms
             new_i = self._i + steps
-            
+
             # Update Timer und Index
             self._t_last += steps * step_ms
-            
+
             # Prüfe ob Animation fertig
             if new_i >= len(self.frames):
                 self.done = True

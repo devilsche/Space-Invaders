@@ -269,7 +269,7 @@ class EMPPowerUp:
         try:
             if hasattr(game, 'assets') and game.assets.get("emp_fire_sound"):
                 # Spiele Sound sofort ab (ohne Channel-Verzögerung)
-                sound = game.assets["emp_fire_sound"]
+                sound = game.assets.get("emp_fire_sound")
                 sound.set_volume(1.0)  # Volle Lautstärke für Impact
                 sound.play(maxtime=1000)  # Maximale Spielzeit: 1000ms (1s)
             elif hasattr(game, 'sound_manager'):

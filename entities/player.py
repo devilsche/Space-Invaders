@@ -1,7 +1,7 @@
 # entities/player.py
 import pygame
 from config.ship import SHIP_CONFIG
-from config.weapon import PROJECTILES_CONFIG
+from config.weapon import WEAPON_CONFIG
 from entities.projectile import Laser, Rocket, Nuke, HomingRocket, Blaster, DoubleLaser
 
 WEAPON_CLS = {"laser": Laser, "rocket": Rocket, "homing_rocket": HomingRocket, "nuke": Nuke, "blaster": Blaster}
@@ -110,7 +110,7 @@ class Player:
         if allowed <= 0:
             return []
         shots, now = [], pygame.time.get_ticks()
-        cfg = PROJECTILES_CONFIG[weapon]
+        cfg = WEAPON_CONFIG[weapon]
         last = self._last_shots.get(weapon, 0)
         if now - last < cfg["cooldown"]:
             return shots
