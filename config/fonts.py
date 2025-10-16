@@ -4,7 +4,7 @@ Font-Konfiguration für das Spiel
 
 Fonts müssen als .ttf/.otf Dateien in assets/fonts/ vorhanden sein:
 - Astralight.ttf
-- White On Black.ttf  
+- White On Black.ttf
 - monofonto rg.otf
 """
 
@@ -12,45 +12,45 @@ Fonts müssen als .ttf/.otf Dateien in assets/fonts/ vorhanden sein:
 FONTS = {
     # Titel-Screen Font
     "title": {
-        "file": "assets/fonts/Astralight.ttf",  # Großbuchstabe!
+        "file": "assets/fonts/Astralight.ttf",
         "sizes": {
-            "huge": 173,     # Haupttitel (96 * 1.8)
-            "large": 115,    # Untertitel (64 * 1.8)
-            "medium": 86,    # Kleinere Titel (48 * 1.8)
+            "huge"  : 180, # Haupttitel
+            "large" : 120, # Untertitel
+            "medium": 90 , # Kleinere Titel
         },
         "fallback": None  # System font falls nicht vorhanden
     },
-    
+
     # Menü Font
     "menu": {
-        "file": "assets/fonts/White On Black.ttf",  # Mit Leerzeichen!
+        "file": "assets/fonts/White On Black.ttf",
         "sizes": {
-            "large": 86,     # Menü-Titel (48 * 1.8)
-            "normal": 58,    # Menü-Optionen (32 * 1.8)
-            "small": 43,     # Controls/Hints (24 * 1.8)
+            "large" : 96,
+            "normal": 64,
+            "small" : 48,
         },
         "fallback": None
     },
-    
+
     # HUD/Gameplay Font
     "hud": {
-        "file": "assets/fonts/monofonto rg.otf",  # .otf Datei!
+        "file": "assets/fonts/monofonto rg.otf",
         "sizes": {
-            "large": 32,     # Score
-            "normal": 24,    # Standard HUD
-            "small": 20,     # Kleine Info
-            "tiny": 16,      # Debug
+            "large" : 32,
+            "normal": 24,
+            "small" : 20,
+            "tiny"  : 16,
         },
         "fallback": None
     },
-    
+
     # Controls Font
     "controls": {
-        "file": "assets/fonts/KGRedHands.ttf",  # Handschrift-Font für Controls
+        "file": "assets/fonts/monofonto rg.otf",
         "sizes": {
-            "large": 48,     # Große Controls
-            "normal": 36,    # Standard Controls
-            "small": 28,     # Kleine Controls
+            "large" : 48,
+            "normal": 36,
+            "small" : 28,
         },
         "fallback": None
     }
