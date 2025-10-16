@@ -19,7 +19,7 @@ from system.screens.top10_survivor import SurvivorTop10Screen
 from system.saving_overlay import SavingOverlay
 
 class Game:
-    def __init__(self):
+    def __init__(self, assets=None):
         pygame.init()
 
         # Pygame Setup (optional: vsync wenn verfügbar)
@@ -56,8 +56,11 @@ class Game:
         self.original_size = (WIDTH, HEIGHT)
         self.aspect_ratio  = 16 / 9
 
-        # Assets
-        self.assets = load_assets()
+        # Assets - entweder übergeben oder selbst laden (Fallback)
+        if assets is not None:
+            self.assets = assets
+        else:
+            self.assets = load_assets()
         self.font   = pygame.font.Font(None, FONT_SIZE)
         self._bg_scaled = self.assets.get("background_img")  # wird in _reinitialize_ui() skaliert
 
@@ -1378,8 +1381,14 @@ class Game:
                         pass
                     self.menu.start_menu_music()
 
-                action = self.normal_mode_name_input_screen.handle_and_draw(
-                    self.screen, self._bg_scaled, self.score, self._total_kills, self.level
+                # Verwende neuen unified GameOverScreen
+                stats_dict = {
+                    'Score': self.score,
+                    'Kills': self._total_kills,
+                    'Level': self.level
+                }
+                action = self.game_over_screen.handle_and_draw(
+                    self.screen, self._bg_scaled, stats_dict, self.menu
                 )
                 if action == "quit":
                     self.running = False

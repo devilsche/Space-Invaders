@@ -89,9 +89,9 @@ class GameMenu:
 
     def set_pause_mode(self, is_pause=True):
         """Zwischen Start-Menü und Pause-Menü wechseln"""
-        self.is_pause_menu  = is_pause
-        self.is_mode_select = False
-        self.is_highscore_menu = False
+        self.is_pause_menu            = is_pause
+        self.is_mode_select           = False
+        self.is_highscore_menu        = False
         self.is_survivor_stage_select = False
 
         if is_pause:
@@ -103,9 +103,9 @@ class GameMenu:
 
     def set_mode_select(self, is_mode_select=True):
         """Wechsle zur Spielmodi-Auswahl"""
-        self.is_mode_select = is_mode_select
-        self.is_pause_menu  = False
-        self.is_highscore_menu = False
+        self.is_mode_select           = is_mode_select
+        self.is_pause_menu            = False
+        self.is_highscore_menu        = False
         self.is_survivor_stage_select = False
         if is_mode_select:
             self.current_options = self.mode_select_options
@@ -116,9 +116,9 @@ class GameMenu:
 
     def set_highscore_menu(self, is_highscore=True):
         """Wechsle zum Highscore-Menü"""
-        self.is_highscore_menu = is_highscore
-        self.is_mode_select = False
-        self.is_pause_menu = False
+        self.is_highscore_menu        = is_highscore
+        self.is_mode_select           = False
+        self.is_pause_menu            = False
         self.is_survivor_stage_select = False
         if is_highscore:
             self.current_options = self.highscore_options
@@ -169,6 +169,9 @@ class GameMenu:
     def get_selected_action(self):
         """Gib die gewählte Aktion zurück"""
         selected = self.current_options[self.selected_option]
+
+        print(f"Selected option: {selected} in menu state - Pause: {self.is_pause_menu}, Mode Select: {self.is_mode_select}, Highscore Menu: {self.is_highscore_menu}, Survivor Stage Select: {self.is_survivor_stage_select}")
+
 
         if self.is_pause_menu:
             if selected == "Resume":
@@ -302,7 +305,7 @@ class GameMenu:
     def draw_controls_text(self, screen, text="[UP/DOWN] Navigate - [ENTER] Select - [ESC] Quit", y_position=None, color=None):
         """
         Zentrale Control-Text Anzeige für alle Screens
-        
+
         Args:
             screen: Pygame Surface
             text: Control-Text
@@ -312,18 +315,18 @@ class GameMenu:
         if self.controls_font:
             current_width  = screen.get_width()
             current_height = screen.get_height()
-            
+
             if y_position is None:
                 y_position = current_height - scale(60)
             if color is None:
                 color = (255, 255, 255)
-            
+
             self.draw_text_with_shadow(
                 screen, text, self.controls_font,
                 current_width // 2, y_position,
                 color, (0, 0, 0)
             )
-    
+
     def _draw_controls_text(self, screen, text="[UP/DOWN] Navigate - [ENTER] Select - [ESC] Quit"):
         """Legacy wrapper - ruft neue public Methode auf"""
         self.draw_controls_text(screen, text)
@@ -331,7 +334,7 @@ class GameMenu:
     def draw_title(self, screen, text, animated=False, color=None, y_position=None):
         """
         Zentrale Titel-Anzeige für alle Screens
-        
+
         Args:
             screen: Pygame Surface
             text: Titel-Text
@@ -341,21 +344,21 @@ class GameMenu:
         """
         current_width = screen.get_width()
         current_height = screen.get_height()
-        
+
         if y_position is None:
             y_position = current_height // 4
         if color is None:
             color = (255, 255, 100)
-        
+
         if animated:
             # Nutze existierende Animation (TODO: Code extrahieren)
             # Für jetzt: Einfacher Titel
             pass
-        
+
         # Einfacher Titel mit Schatten
         title_surface = self.title_font.render(text, True, color)
         title_rect = title_surface.get_rect(center=(current_width // 2, y_position))
-        
+
         # Schatten
         shadow_surface = self.title_font.render(text, True, (0, 0, 0))
         shadow_rect = shadow_surface.get_rect(center=(current_width // 2 + 4, y_position + 4))
@@ -576,32 +579,32 @@ class GameMenu:
         # Titel
         current_width = screen.get_width()
         current_height = screen.get_height()
-        
+
         title_text = "HIGHSCORES"
         title_surface = self.title_font.render(title_text, True, (255, 255, 100))
         title_rect = title_surface.get_rect(center=(current_width // 2, current_height // 4))
-        
+
         # Schatten für Titel
         shadow_surface = self.title_font.render(title_text, True, (0, 0, 0))
         shadow_rect = shadow_surface.get_rect(center=(current_width // 2 + 4, current_height // 4 + 4))
         screen.blit(shadow_surface, shadow_rect)
         screen.blit(title_surface, title_rect)
-        
+
         # Menü-Optionen
         start_y = current_height // 2 - scale(20)
         option_spacing = scale(70)
-        
+
         for i, option in enumerate(self.current_options):
             y_pos = start_y + (i * option_spacing)
             is_selected = (i == self.selected_option)
-            
+
             if is_selected:
                 text_color = (255, 255, 100)
                 shadow_color = (100, 100, 0)
             else:
                 text_color = (200, 200, 200)
                 shadow_color = (50, 50, 50)
-            
+
             self.draw_text_with_shadow(screen, option, self.font, current_width // 2, y_pos, text_color, shadow_color)
 
     def _draw_survivor_stage_menu(self, screen):
@@ -609,32 +612,32 @@ class GameMenu:
         # Titel
         current_width = screen.get_width()
         current_height = screen.get_height()
-        
+
         title_text = "SURVIVOR HIGHSCORES"
         title_surface = self.title_font.render(title_text, True, (255, 100, 100))
         title_rect = title_surface.get_rect(center=(current_width // 2, current_height // 4))
-        
+
         # Schatten für Titel
         shadow_surface = self.title_font.render(title_text, True, (0, 0, 0))
         shadow_rect = shadow_surface.get_rect(center=(current_width // 2 + 4, current_height // 4 + 4))
         screen.blit(shadow_surface, shadow_rect)
         screen.blit(title_surface, title_rect)
-        
+
         # Menü-Optionen
         start_y = current_height // 2 - scale(80)
         option_spacing = scale(60)
-        
+
         for i, option in enumerate(self.current_options):
             y_pos = start_y + (i * option_spacing)
             is_selected = (i == self.selected_option)
-            
+
             if is_selected:
                 text_color = (255, 255, 100)
                 shadow_color = (100, 100, 0)
             else:
                 text_color = (200, 200, 200)
                 shadow_color = (50, 50, 50)
-            
+
             self.draw_text_with_shadow(screen, option, self.font, current_width // 2, y_pos, text_color, shadow_color)
 
     def start_menu_music(self):
