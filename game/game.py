@@ -69,17 +69,17 @@ class Game:
         self.menu.load_assets(self.assets)
         self.menu.set_pause_mode(False)
 
-        # Screen Modules
+        # Screen Modules (mit Assets für Font-Caching)
         self.ship_select_screen         = ShipSelectScreen()
         self.victory_screen             = VictoryScreen()
         self.survivor_name_input_screen = SurvivorNameInputScreen()
         self.survivor_game_over_screen  = SurvivorGameOverScreen()
 
-        # New unified screens
-        self.game_over_screen = GameOverScreen()
+        # New unified screens (mit Assets)
+        self.game_over_screen = GameOverScreen(assets=self.assets)
         self.saving_overlay = SavingOverlay()
-        self.top10_normal_screen = NormalTop10Screen()
-        self.top10_survivor_screen = SurvivorTop10Screen()
+        self.top10_normal_screen = NormalTop10Screen(assets=self.assets)
+        self.top10_survivor_screen = SurvivorTop10Screen(assets=self.assets)
 
         # Audio
         pygame.mixer.set_num_channels(32)
@@ -1452,8 +1452,11 @@ class Game:
                     self._normal_top10_loaded = True
 
                 action = self.top10_normal_screen.handle_and_draw(
-                    self.screen, self._bg_scaled, self._normal_top10_data,
-                    self.menu, came_from=self.came_from if self.came_from else 'menu'
+                    self.screen,
+                    self._bg_scaled,
+                    self._normal_top10_data,
+                    self.menu,
+                    came_from=self.came_from if self.came_from else 'menu'
                 )
                 if action == "quit":
                     self.running = False
@@ -1463,11 +1466,11 @@ class Game:
                     self.game_state = "playing"
                     self._start_game_mode()  # Starte Normal Mode neu
                 elif action == "menu":
-                    self._normal_top10_loaded = False  # Reset für nächstes Mal
-                    self.came_from = None  # Reset Navigation
-                    self.game_state = "menu"
-                    self.game_mode = "normal"
-                    self.paused = False
+                    self._normal_top10_loaded = False # Reset für nächstes Mal
+                    self.came_from            = None # Reset Navigation
+                    self.game_state           = "menu"
+                    self.game_mode            = "normal"
+                    self.paused               = False
                     self.menu.set_pause_mode(False)
                     self._reset_game()
                 elif action == "maximize":

@@ -342,11 +342,11 @@ class GameMenu:
             color: Tuple - Hauptfarbe (default: (255, 255, 100))
             y_position: Int - Y-Position (default: height // 4)
         """
-        current_width = screen.get_width()
+        current_width  = screen.get_width()
         current_height = screen.get_height()
 
         if y_position is None:
-            y_position = current_height // 4
+            y_position = 100
         if color is None:
             color = (255, 255, 100)
 
@@ -357,11 +357,11 @@ class GameMenu:
 
         # Einfacher Titel mit Schatten
         title_surface = self.title_font.render(text, True, color)
-        title_rect = title_surface.get_rect(center=(current_width // 2, y_position))
+        title_rect    = title_surface.get_rect(center=(current_width // 2, y_position))
 
         # Schatten
         shadow_surface = self.title_font.render(text, True, (0, 0, 0))
-        shadow_rect = shadow_surface.get_rect(center=(current_width // 2 + 4, y_position + 4))
+        shadow_rect    = shadow_surface.get_rect(center=(current_width // 2 + 4, y_position + 4))
         screen.blit(shadow_surface, shadow_rect)
         screen.blit(title_surface, title_rect)
 

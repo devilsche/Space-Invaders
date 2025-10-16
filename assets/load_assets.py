@@ -326,5 +326,62 @@ def load_assets() -> AssetProxy:
     except Exception:
         manager._cache["rocket_fly_loop_sound"] = None
 
+    # ===== FONTS (Cached in different sizes) =====
+    # Define font paths
+    FONT_ASTRALIGHT = "assets/fonts/Astralight.ttf"
+    FONT_WHITE_ON_BLACK = "assets/fonts/White On Black.ttf"
+    FONT_MONOFONTO = "assets/fonts/monofonto rg.otf"
+    FONT_KGREDHANDS = "assets/fonts/KGRedHands.ttf"
+    
+    # Title fonts (Astralight)
+    try:
+        manager._cache["font_title_huge"] = pygame.font.Font(FONT_ASTRALIGHT, 120)
+        manager._cache["font_title_large"] = pygame.font.Font(FONT_ASTRALIGHT, 80)
+        manager._cache["font_title_medium"] = pygame.font.Font(FONT_ASTRALIGHT, 60)
+    except:
+        manager._cache["font_title_huge"] = pygame.font.Font(None, 120)
+        manager._cache["font_title_large"] = pygame.font.Font(None, 80)
+        manager._cache["font_title_medium"] = pygame.font.Font(None, 60)
+    
+    # Subtitle fonts (White On Black)
+    try:
+        manager._cache["font_subtitle_large"] = pygame.font.Font(FONT_WHITE_ON_BLACK, 50)
+        manager._cache["font_subtitle_medium"] = pygame.font.Font(FONT_WHITE_ON_BLACK, 40)
+        manager._cache["font_subtitle_small"] = pygame.font.Font(FONT_WHITE_ON_BLACK, 32)
+    except:
+        manager._cache["font_subtitle_large"] = pygame.font.Font(None, 50)
+        manager._cache["font_subtitle_medium"] = pygame.font.Font(None, 40)
+        manager._cache["font_subtitle_small"] = pygame.font.Font(None, 32)
+    
+    # Monospace fonts (monofonto rg)
+    try:
+        manager._cache["font_mono_large"] = pygame.font.Font(FONT_MONOFONTO, 70)
+        manager._cache["font_mono_medium"] = pygame.font.Font(FONT_MONOFONTO, 60)
+        manager._cache["font_mono_normal"] = pygame.font.Font(FONT_MONOFONTO, 32)
+        manager._cache["font_mono_small"] = pygame.font.Font(FONT_MONOFONTO, 28)
+        manager._cache["font_mono_tiny"] = pygame.font.Font(FONT_MONOFONTO, 24)
+        manager._cache["font_mono_micro"] = pygame.font.Font(FONT_MONOFONTO, 14)
+    except:
+        manager._cache["font_mono_large"] = pygame.font.Font(None, 70)
+        manager._cache["font_mono_medium"] = pygame.font.Font(None, 60)
+        manager._cache["font_mono_normal"] = pygame.font.Font(None, 32)
+        manager._cache["font_mono_small"] = pygame.font.Font(None, 28)
+        manager._cache["font_mono_tiny"] = pygame.font.Font(None, 24)
+        manager._cache["font_mono_micro"] = pygame.font.Font(None, 14)
+    
+    # Controls fonts (KGRedHands)
+    try:
+        manager._cache["font_controls_normal"] = pygame.font.Font(FONT_KGREDHANDS, 24)
+        manager._cache["font_controls_small"] = pygame.font.Font(FONT_KGREDHANDS, 20)
+    except:
+        manager._cache["font_controls_normal"] = pygame.font.Font(None, 24)
+        manager._cache["font_controls_small"] = pygame.font.Font(None, 20)
+    
+    # System fonts (None/default)
+    manager._cache["font_system_large"] = pygame.font.Font(None, 60)
+    manager._cache["font_system_medium"] = pygame.font.Font(None, 40)
+    manager._cache["font_system_normal"] = pygame.font.Font(None, 32)
+    manager._cache["font_system_small"] = pygame.font.Font(None, 28)
+
     return proxy
 

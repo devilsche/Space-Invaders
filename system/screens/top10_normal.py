@@ -5,8 +5,8 @@ import pygame
 class NormalTop10Screen:
     """Zeigt die Top 10 Highscores für Normal Mode"""
 
-    def __init__(self):
-        pass
+    def __init__(self, assets=None):
+        self.assets = assets  # Speichere Assets-Referenz für Font-Caching
 
     def handle_and_draw(self, screen, bg_scaled, top10_list, menu_ref, came_from='menu'):
         """
@@ -41,19 +41,22 @@ class NormalTop10Screen:
         cw, ch = screen.get_size()
         ui_scale = max(cw / 1920, ch / 1080) * 1.2
 
-        # Fonts
-        try:
-            rank_font = pygame.font.Font("assets/fonts/monofonto rg.otf", int(32 * ui_scale))
-        except:
-            rank_font = pygame.font.Font(None, int(28 * ui_scale))
+        # Fonts - verwende gecachte Fonts aus assets
+        if self.assets:
+            rank_font = self.assets.get('font_mono_normal', pygame.font.Font(None, 32))
+        else:
+            try:
+                rank_font = pygame.font.Font("assets/fonts/monofonto rg.otf", 32)
+            except:
+                rank_font = pygame.font.Font(None, 32)
 
         # Titel mit GameMenu
         menu_ref.draw_title(screen, "TOP 10 HIGHSCORES", color=(255, 215, 0))
 
         # Header
-        header_y = int(160 * ui_scale)
-        col_rank_x = int(cw * 0.15)
-        col_name_x = int(cw * 0.3)
+        header_y    = int(160  * ui_scale)
+        col_rank_x  = int(cw * 0.15)
+        col_name_x  = int(cw * 0.3)
         col_score_x = int(cw * 0.5)
         col_kills_x = int(cw * 0.65)
         col_level_x = int(cw * 0.8)
