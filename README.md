@@ -9,6 +9,40 @@ Ein hochperformantes Nova Strike Spiel mit modernen Optimierungen und spannenden
 **🎯 Latest Changes**: Complete menu system overhaul with animated glow effects, fullscreen scaling support  
 **✅ Stable Release**: Core gameplay and professional menu system fully functional
 
+## 🛠️ **Installation & Setup**
+
+### Requirements
+Install dependencies with:
+```bash
+pip install -r requirements.txt
+```
+
+**Core Dependencies:**
+- `pygame>=2.6.0` - Game framework
+- `Pillow>=10.0.0` - Image processing
+
+**Optional Dependencies:**
+- `firebase-admin>=6.2.0` - Online highscores (game works without)
+- `magic-wormhole>=0.20.0` - File transfer utility
+
+### Quick Start
+```bash
+# Clone repository
+git clone <repository-url>
+cd Space-Invaders
+
+# Setup virtual environment (recommended)
+python -m venv .venv
+source .venv/bin/activate  # Linux/Mac
+# or: .venv\Scripts\activate  # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run game
+python main.py
+```
+
 ### 🎨 **NEW: Professional Menu System**
 
 - **Animated Title Effects**: "NOVA STRIKE" with multi-layered pulsating blue glow

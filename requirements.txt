@@ -1,0 +1,9 @@
+# Space Invaders - Core Dependencies
+pygame>=2.6.0
+Pillow>=10.0.0
+
+# Firebase Integration (Optional - for online highscores)
+firebase-admin>=6.2.0
+
+# Magic Wormhole (Optional - for file transfer)
+magic-wormhole>=0.20.0
