@@ -9,34 +9,34 @@ import pygame
 def get_font(assets, font_key, scale_factor=1.0):
     """
     Holt einen Font aus Assets und skaliert ihn optional.
-    
+
     Args:
         assets: Asset-Dictionary
         font_key: Key des Fonts (z.B. 'font_title_large')
         scale_factor: Skalierungsfaktor (default: 1.0)
-        
+
     Returns:
         pygame.Font-Objekt (skaliert falls scale_factor != 1.0)
     """
     base_font = assets.get(font_key)
-    
+
     if base_font is None:
         # Fallback
         return pygame.font.Font(None, int(32 * scale_factor))
-    
+
     # Wenn keine Skalierung nötig, gib Original zurück
     if scale_factor == 1.0:
         return base_font
-    
+
     # Für skalierte Fonts: Erstelle neuen Font mit skalierter Größe
     # (pygame.Font hat keine Methode zur Größenabfrage, daher speichern wir Original-Größen)
     size = base_font.get_height()  # Ungefähre Größe
     scaled_size = int(size * scale_factor)
-    
+
     # Versuche den ursprünglichen Font-Pfad zu verwenden
     # Achtung: Wenn der Font aus assets kommt, müssen wir den Pfad kennen
     # Für jetzt: Erstelle neuen Font basierend auf Font-Typ
-    
+
     try:
         # Versuche Pfad aus Font zu extrahieren (funktioniert nur bei benutzerdefinierten Fonts)
         if 'Astralight' in font_key or 'title' in font_key:
@@ -56,11 +56,11 @@ def get_font(assets, font_key, scale_factor=1.0):
 def get_scaled_fonts(assets, ui_scale):
     """
     Gibt ein Dict mit allen häufig genutzten Fonts in der richtigen Größe zurück.
-    
+
     Args:
         assets: Asset-Dictionary
         ui_scale: UI-Skalierungsfaktor
-        
+
     Returns:
         Dict mit Font-Keys und skalierten Fonts
     """

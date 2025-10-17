@@ -1,5 +1,10 @@
 import math, pygame
-from config import WIDTH, HEIGHT, MASTER_VOLUME, MUSIC_VOLUME, SFX_VOLUME
+from config import GAME_CONFIG
+WIDTH         = GAME_CONFIG["WIDTH"]
+HEIGHT        = GAME_CONFIG
+MASTER_VOLUME = GAME_CONFIG["MASTER_VOLUME"]
+MUSIC_VOLUME  = GAME_CONFIG["MUSIC_VOLUME"]
+SFX_VOLUME    = GAME_CONFIG["SFX_VOLUME"]
 from config.weapon import WEAPON_CONFIG
 from entities.explosion import Explosion
 

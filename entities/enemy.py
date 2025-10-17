@@ -1,15 +1,17 @@
 # entities/enemy.py
 import math, random, pygame
-from config import WIDTH, HEIGHT
+from config import GAME_CONFIG
+WIDTH  = GAME_CONFIG["WIDTH"]
+HEIGHT = GAME_CONFIG["HEIGHT"]
 from config.enemy import ENEMY_CONFIG
 
 from entities.projectile import Laser, Rocket, Nuke, Blaster, HomingRocket
 
 KIND2CLS = {"laser": Laser, "rocket": Rocket, "nuke": Nuke, "blaster": Blaster, "homing_rocket": HomingRocket}
 
-BAR_W = 40
-BAR_H = 5
-BAR_PAD_Y = 6
+BAR_W       = 40
+BAR_H       = 5
+BAR_PAD_Y   = 6
 HIT_SHOW_MS = 800
 
 def _norm_weapons(w):

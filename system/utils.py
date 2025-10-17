@@ -1,7 +1,10 @@
 import json
 import os
 import pygame
-from config.settings import REFERENCE_WIDTH, REFERENCE_HEIGHT
+from config.settings import GAME_CONFIG
+
+REFERENCE_WIDTH  = GAME_CONFIG["REFERENCE_WIDTH"]
+REFERENCE_HEIGHT = GAME_CONFIG["REFERENCE_HEIGHT"]
 
 HIGHSCORE_FILE = "data/highscore.json"
 

@@ -18,7 +18,7 @@ from .survivor_screens import SurvivorGameOverScreen, SurvivorNameInputScreen
 from .game_over import GameOverScreen
 from .top10_normal import NormalTop10Screen
 from .top10_survivor import SurvivorTop10Screen
-from .loading import LoadingScreen
+from .loading import Loading
 from .victory_screen import VictoryScreen
 from .ship_select import ShipSelectScreen
 

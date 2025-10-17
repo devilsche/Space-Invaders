@@ -270,7 +270,9 @@ class Shield:
             return
 
         if assets.get("shield_hit_sound"):
-            from config import MASTER_VOLUME, SFX_VOLUME
+            from config import GAME_CONFIG
+            MASTER_VOLUME = GAME_CONFIG["MASTER_VOLUME"]
+            SFX_VOLUME    = GAME_CONFIG["SFX_VOLUME"]
             assets.get("shield_hit_sound").set_volume(MASTER_VOLUME * SFX_VOLUME)
             assets.get("shield_hit_sound").play()
             self._last_hit_sound = now

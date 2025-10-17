@@ -1,19 +1,24 @@
-WIDTH              = 1920
-HEIGHT             = 1080
-FPS                = 60
-FONT_SIZE          = 36
+GAME_CONFIG = {
+    "WIDTH"    : 1920,
+    "HEIGHT"   : 1080,
+    "FPS"      : 60,
+    "FONT_SIZE": 36
+}
 
 # Reference Resolution (Basis für Skalierung) - 1280x720 als perfekte Größe (16:9)
-REFERENCE_WIDTH    = 1280
-REFERENCE_HEIGHT   = 720
+GAME_CONFIG["REFERENCE_WIDTH"]    = 1280
+GAME_CONFIG["REFERENCE_HEIGHT"]   = 720
 
-# Scale Factors basierend auf aktueller Auflösung
-SCALE_X            = WIDTH / REFERENCE_WIDTH
-SCALE_Y            = HEIGHT / REFERENCE_HEIGHT
-SCALE_FACTOR       = min(SCALE_X, SCALE_Y)  # Uniform scaling für proportionale Größen
-LIVES              = 3
-LIVES_COOLDOWN     = 1000
-RESPAWN_PROTECTION = 3000
-MASTER_VOLUME      = 0.1
-MUSIC_VOLUME       = 0.1
-SFX_VOLUME         = 0.1
+
+GAME_CONFIG["SCALE_X"]            = GAME_CONFIG["WIDTH"] / GAME_CONFIG["REFERENCE_WIDTH"]
+GAME_CONFIG["SCALE_Y"]            = GAME_CONFIG["HEIGHT"] / GAME_CONFIG["REFERENCE_HEIGHT"]
+GAME_CONFIG["SCALE_FACTOR"]       = min(GAME_CONFIG["SCALE_X"], GAME_CONFIG["SCALE_Y"])  # Uniform scaling für proportionale Größen
+
+GAME_CONFIG["LIVES"]              = 3
+GAME_CONFIG["LIVES_COOLDOWN"]     = 1000
+
+GAME_CONFIG["RESPAWN_PROTECTION"] = 3000
+
+GAME_CONFIG["MASTER_VOLUME"]      = 0.1
+GAME_CONFIG["MUSIC_VOLUME"]       = 0.1
+GAME_CONFIG["SFX_VOLUME"]         = 0.1

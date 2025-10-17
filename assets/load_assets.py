@@ -6,9 +6,10 @@ All assets are registered and loaded on-demand (lazy loading).
 """
 
 import pygame
-from typing import Any
-from config import WIDTH, HEIGHT, SHIP_CONFIG, ENEMY_CONFIG, WEAPON_CONFIG, SHIELD_CONFIG
+from config import SHIP_CONFIG, ENEMY_CONFIG, WEAPON_CONFIG, SHIELD_CONFIG
+from config.settings import GAME_CONFIG
 from manager.asset_manager import AssetManager
+
 import os
 
 # AssetProxy entfernt - verwende direkt AssetManager
@@ -155,9 +156,9 @@ def load_assets() -> AssetManager:
         print(f"Error loading font config: {e}")
         # Fallback: Nutze System-Fonts
         FONTS = {
-            "title": {"file": None, "sizes": {"huge": 96, "large": 64, "medium": 48}},
-            "menu": {"file": None, "sizes": {"large": 48, "normal": 32, "small": 24}},
-            "hud": {"file": None, "sizes": {"large": 32, "normal": 24, "small": 20, "tiny": 16}}
+            "title": {"file": None, "sizes": {"huge" : 96, "large" : 64, "medium": 48}},
+            "menu":  {"file": None, "sizes": {"large": 48, "normal": 32, "small": 24}},
+            "hud":   {"file": None, "sizes": {"large": 32, "normal": 24, "small": 20, "tiny": 16}}
         }
 
     # Hilfsfunktion zum Laden mit Fallback
@@ -277,12 +278,7 @@ def load_assets() -> AssetManager:
     except Exception:
         manager._cache["rocket_fly_loop_sound"] = None
 
-    # ===== FONTS (Cached in different sizes) =====
-    # Define font paths
-    FONT_ASTRALIGHT = "assets/fonts/Astralight.ttf"
-    FONT_WHITE_ON_BLACK = "assets/fonts/White On Black.ttf"
-    FONT_MONOFONTO = "assets/fonts/monofonto rg.otf"
-    FONT_KGREDHANDS = "assets/fonts/KGRedHands.ttf"
+
 
     # Title fonts (Astralight)
     try:
@@ -329,10 +325,144 @@ def load_assets() -> AssetManager:
         manager._cache["font_controls_small"] = pygame.font.Font(None, 20)
 
     # System fonts (None/default)
-    manager._cache["font_system_large"] = pygame.font.Font(None, 60)
+    manager._cache["font_system_large"]  = pygame.font.Font(None, 60)
     manager._cache["font_system_medium"] = pygame.font.Font(None, 40)
     manager._cache["font_system_normal"] = pygame.font.Font(None, 32)
-    manager._cache["font_system_small"] = pygame.font.Font(None, 28)
+    manager._cache["font_system_small"]  = pygame.font.Font(None, 28)
 
     return manager
 
+def load_fonts(assets: AssetManager) -> AssetManager:
+    """
+    Load and register only fonts using AssetManager.
+    Returns the AssetManager directly for modern usage.
+
+    Assets are registered but NOT loaded immediately (lazy loading).
+    They will be loaded on first access via get() or [].
+    """
+    manager = assets
+
+    try:
+        from config.fonts import FONTS
+        print("Font config loaded successfully")
+    except Exception as e:
+        print(f"Error loading font config: {e}")
+        FONTS = {
+            "title"   : {"file": None, "sizes": {"huge" : 180, "large" : 120, "medium": 90}},
+            "menu"    : {"file": None, "sizes": {"large": 96, "normal": 64, "small": 48}},
+            "hud"     : {"file": None, "sizes": {"large": 32, "normal": 24, "small": 20, "tiny": 16}},
+            "controls": {"file": None, "sizes": {"large": 48, "normal": 36, "small": 28}}
+        }
+
+    for category, config in FONTS.items():
+        font_path = config["file"]
+
+        for size_name, size_px in config["sizes"].items():
+            key = f"font_{category}_{size_name}"
+
+            try:
+                font = manager.load_font(font_path, size_px)
+                manager._cache[key] = font
+                if font_path:
+                    print(f"  [OK] {key}: {font_path} ({size_px}px)")
+                else:
+                    print(f"  [FALLBACK] {key}: System font ({size_px}px)")
+            except:
+                font = manager.load_font(None, size_px)
+                manager._cache[key] = font
+                print(f"  [FALLBACK] {key}: System font ({size_px}px)")
+
+    return manager
+
+def load_settings(assets: AssetManager) -> AssetManager:
+    manager = assets
+    print("Loading game settings...")
+    for key, value in GAME_CONFIG.items():
+        print(f"  [OK] {key}: {value}")
+        manager.set(key, value)
+
+    return manager
+
+def load_ships(assets: AssetManager) -> AssetManager:
+    manager = assets
+    print("Loading ship assets...")
+    for ship_number, ship in SHIP_CONFIG.items():
+        img = manager.load_image(ship["img"], ship["size"])
+        manager._cache[f"ship_{ship_number}_img"] = img
+        print(f"  [OK] ship_{ship_number}: {ship['img']} {ship['size']} loaded... [CACHE]")
+
+        for entry, value in ship.items():
+            manager.set(f"ship_{ship_number}_{entry}", value)
+            print(f"      [OK] ship_{ship_number}_{entry}: {value}")
+
+
+        # entries = ('health','speed','shield')
+        # for entry in entries:
+        #     manager.set(f"ship_{ship_number}_{entry}", ship[entry])
+        #     print(f"      [OK] ship_{ship_number}_{entry}: {ship[entry]}")
+
+        #     deep_entries = ('weapons', 'muzzles', 'angle')
+        #     for entry in deep_entries:
+        #         if entry in ship:
+        #             for deep_entry in ship[entry]:
+        #                 manager.set(f"ship_{ship_number}_{entry}_{deep_entry}", ship[entry][deep_entry])
+        #                 print(f"      [OK] ship_{ship_number}_{entry}_{deep_entry}: {ship[entry][deep_entry]}")
+
+    return manager
+
+def load_enemies(assets: AssetManager) -> AssetManager:
+    manager = assets
+    print("Loading enemy assets...")
+    for enema_name, enemy in ENEMY_CONFIG.items():
+        img = manager.load_image(enemy["img"], enemy["size"])
+        manager._cache[f"enemy_{enema_name}_img"] = img
+        print(f"  [OK] enemy_{enema_name}: {enemy['img']} {enemy['size']} loaded... [CACHE]")
+
+        for entry, value in enemy.items():
+            if entry != "img":  # Bild wurde bereits geladen
+                manager.set(f"enemy_{enema_name}_{entry}", value)
+                print(f"      [OK] enemy_{enema_name}_{entry}: {value}")
+
+    return manager
+
+def load_stages(assets: AssetManager) -> AssetManager:
+    manager = assets
+    print("Loading stage assets...")
+    # Hier können spezifische Ladebefehle für Level-Assets hinzugefügt werden
+    return manager
+
+def load_weapons(assets: AssetManager) -> AssetManager:
+    manager = assets
+    print("Loading weapon assets...")
+    # Hier können spezifische Ladebefehle für Waffen-Assets hinzugefügt werden
+    return manager
+
+def load_shields(assets: AssetManager) -> AssetManager:
+    manager = assets
+    print("Loading shield assets...")
+    # Hier können spezifische Ladebefehle für Schild-Assets hinzugefügt werden
+    return manager
+
+def load_powerups(assets: AssetManager) -> AssetManager:
+    manager = assets
+    print("Loading power-up assets...")
+    # Hier können spezifische Ladebefehle für Power-Up-Assets hinzugefügt werden
+    return manager
+
+def load_backgrounds(assets: AssetManager) -> AssetManager:
+    manager = assets
+    print("Loading background assets...")
+    # Hier können spezifische Ladebefehle für Hintergrund-Assets hinzugefügt werden
+    return manager
+
+def load_explosions(assets: AssetManager) -> AssetManager:
+    manager = assets
+    print("Loading explosion assets...")
+    # Hier können spezifische Ladebefehle für Explosions-Assets hinzugefügt werden
+    return manager
+
+def load_database(assets: AssetManager) -> AssetManager:
+    manager = assets
+    print("Loading database assets...")
+    # Hier können spezifische Ladebefehle für Datenbank-Assets hinzugefügt werden
+    return manager

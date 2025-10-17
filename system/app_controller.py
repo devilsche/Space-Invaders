@@ -1,16 +1,20 @@
 """
 App Controller - Zentraler State-Manager für das Space Invaders Spiel
 
-Verwaltet alle Screen-Übergänge und States:
-- Menu States (Hauptmenü, Modus-Auswahl, Highscores)
-- Game States (Normal, Survivor, Pause, Game Over)
-- Loading States
+Initialisiert ALLE Komponenten beim Start:
+- Assets (bereits in main.py geladen)
+- Game-Instanz (das originale Spiel)
+- Menu-System
+- Firebase-Status
+- Manager (Explosion, PowerUp, etc.)
 
-Trennt sauber Menu-Logic von Game-Logic.
+Verwaltet Screen-Übergänge zwischen Menu und Game.
+Das originale Game wird direkt genutzt, keine Wrapper!
 """
 
 import pygame
 from manager.asset_manager import AssetManager
+from game.game import Game
 
 class AppState:
     """Enum-ähnliche Klasse für App-States"""
@@ -30,103 +34,119 @@ class AppController:
     """
     Zentraler Controller für die gesamte Anwendung.
 
+    Initialisiert ALLES beim Start:
+    - Game-Instanz (einmal erstellt, immer wiederverwendet)
+    - Menu-System
+    - Alle Manager
+    - Screen, Clock, Assets (geteilt zwischen Menu und Game)
+
     Verantwortlichkeiten:
-    - State-Management zwischen verschiedenen Screens
-    - Screen-Initialisierung und -Verwaltung
-    - Event-Routing an die entsprechenden Screens
-    - Globale Settings (Fullscreen, Auflösung, etc.)
+    - Zentrale Initialisierung aller Komponenten
+    - State-Management zwischen Menu und Game
+    - Globale Settings (Fullscreen, etc.)
+    - Screen-Referenz für alle Komponenten
     """
 
-    def __init__(self, assets: AssetManager, screen: pygame.Surface):
-        # Core Components
+    def __init__(self, assets: AssetManager, screen: pygame.Surface, firebase_available: bool):
+        """
+        Initialisiert den AppController und ALLE Spiel-Komponenten.
+
+        Args:
+            assets: Der AssetManager mit allen geladenen Assets
+            screen: Das pygame Display Surface
+            firebase_available: Ob Firebase verfügbar ist (einmal geprüft in main.py)
+        """
+        print("🎮 Initializing AppController - Setting up ALL components...")
+
+        # Core Components (geteilt zwischen Menu und Game)
         self.assets = assets
         self.screen = screen
         self.clock = pygame.time.Clock()
         self.running = True
 
+        # Firebase Status (einmal geprüft, überall verfügbar)
+        self.firebase_available = firebase_available
+        print(f"   Firebase: {'🌐 ONLINE' if firebase_available else '📴 OFFLINE'}")
+
         # State Management
         self.current_state  = AppState.MENU
         self.previous_state = None
 
-        # Screen-spezifische Daten
-        self.game_mode: str = None
-        self.survivor_stage: int = 1
-        self.survivor_ship_stage: int = 1
+        # Game-Instanz (EINMAL erstellt, immer wiederverwendet!)
+        print("   Creating Game instance...")
+        self.game = Game(assets=self.assets)
+        self.game.screen = self.screen  # Nutze den gleichen Screen!
+        self.game.clock = self.clock    # Nutze die gleiche Clock!
+        self.game.online_available = firebase_available
+        self.game.app_controller = self  # Rückverweise für Fullscreen etc.
+        print("   ✅ Game instance created")
 
-        # Initialisiere Screens (Lazy Loading)
-        self._menu_screen      = None
-        self._game_screen      = None
-        self._loading_screen   = None
-        self._game_over_screen = None
-        self._victory_screen   = None
-        self._top10_screen     = None
+        # Menu-System (nutzt auch den gleichen Screen)
+        print("   Creating Menu system...")
+        self._menu_screen = None  # Lazy-Load
+        print("   ✅ Menu system ready")
 
-        # Globale Settings
+        # Globale Display-Settings (geteilt zwischen Menu und Game)
         self.is_fullscreen = False
         self.is_maximized = False
+        self.original_size = (1920, 1080)
+
+        print("✅ AppController initialization complete!")
 
     def get_menu_screen(self):
-        """Lazy-Load MenuScreen"""
+        """Lazy-Load MenuScreen mit geteiltem Screen"""
         if self._menu_screen is None:
-            from system.screens.menu_screen import MenuScreen
-            self._menu_screen = MenuScreen(self.assets)
+            from system.screens.menu import GameMenu
+            self._menu_screen = GameMenu()
+            self._menu_screen.load_assets(self.assets)
+            self._menu_screen.set_pause_mode(False)
+            print("   ✅ Menu screen loaded")
         return self._menu_screen
 
-    def get_game_screen(self):
-        """Lazy-Load GameScreen"""
-        if self._game_screen is None:
-            from system.screens.game_screen import GameScreen
-            self._game_screen = GameScreen(self.assets)
-        return self._game_screen
-
-    def get_loading_screen(self):
-        """Lazy-Load LoadingScreen"""
-        if self._loading_screen is None:
-            from system.screens.loading import LoadingScreen
-            self._loading_screen = LoadingScreen()
-        return self._loading_screen
-
-    # Später implementieren - erst mal nur Menu und Game funktionsfähig machen
-    # def get_game_over_screen(self):
-    # def get_victory_screen(self):
-    # def get_top10_screen(self):
-
-    def transition_to(self, new_state: str, **kwargs):
+    def toggle_fullscreen(self):
         """
-        Wechselt zu einem neuen State.
-
-        Args:
-            new_state: Der neue State (AppState.*)
-            **kwargs: Zusätzliche State-spezifische Parameter
+        Schaltet zwischen Fullscreen und Windowed um.
+        Aktualisiert den Screen für ALLE Komponenten (Menu + Game).
         """
-        print(f"State transition: {self.current_state} → {new_state}")
+        self.is_fullscreen = not self.is_fullscreen
 
-        self.previous_state = self.current_state
-        self.current_state  = new_state
+        if self.is_fullscreen:
+            self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+            print("✅ Fullscreen: ON")
+        else:
+            self.screen = pygame.display.set_mode(self.original_size, pygame.RESIZABLE)
+            print("❌ Fullscreen: OFF")
 
-        # State-spezifische Initialisierung
-        if new_state == AppState.PLAYING:
-            self.game_mode = kwargs.get('mode', 'normal')
-            if self.game_mode == 'survivor':
-                self.survivor_stage = kwargs.get('stage', 1)
-                self.survivor_ship_stage = kwargs.get('ship_stage', 1)
+        # Aktualisiere Screen-Referenz für Game
+        self.game.screen = self.screen
 
-            # Initialisiere neues Spiel
-            game_screen = self.get_game_screen()
-            game_screen.start_new_game(self.game_mode, self.survivor_stage, self.survivor_ship_stage)
+    def toggle_maximize(self):
+        """
+        Maximiert/Minimiert das Fenster (nur im Windowed Mode).
+        Aktualisiert den Screen für ALLE Komponenten (Menu + Game).
+        """
+        if self.is_fullscreen:
+            return  # Nicht im Fullscreen verfügbar
 
-        elif new_state == AppState.MENU:
-            # Zurück zum Menu - stoppe Game-Musik falls nötig
-            if self._game_screen:
-                self._game_screen.stop_game_music()
+        self.is_maximized = not self.is_maximized
 
-            # Starte Menu-Musik
-            menu_screen = self.get_menu_screen()
-            menu_screen.start_menu_music()
+        if self.is_maximized:
+            # Hole Bildschirmgröße
+            info = pygame.display.Info()
+            self.screen = pygame.display.set_mode((info.current_w, info.current_h), pygame.RESIZABLE)
+            print("⬆️ Window: MAXIMIZED")
+        else:
+            self.screen = pygame.display.set_mode(self.original_size, pygame.RESIZABLE)
+            print("⬇️ Window: RESTORED")
+
+        # Aktualisiere Screen-Referenz für Game
+        self.game.screen = self.screen
 
     def handle_global_events(self, event):
         """
         Behandelt globale Events (F11, Alt+Enter, etc.)
+
+        Diese Events funktionieren ÜBERALL - im Menu UND im Game!
 
         Returns:
             bool: True wenn Event behandelt wurde, False sonst
@@ -144,316 +164,191 @@ class AppController:
 
         return False
 
-    def toggle_fullscreen(self):
-        """Schaltet zwischen Fullscreen und Windowed um"""
-        self.is_fullscreen = not self.is_fullscreen
+    def transition_to_menu(self):
+        """Wechselt zurück zum Menu (wird vom Game aufgerufen)"""
+        print("🔄 Transitioning to Menu...")
+        self.current_state = AppState.MENU
 
-        if self.is_fullscreen:
-            self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-        else:
-            self.screen = pygame.display.set_mode((1920, 1080), pygame.RESIZABLE)
+        # Stoppe Game-Musik
+        pygame.mixer.music.stop()
 
-        print(f"Fullscreen: {'ON' if self.is_fullscreen else 'OFF'}")
+        # Starte Menu-Musik
+        menu = self.get_menu_screen()
+        menu.start_menu_music()
 
-    def toggle_maximize(self):
-        """Maximiert/Minimiert das Fenster"""
-        if not self.is_fullscreen:
-            self.is_maximized = not self.is_maximized
+    def start_game(self, mode: str, stage: int = 1):
+        """
+        Startet das Spiel im angegebenen Modus.
 
-            if self.is_maximized:
-                # Hole Bildschirmgröße
-                info = pygame.display.Info()
-                self.screen = pygame.display.set_mode((info.current_w, info.current_h), pygame.RESIZABLE)
-            else:
-                self.screen = pygame.display.set_mode((1920, 1080), pygame.RESIZABLE)
+        Args:
+            mode: "normal" oder "survivor"
+            stage: Stage-Level für Survivor Mode
+        """
+        print(f"🎮 Starting Game: {mode} mode, stage {stage}")
 
-            print(f"Maximized: {'ON' if self.is_maximized else 'OFF'}")
+        self.current_state = AppState.PLAYING
+
+        # Konfiguriere das Game
+        self.game.game_mode = mode
+        self.game.game_state = "playing"
+
+        if mode == "survivor":
+            self.game.survivor_selected_stage = stage
+
+        # Starte neues Spiel
+        self.game._start_new_game()
+
+        # Stoppe Menu-Musik
+        menu = self.get_menu_screen()
+        menu.stop_menu_music()
 
     def run(self):
         """
         Hauptloop der Anwendung.
-        Routet Events und Updates an die entsprechenden Screens.
+        Routet Events und Updates zwischen Menu und Game.
         """
+        # Starte Menu-Musik
+        menu = self.get_menu_screen()
+        menu.start_menu_music()
+
         while self.running:
             dt = self.clock.tick(60) / 1000.0  # Delta time in Sekunden
 
             # Event-Handling
-            events = pygame.event.get()
-            for event in events:
+            for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
                     break
 
-                # Globale Events behandeln
+                # Globale Events behandeln (funktioniert überall!)
                 if self.handle_global_events(event):
                     continue
 
                 # Screen-spezifische Events
-                self._handle_screen_events(event)
+                if self.current_state == AppState.MENU:
+                    self._handle_menu_events(event)
+                elif self.current_state == AppState.PLAYING:
+                    self._handle_game_events(event)
 
             if not self.running:
                 break
 
-            # Screen-Updates
-            self._update_current_screen(dt)
+            # Updates
+            if self.current_state == AppState.MENU:
+                menu.update(dt)
+            elif self.current_state == AppState.PLAYING:
+                # Game update - direkt aus dem originalen Game!
+                self.game._handle_events()
+                self.game._update()
 
             # Rendering
-            self._render_current_screen()
+            if self.current_state == AppState.MENU:
+                menu.draw(self.screen)
+            elif self.current_state == AppState.PLAYING:
+                # Game rendering - direkt aus dem originalen Game!
+                self.game._draw()
+
 
             pygame.display.flip()
 
         # Cleanup
         self._cleanup()
 
-    def _handle_screen_events(self, event):
-        """Routet Events an den aktuellen Screen"""
-        if self.current_state == AppState.MENU:
-            action = self.get_menu_screen().handle_event(event)
-            self._process_menu_action(action)
+    def _handle_menu_events(self, event):
+        """Behandelt Menu-Events"""
+        menu = self.get_menu_screen()
+        action = menu.handle_input(event)
 
-        elif self.current_state in [AppState.PLAYING, AppState.PAUSED]:
-            action = self.get_game_screen().handle_event(event)
-            self._process_game_action(action)
-
-        elif self.current_state in [AppState.TOP10_NORMAL, AppState.TOP10_SURVIVOR]:
-            self._handle_top10_event(event)
-
-        # Weitere States später implementieren
-        # elif self.current_state == AppState.GAME_OVER:
-        # elif self.current_state == AppState.VICTORY:
-
-    def _process_menu_action(self, action):
-        """Verarbeitet Aktionen vom MenuScreen"""
         if not action:
             return
 
-        if action == "start_normal":
-            # Starte das originale Spiel direkt
-            self._start_original_game("normal")
+        # Ignoriere "navigate" Actions (nur für Sound-Effekte)
+        if action == "navigate":
+            return
 
-        elif action == "start_survivor":
-            self.transition_to(AppState.SURVIVOR_SHIP_SELECT)
+        print(f"🎯 Menu action received: {action}")
 
-        elif action.startswith("start_survivor_"):
-            # Extrahiere Parameter und starte originales Spiel
-            parts = action.split("_")
-            stage = int(parts[-2].replace("stage", "")) if len(parts) >= 3 else 1
-            ship = int(parts[-1].replace("ship", "")) if len(parts) >= 4 else 1
-            self._start_original_game("survivor", stage, ship)
+        # Hauptmenü-Aktionen
+        if action == "show_mode_select":
+            # Spielmodus-Auswahl anzeigen
+            menu.set_mode_select(True)
 
-        elif action == "show_normal_top10":
-            self.transition_to(AppState.TOP10_NORMAL)
+        elif action == "show_highscores":
+            # Highscore-Menü anzeigen
+            menu.set_highscore_menu(True)
 
-        elif action.startswith("show_survivor_top10"):
-            # Extract stage number from action like "show_survivor_top10_3"
-            stage_num = int(action.split("_")[-1]) if "_" in action else 1
-            self.survivor_stage = stage_num
-            self.transition_to(AppState.TOP10_SURVIVOR)
-
-        elif action == "quit":
+        elif action == "quit_game":
             self.running = False
 
-    def _start_original_game(self, mode: str, stage: int = 1, ship: int = 1):
-        """Startet das originale Spiel direkt ohne Menu - kehrt bei Pause/Game Over zum AppController zurück"""
-        from game.game import Game
+        # Spielmodus-Auswahl-Aktionen
+        elif action == "start_game":
+            # Normal Mode starten
+            self.start_game("normal")
 
-        print(f"🎮 Starting ORIGINAL Space Invaders: {mode} mode, stage {stage}, ship {ship}")
-
-        # Erstelle und konfiguriere das originale Spiel
-        original_game = Game(assets=self.assets)
-        
-        # WICHTIG: Setze AppController als Return-Point für das originale Game
-        original_game.app_controller = self
-
-        # Konfiguriere den Game-Mode
-        if mode == "survivor":
-            original_game.game_mode = "survivor"
-            original_game.survivor_selected_stage = stage
-            # Setze Spiel-State direkt auf playing und starte
-            original_game.game_state = "playing"
-            original_game._start_new_game()
-        else:
-            original_game.game_mode = "normal"
-            # Normal Mode: Auch direkt ins Spiel springen, kein Menu mehr!
-            original_game.game_state = "playing"
-            original_game._start_new_game()
-
-        # Starte das originale Spiel mit Menu-Skip
-        print("🚀 Starting original game in DIRECT mode (no menu)...")
-        original_game.run()
-        
-        # Wenn das originale Spiel zurückkehrt, starte AppController Menu wieder
-        print("🔄 Original game finished - returning to AppController menu")
-        self.running = True
-        self.transition_to(AppState.MENU)
-
-    def _process_game_action(self, action):
-        """Verarbeitet Aktionen vom GameScreen"""
-        if not action:
-            return
-
-        if action == "pause":
-            if self.current_state == AppState.PLAYING:
-                self.transition_to(AppState.PAUSED)
-            elif self.current_state == AppState.PAUSED:
-                self.transition_to(AppState.PLAYING)
-
-        elif action == "game_over":
-            # Temporär: Zurück zum Menu
-            print("Game Over - returning to menu")
-            self.transition_to(AppState.MENU)
-
-        elif action == "victory":
-            # Temporär: Zurück zum Menu
-            print("Victory - returning to menu")
-            self.transition_to(AppState.MENU)
+        elif action == "start_survivor":
+            # Survivor Mode starten (erstmal Stage 1)
+            self.start_game("survivor", stage=1)
 
         elif action == "back_to_menu":
-            self.transition_to(AppState.MENU)
+            # Zurück zum Hauptmenü
+            menu.reset_to_main_menu()
 
-    def _handle_top10_event(self, event):
-        """Behandelt Events für Top10-Screens"""
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_ESCAPE or event.key == pygame.K_RETURN:
-                # Zurück zum Menu
-                self.transition_to(AppState.MENU)
+        # Highscore-Menü-Aktionen
+        elif action == "show_normal_highscores":
+            # TODO: Normal Highscores anzeigen
+            print("📊 Show Normal Highscores (TODO)")
+            menu.reset_to_main_menu()
 
-    def _process_game_over_action(self, action):
-        """Verarbeitet Aktionen vom GameOverScreen"""
-        if not action:
-            return
+        elif action == "show_survivor_stage_select":
+            # Survivor Stage-Auswahl anzeigen
+            menu.set_survivor_stage_select(True)
 
-        if action == "restart":
-            # Starte das gleiche Spiel nochmal
-            self.transition_to(
-                AppState.PLAYING,
-                mode=self.game_mode,
-                stage=self.survivor_stage,
-                ship_stage=self.survivor_ship_stage
-            )
-        elif action == "back_to_menu":
-            self.transition_to(AppState.MENU)
-        elif action == "show_highscores":
-            if self.game_mode == "normal":
-                self.transition_to(AppState.NORMAL_TOP10)
-            else:
-                self.transition_to(AppState.SURVIVOR_TOP10, stage=self.survivor_stage)
+        # Survivor Stage-Select-Aktionen (z.B. "show_survivor_highscores_1")
+        elif action.startswith("show_survivor_highscores_"):
+            # Survivor Highscores für spezifische Stage anzeigen
+            stage = int(action.split("_")[-1])
+            print(f"📊 Show Survivor Highscores Stage {stage} (TODO)")
+            menu.reset_to_main_menu()
 
-    def _process_victory_action(self, action):
-        """Verarbeitet Aktionen vom VictoryScreen"""
-        if not action:
-            return
+        elif action == "back_to_highscore_menu":
+            # Von Stage-Select zurück zu Highscore-Menu
+            menu.set_highscore_menu(True)
 
-        if action == "continue":
-            # Nächstes Level oder zurück zum Menu
-            self.transition_to(AppState.MENU)
-        elif action == "back_to_menu":
-            self.transition_to(AppState.MENU)
-
-    def _process_top10_action(self, action):
-        """Verarbeitet Aktionen von Top10-Screens"""
-        if not action:
-            return
-
-        if action == "back_to_menu":
-            self.transition_to(AppState.MENU)
-
-    def _update_current_screen(self, dt):
-        """Updated den aktuellen Screen"""
-        if self.current_state == AppState.MENU:
-            self.get_menu_screen().update(dt)
-
-        elif self.current_state in [AppState.PLAYING, AppState.PAUSED]:
-            paused = (self.current_state == AppState.PAUSED)
-            action = self.get_game_screen().update(dt, paused)
-            if action:
-                self._process_game_action(action)
-
-        elif self.current_state in [AppState.TOP10_NORMAL, AppState.TOP10_SURVIVOR]:
-            # Top10-Screens haben meist kein Update
+        # Pause-Menü-Aktionen
+        elif action == "resume":
+            # Zurück zum Spiel
             pass
 
-        # Weitere States später implementieren
-        # elif self.current_state == AppState.GAME_OVER:
-        # elif self.current_state == AppState.VICTORY:
+        elif action == "quit_to_menu":
+            # Zurück zum Hauptmenü
+            self.transition_to_menu()
 
-    def _render_current_screen(self):
-        """Rendert den aktuellen Screen"""
-        if self.current_state == AppState.MENU:
-            self.get_menu_screen().draw(self.screen)
+        else:
+            print(f"⚠️ Unhandled menu action: {action}")
 
-        elif self.current_state in [AppState.PLAYING, AppState.PAUSED]:
-            self.get_game_screen().draw(self.screen)
+    def _handle_game_events(self, event):
+        """Behandelt Game-Events"""
+        # ESC für Pause/Menu
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            if self.game.game_state == "playing":
+                # Pause
+                self.game.paused = not self.game.paused
+            elif self.game.game_state in ["game_over", "victory"]:
+                # Zurück zum Menu
+                self.transition_to_menu()
 
-            # Pause-Overlay
-            if self.current_state == AppState.PAUSED:
-                self._draw_pause_overlay()
-
-        elif self.current_state in [AppState.TOP10_NORMAL, AppState.TOP10_SURVIVOR]:
-            self._draw_top10_screen()
-
-        # Weitere States später implementieren
-        # elif self.current_state == AppState.GAME_OVER:
-        # elif self.current_state == AppState.VICTORY:
-
-    def _draw_top10_screen(self):
-        """Zeichnet die Top10-Screens"""
-        # Schwarzer Hintergrund
-        self.screen.fill((0, 0, 0))
-
-        # Title
-        if self.assets.has("title_font_large"):
-            font = self.assets.get("title_font_large")
-            if self.current_state == AppState.TOP10_NORMAL:
-                title_text = "NORMAL MODE - TOP 10"
-            else:
-                title_text = f"SURVIVOR MODE - STAGE {self.survivor_stage} - TOP 10"
-
-            title = font.render(title_text, True, (255, 255, 255))
-            title_rect = title.get_rect(center=(self.screen.get_width() // 2, 100))
-            self.screen.blit(title, title_rect)
-
-        # Placeholder für Highscore-Liste
-        if self.assets.has("menu_font_medium"):
-            font = self.assets.get("menu_font_medium")
-
-            # Zeige Platzhalter-Text
-            placeholder_text = "Highscore-Liste wird geladen..."
-            text = font.render(placeholder_text, True, (200, 200, 200))
-            text_rect = text.get_rect(center=(self.screen.get_width() // 2, 300))
-            self.screen.blit(text, text_rect)
-
-            # Instruktion
-            instruction_text = "ESC oder ENTER = Zurück zum Menu"
-            instruction = font.render(instruction_text, True, (150, 150, 150))
-            instruction_rect = instruction.get_rect(center=(self.screen.get_width() // 2, 500))
-            self.screen.blit(instruction, instruction_rect)
-
-    def _draw_pause_overlay(self):
-        """Zeichnet das Pause-Overlay"""
-        # Semi-transparentes Overlay
-        overlay = pygame.Surface(self.screen.get_size())
-        overlay.set_alpha(128)
-        overlay.fill((0, 0, 0))
-        self.screen.blit(overlay, (0, 0))
-
-        # "PAUSED" Text
-        if self.assets.has("title_font_large"):
-            font = self.assets.get("title_font_large")
-            text = font.render("PAUSED", True, (255, 255, 255))
-            rect = text.get_rect(center=(self.screen.get_width() // 2, self.screen.get_height() // 2))
-            self.screen.blit(text, rect)
+        # Game Over / Victory → Menu
+        if self.game.game_state in ["game_over", "victory"]:
+            # Check ob User zurück zum Menu will
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
+                self.transition_to_menu()
 
     def _cleanup(self):
         """Cleanup beim Beenden der Anwendung"""
-        print("App Controller shutting down...")
+        print("🔌 App Controller shutting down...")
 
         # Stoppe alle Sounds/Musik
         pygame.mixer.stop()
         pygame.mixer.music.stop()
 
-        # Cleanup Screens
-        if self._game_screen:
-            self._game_screen.cleanup()
-        if self._menu_screen:
-            self._menu_screen.cleanup()
+        print("✅ Cleanup complete")

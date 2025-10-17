@@ -17,8 +17,7 @@ FONTS = {
             "huge"  : 180, # Haupttitel
             "large" : 120, # Untertitel
             "medium": 90 , # Kleinere Titel
-        },
-        "fallback": None  # System font falls nicht vorhanden
+        }
     },
 
     # Menü Font
@@ -28,11 +27,9 @@ FONTS = {
             "large" : 96,
             "normal": 64,
             "small" : 48,
-        },
-        "fallback": None
+        }
     },
 
-    # HUD/Gameplay Font
     "hud": {
         "file": "assets/fonts/monofonto rg.otf",
         "sizes": {
@@ -40,8 +37,7 @@ FONTS = {
             "normal": 24,
             "small" : 20,
             "tiny"  : 16,
-        },
-        "fallback": None
+        }
     },
 
     # Controls Font
@@ -51,7 +47,6 @@ FONTS = {
             "large" : 48,
             "normal": 36,
             "small" : 28,
-        },
-        "fallback": None
+        }
     }
 }

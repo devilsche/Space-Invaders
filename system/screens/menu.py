@@ -1,7 +1,12 @@
 # system/menu.py - Start/Pause Menu System
 import pygame
 import math
-from config.settings import WIDTH, HEIGHT, FONT_SIZE
+from config.settings import GAME_CONFIG
+
+WIDTH     = GAME_CONFIG["WIDTH"]
+HEIGHT    = GAME_CONFIG["HEIGHT"]
+FONT_SIZE = GAME_CONFIG["FONT_SIZE"]
+
 from system.utils import scale, scale_pos, scale_size
 
 class GameMenu:
@@ -149,6 +154,17 @@ class GameMenu:
         self.current_options          = self.menu_options
         self.selected_option          = 0
         print(f"Reset to main menu - options: {self.current_options}, selected: {self.selected_option}")
+
+    def update(self, dt):
+        """
+        Update-Methode für Menü (für AppController-Kompatibilität).
+        Das Menü hat keine Animationen oder Zeit-abhängige Updates,
+        daher ist diese Methode leer.
+        
+        Args:
+            dt: Delta time in Sekunden
+        """
+        pass
 
     def handle_input(self, event):
         """Verarbeite Menü-Eingaben"""
