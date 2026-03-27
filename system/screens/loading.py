@@ -107,7 +107,7 @@ class Loading:
         if self.title_font is None:
             self.title_font = pygame.font.Font(None, 72)
 
-        title_surface = self.title_font.render( "NOVA STRIKE", True, (255, 255, 255))
+        title_surface = self.title_font.render("IRONBLAST", True, (255, 255, 255))
         title_rect    = title_surface.get_rect(center=(self.current_width // 2, self.current_height // 3))
 
         self.screen.blit(title_surface, title_rect)

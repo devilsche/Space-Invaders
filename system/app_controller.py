@@ -1,5 +1,5 @@
 """
-App Controller - Zentraler State-Manager für das Space Invaders Spiel
+App Controller - Zentraler State-Manager für Ironblast
 
 Initialisiert ALLE Komponenten beim Start:
 - Assets (bereits in main.py geladen)
