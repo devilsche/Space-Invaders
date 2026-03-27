@@ -572,5 +572,33 @@ def load_game_assets(manager: AssetManager) -> AssetManager:
             except Exception:
                 manager._cache[key] = None
 
+    # ===== Extra Fonts (für Game Over, Victory, etc.) =====
+    FONT_ASTRALIGHT = "assets/fonts/Astralight.ttf"
+    FONT_WHITE_ON_BLACK = "assets/fonts/White On Black.ttf"
+    FONT_MONOFONTO = "assets/fonts/monofonto rg.otf"
+    FONT_KGREDHANDS = "assets/fonts/KGRedHands.ttf"
+
+    font_defs = {
+        "font_subtitle_large": (FONT_WHITE_ON_BLACK, 50),
+        "font_subtitle_medium": (FONT_WHITE_ON_BLACK, 40),
+        "font_subtitle_small": (FONT_WHITE_ON_BLACK, 32),
+        "font_mono_large": (FONT_MONOFONTO, 70),
+        "font_mono_medium": (FONT_MONOFONTO, 60),
+        "font_mono_normal": (FONT_MONOFONTO, 32),
+        "font_mono_small": (FONT_MONOFONTO, 28),
+        "font_mono_tiny": (FONT_MONOFONTO, 24),
+        "font_mono_micro": (FONT_MONOFONTO, 14),
+        "font_system_large": (None, 60),
+        "font_system_medium": (None, 40),
+        "font_system_normal": (None, 32),
+        "font_system_small": (None, 28),
+    }
+    for key, (path, size) in font_defs.items():
+        if not manager.get(key):
+            try:
+                manager._cache[key] = pygame.font.Font(path, size)
+            except:
+                manager._cache[key] = pygame.font.Font(None, size)
+
     print("✅ Game assets loaded")
     return manager
