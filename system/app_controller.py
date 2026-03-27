@@ -244,8 +244,8 @@ class AppController:
                 # Im Spiel: Kompletten Game-Loop-Body ausführen
                 # Das Game hat seine eigene State-Machine (playing, paused,
                 # survivor_name_input, survivor_game_over, etc.)
-                frame_time = self.game.clock.tick(60) / 1000.0
-                self.game.accumulated_time += frame_time
+                # Nutze dt von der äußeren Clock (keine doppelte Drosselung!)
+                self.game.accumulated_time += dt
                 game_state = self.game.game_state
 
                 if game_state == "playing":
