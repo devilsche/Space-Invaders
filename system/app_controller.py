@@ -362,9 +362,14 @@ class AppController:
 
         # Highscore-Menü-Aktionen
         elif action == "show_normal_highscores":
-            # TODO: Normal Highscores anzeigen
-            print("📊 Show Normal Highscores (TODO)")
-            menu.reset_to_main_menu()
+            # Normal Highscores über das Game anzeigen
+            menu.stop_menu_music()
+            self.current_state = AppState.PLAYING
+            self.game.screen = self.screen
+            self.game._reinitialize_ui()
+            self.game.came_from = 'menu'
+            self.game.game_state = "normal_top10"
+            self.game._normal_top10_loaded = False
 
         elif action == "show_survivor_stage_select":
             # Survivor Stage-Auswahl anzeigen
@@ -372,10 +377,15 @@ class AppController:
 
         # Survivor Stage-Select-Aktionen (z.B. "show_survivor_highscores_1")
         elif action.startswith("show_survivor_highscores_"):
-            # Survivor Highscores für spezifische Stage anzeigen
             stage = int(action.split("_")[-1])
-            print(f"📊 Show Survivor Highscores Stage {stage} (TODO)")
-            menu.reset_to_main_menu()
+            menu.stop_menu_music()
+            self.current_state = AppState.PLAYING
+            self.game.screen = self.screen
+            self.game._reinitialize_ui()
+            self.game.came_from = 'menu'
+            self.game._survivor_highscore_stage = stage
+            self.game._survivor_highscores_loaded = False
+            self.game.game_state = "survivor_highscores_view"
 
         elif action == "back_to_highscore_menu":
             # Von Stage-Select zurück zu Highscore-Menu

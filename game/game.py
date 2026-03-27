@@ -1442,6 +1442,27 @@ class Game:
                 self.came_from = None
                 self._handle_menu_return()
 
+        elif gs == "survivor_highscores_view":
+            from system.utils import load_survivor_highscores
+            if not hasattr(self, '_survivor_highscores_loaded') or not self._survivor_highscores_loaded:
+                stage = getattr(self, '_survivor_highscore_stage', 1)
+                self._survivor_top10_data = load_survivor_highscores(stage)[:10]
+                self._survivor_highscores_loaded = True
+                pygame.event.get()
+            action = self.top10_survivor_screen.handle_and_draw(
+                self.screen, self._bg_scaled,
+                self._survivor_top10_data,
+                getattr(self, '_survivor_highscore_stage', 1),
+                self.menu,
+                came_from=self.came_from if self.came_from else 'menu'
+            )
+            if action == "quit":
+                self.running = False
+            elif action == "menu":
+                self._survivor_highscores_loaded = False
+                self.came_from = None
+                self._handle_menu_return()
+
         pygame.display.flip()
 
     # ---------------- Loop ----------------
