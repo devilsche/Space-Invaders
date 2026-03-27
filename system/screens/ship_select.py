@@ -210,10 +210,11 @@ class ShipSelectScreen:
                           info_font, weapon_font, control_font, desc_font):
         """Zeichnet den Hauptscreen mit Schiffsauswahl"""
         # Title
+        title_y = int(ch * 0.08)
         title_text = title_font.render("SELECT YOUR SHIP", True, (100, 200, 255))
-        title_rect = title_text.get_rect(center=(cw // 2, int(80 * ui_scale)))
+        title_rect = title_text.get_rect(center=(cw // 2, title_y))
         shadow_text = title_font.render("SELECT YOUR SHIP", True, (0, 0, 0))
-        shadow_rect = shadow_text.get_rect(center=(cw // 2 + 3, int(80 * ui_scale) + 3))
+        shadow_rect = shadow_text.get_rect(center=(cw // 2 + 3, title_y + 3))
         screen.blit(shadow_text, shadow_rect)
         screen.blit(title_text, title_rect)
 

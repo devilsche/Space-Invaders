@@ -228,6 +228,8 @@ class AppController:
             # Ship-Select Screen verarbeitet Events selbst (handle_and_draw)
             if self.current_state == AppState.SURVIVOR_SHIP_SELECT:
                 bg = menu.background_image
+                if bg and bg.get_size() != self.screen.get_size():
+                    bg = pygame.transform.smoothscale(bg, self.screen.get_size())
                 result = self._ship_select_screen.handle_and_draw(self.screen, bg, self.assets)
                 if result == "back":
                     self.current_state = AppState.MENU
@@ -238,49 +240,67 @@ class AppController:
                     self.start_game("survivor", stage=result)
                 continue
 
-            # Event-Handling
+            if self.current_state == AppState.PLAYING:
+                # Im Spiel: Kompletten Game-Loop-Body ausführen
+                # Das Game hat seine eigene State-Machine (playing, paused,
+                # survivor_name_input, survivor_game_over, etc.)
+                frame_time = self.game.clock.tick(60) / 1000.0
+                self.game.accumulated_time += frame_time
+                game_state = self.game.game_state
+
+                if game_state == "playing":
+                    self.game._handle_events()
+                    if not self.game.paused:
+                        updates = 0
+                        while self.game.accumulated_time >= self.game.fixed_timestep and updates < self.game.max_steps_per_frame:
+                            self.game._physics_update()
+                            self.game.accumulated_time -= self.game.fixed_timestep
+                            updates += 1
+                        if self.game.accumulated_time > self.game.fixed_timestep:
+                            self.game.accumulated_time = 0.0
+                        self.game._update()
+                    self.game._draw()
+                elif game_state == "paused":
+                    self.game._handle_pause_menu()
+                elif game_state == "survivor_ship_select":
+                    self.current_state = AppState.SURVIVOR_SHIP_SELECT
+                    continue
+                elif game_state == "menu":
+                    self.game.game_state = "playing"
+                    self.transition_to_menu()
+                    continue
+                else:
+                    # Alle anderen Game-States (survivor_name_input,
+                    # survivor_game_over, normal_name_input, etc.)
+                    # werden im originalen Game.run() Loop behandelt
+                    self.game._run_sub_state()
+
+                # Prüfe ob Game zurück zum Menu will
+                if not self.game.running:
+                    self.game.running = True
+                    self.transition_to_menu()
+
+                continue  # Skip den normalen flip, Game macht eigenen
+
+            # Event-Handling für Menu
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
                     break
 
-                # Globale Events behandeln (funktioniert überall!)
                 if self.handle_global_events(event):
                     continue
 
-                # Screen-spezifische Events
                 if self.current_state == AppState.MENU:
                     self._handle_menu_events(event)
-                elif self.current_state == AppState.PLAYING:
-                    self._handle_game_events(event)
 
             if not self.running:
                 break
 
-            # Updates
+            # Updates & Rendering für Menu
             if self.current_state == AppState.MENU:
                 menu.update(dt)
-            elif self.current_state == AppState.PLAYING:
-                self.game._handle_events()
-                if not self.game.paused:
-                    # Physics Update (bewegt Projektile)
-                    self.game.accumulated_time += dt
-                    updates = 0
-                    while self.game.accumulated_time >= self.game.fixed_timestep and updates < self.game.max_steps_per_frame:
-                        self.game._physics_update()
-                        self.game.accumulated_time -= self.game.fixed_timestep
-                        updates += 1
-                    if self.game.accumulated_time > self.game.fixed_timestep:
-                        self.game.accumulated_time = 0.0
-                    self.game._update()
-
-            # Rendering
-            if self.current_state == AppState.MENU:
                 menu.draw(self.screen)
-            elif self.current_state == AppState.PLAYING:
-                # Game rendering - direkt aus dem originalen Game!
-                self.game._draw()
-
 
             pygame.display.flip()
 

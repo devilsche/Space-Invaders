@@ -1317,6 +1317,133 @@ class Game:
         self.player_dead = False
         self._respawn_ready_at = 0
 
+    def _run_sub_state(self):
+        """Führt einen Frame des aktuellen Sub-States aus (alles außer playing/paused).
+        Wird vom AppController aufgerufen für States wie survivor_name_input etc."""
+        gs = self.game_state
+
+        if gs == "survivor_ship_select":
+            if not self.menu.menu_music_playing:
+                self.menu.start_menu_music()
+            self.ship_select_screen.selected_stage = self.survivor_selected_stage
+            action = self.ship_select_screen.handle_and_draw(self.screen, self._bg_scaled, self.assets)
+            if action == "quit":
+                self.running = False
+            elif action == "back":
+                self.game_state = "menu"
+            elif isinstance(action, int):
+                self.survivor_selected_stage = action
+                self.game_state = "playing"
+                self.menu.stop_menu_music()
+                self._start_game_mode()
+            elif action is None:
+                self.survivor_selected_stage = self.ship_select_screen.selected_stage
+
+        elif gs == "level_complete":
+            from system.screens.upgrade_screen import UpgradeScreen
+            if not hasattr(self, '_upgrade_screen') or self._upgrade_screen is None:
+                ship_stage = self.player.stage if hasattr(self.player, 'stage') else 1
+                self._upgrade_screen = UpgradeScreen(ship_stage=ship_stage)
+            result = self._upgrade_screen.handle_and_draw(
+                self.screen, self.score, self.level, self._total_kills, self.assets
+            )
+            if result == "quit":
+                self.running = False
+            elif isinstance(result, tuple) and result[0] == "continue":
+                _, new_score, upgrades = result
+                self.score = new_score
+                self._apply_upgrades(upgrades)
+                self._upgrade_screen = None
+                self._start_next_level()
+
+        elif gs == "victory":
+            if not self.menu.menu_music_playing:
+                try: pygame.mixer.music.stop()
+                except pygame.error: pass
+                self.menu.start_menu_music()
+            action = self.victory_screen.handle_and_draw(
+                self.screen, self._bg_scaled, self.score, self._total_kills,
+                self.projectile_manager, self.powerup_manager, self.explosion_manager,
+                self.player, self.shield, self.powerup_shield, self.player_dead
+            )
+            if action == "quit":
+                self.running = False
+            elif action == "replay":
+                self.menu.stop_menu_music()
+                self.game_state = "playing"
+                self._start_game_mode()
+            elif action == "menu":
+                if self.game_mode == "normal":
+                    self.game_state = "normal_name_input"
+                else:
+                    self._handle_menu_return()
+
+        elif gs == "survivor_name_input":
+            if not self.menu.menu_music_playing:
+                try: pygame.mixer.music.stop()
+                except pygame.error: pass
+                self.menu.start_menu_music()
+            action = self.survivor_name_input_screen.handle_and_draw(
+                self.screen, self._bg_scaled, self.survivor_time, self.survivor_kills,
+                self.survivor_selected_stage
+            )
+            if action == "quit":
+                self.running = False
+            elif action == "submit":
+                self.game_state = "survivor_game_over"
+            elif action == "skip":
+                self.game_state = "survivor_game_over"
+
+        elif gs == "survivor_game_over":
+            action = self.survivor_game_over_screen.handle_and_draw(
+                self.screen, self._bg_scaled, self.survivor_time, self.survivor_kills,
+                self.survivor_selected_stage
+            )
+            if action == "quit":
+                self.running = False
+            elif action == "retry":
+                self.game_state = "survivor_ship_select"
+            elif action == "menu":
+                self._handle_menu_return()
+
+        elif gs == "normal_name_input":
+            if not self.menu.menu_music_playing:
+                try: pygame.mixer.music.stop()
+                except pygame.error: pass
+                self.menu.start_menu_music()
+            stats_dict = {'Score': self.score, 'Kills': self._total_kills, 'Level': self.level}
+            action = self.game_over_screen.handle_and_draw(
+                self.screen, self._bg_scaled, stats_dict, self.menu
+            )
+            if action == "quit":
+                self.running = False
+            elif action in ("submit", "skip"):
+                self.came_from = 'game'
+                self.game_state = "normal_top10"
+
+        elif gs == "normal_top10":
+            if not hasattr(self, '_normal_top10_loaded') or not self._normal_top10_loaded:
+                from system.utils import load_normal_top10
+                self._normal_top10_data = load_normal_top10()[:10]
+                self._normal_top10_loaded = True
+            action = self.top10_normal_screen.handle_and_draw(
+                self.screen, self._bg_scaled, self._normal_top10_data, self.menu,
+                came_from=self.came_from if self.came_from else 'menu'
+            )
+            if action == "quit":
+                self.running = False
+            elif action == "retry":
+                self._normal_top10_loaded = False
+                self.menu.stop_menu_music()
+                self.game_state = "playing"
+                self._start_game_mode()
+            elif action == "menu":
+                self._normal_top10_loaded = False
+                self.came_from = None
+                self._handle_menu_return()
+
+        pygame.display.flip()
+
     # ---------------- Loop ----------------
     def run(self):
         while self.running:
