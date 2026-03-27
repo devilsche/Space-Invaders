@@ -261,6 +261,20 @@ class AppController:
     def _handle_menu_events(self, event):
         """Behandelt Menu-Events"""
         menu = self.get_menu_screen()
+
+        # ESC: Zurück navigieren im Menü
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            if menu.is_survivor_stage_select:
+                menu.set_survivor_stage_select(False)
+                menu.set_highscore_menu(True)
+            elif menu.is_highscore_menu:
+                menu.set_highscore_menu(False)
+            elif menu.is_mode_select:
+                menu.set_mode_select(False)
+            else:
+                self.running = False
+            return
+
         action = menu.handle_input(event)
 
         if not action:

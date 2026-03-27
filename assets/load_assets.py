@@ -372,6 +372,10 @@ def load_fonts(assets: AssetManager) -> AssetManager:
                 manager._cache[key] = font
                 print(f"  [FALLBACK] {key}: System font ({size_px}px)")
 
+            # Aliase für Kompatibilität: "font_title_large" -> "title_font_large" etc.
+            alias_key = f"{category}_font_{size_name}"
+            manager._cache[alias_key] = manager._cache[key]
+
     return manager
 
 def load_settings(assets: AssetManager) -> AssetManager:
