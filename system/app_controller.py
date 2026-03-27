@@ -86,6 +86,10 @@ class AppController:
         self._menu_screen = None  # Lazy-Load
         print("   ✅ Menu system ready")
 
+        # Ship-Select Screen
+        from system.screens.ship_select import ShipSelectScreen
+        self._ship_select_screen = ShipSelectScreen()
+
         # Globale Display-Settings (geteilt zwischen Menu und Game)
         self.is_fullscreen = False
         self.is_maximized = False
@@ -218,6 +222,19 @@ class AppController:
         while self.running:
             dt = self.clock.tick(60) / 1000.0  # Delta time in Sekunden
 
+            # Ship-Select Screen verarbeitet Events selbst (handle_and_draw)
+            if self.current_state == AppState.SURVIVOR_SHIP_SELECT:
+                bg = menu.background_image
+                result = self._ship_select_screen.handle_and_draw(self.screen, bg, self.assets)
+                if result == "back":
+                    self.current_state = AppState.MENU
+                    menu.set_mode_select(True)
+                elif result == "quit":
+                    self.running = False
+                elif isinstance(result, int):
+                    self.start_game("survivor", stage=result)
+                continue
+
             # Event-Handling
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -304,8 +321,8 @@ class AppController:
             self.start_game("normal")
 
         elif action == "start_survivor":
-            # Survivor Mode starten (erstmal Stage 1)
-            self.start_game("survivor", stage=1)
+            # Zur Schiffsauswahl wechseln
+            self.current_state = AppState.SURVIVOR_SHIP_SELECT
 
         elif action == "back_to_menu":
             # Zurück zum Hauptmenü
