@@ -261,9 +261,18 @@ class AppController:
             if self.current_state == AppState.MENU:
                 menu.update(dt)
             elif self.current_state == AppState.PLAYING:
-                # Game update - direkt aus dem originalen Game!
                 self.game._handle_events()
-                self.game._update()
+                if not self.game.paused:
+                    # Physics Update (bewegt Projektile)
+                    self.game.accumulated_time += dt
+                    updates = 0
+                    while self.game.accumulated_time >= self.game.fixed_timestep and updates < self.game.max_steps_per_frame:
+                        self.game._physics_update()
+                        self.game.accumulated_time -= self.game.fixed_timestep
+                        updates += 1
+                    if self.game.accumulated_time > self.game.fixed_timestep:
+                        self.game.accumulated_time = 0.0
+                    self.game._update()
 
             # Rendering
             if self.current_state == AppState.MENU:
