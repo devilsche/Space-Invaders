@@ -74,8 +74,7 @@ class AppController:
 
         # Game-Instanz (EINMAL erstellt, immer wiederverwendet!)
         print("   Creating Game instance...")
-        self.game = Game(assets=self.assets)
-        self.game.screen = self.screen  # Nutze den gleichen Screen!
+        self.game = Game(assets=self.assets, screen=self.screen)
         self.game.clock = self.clock    # Nutze die gleiche Clock!
         self.game.online_available = firebase_available
         self.game.app_controller = self  # Rückverweise für Fullscreen etc.
