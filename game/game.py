@@ -1458,7 +1458,7 @@ class Game:
             )
             if action == "quit":
                 self.running = False
-            elif action == "menu":
+            elif action in ("menu", "back_to_highscore_menu"):
                 self._survivor_highscores_loaded = False
                 self.came_from = None
                 self._handle_menu_return()
