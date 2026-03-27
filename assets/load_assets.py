@@ -468,5 +468,109 @@ def load_explosions(assets: AssetManager) -> AssetManager:
 def load_database(assets: AssetManager) -> AssetManager:
     manager = assets
     print("Loading database assets...")
-    # Hier können spezifische Ladebefehle für Datenbank-Assets hinzugefügt werden
+    return manager
+
+
+def load_game_assets(manager: AssetManager) -> AssetManager:
+    """
+    Lädt alle Game-kritischen Assets (Waffen, Sounds, Shields, Hintergrund, Explosionen)
+    in einen bestehenden AssetManager nach.
+    Wird nach dem Loading-Screen aufgerufen um die Stub-Funktionen zu kompensieren.
+    """
+    WIDTH = GAME_CONFIG["WIDTH"]
+    HEIGHT = GAME_CONFIG["HEIGHT"]
+
+    # ===== Background =====
+    if not manager.get("background_img"):
+        try:
+            bg = manager.load_image("assets/images/background_gpt.png", (WIDTH, HEIGHT), trim=False)
+            manager._cache["background_img"] = bg
+        except Exception:
+            manager._cache["background_img"] = None
+
+    # ===== Player Ship Aliase (player_stage1 etc.) =====
+    for stage, cfg in SHIP_CONFIG.items():
+        key = f"player_stage{stage}"
+        if not manager.get(key):
+            img = manager.load_image(cfg["img"], cfg["size"])
+            manager._cache[key] = img
+
+    # ===== Enemy Aliase (enemy_tank etc.) =====
+    for name, ecfg in ENEMY_CONFIG.items():
+        key = f"enemy_{name}"
+        if not manager.get(key):
+            img = manager.load_image(ecfg["img"], ecfg["size"])
+            manager._cache[key] = img
+
+    # ===== Projectiles (Images, Sounds, Explosions) =====
+    for weapon_name, pcfg in WEAPON_CONFIG.items():
+        img_key = f"{weapon_name}_img"
+        if not manager.get(img_key):
+            base_img = manager.load_image(pcfg["img"], pcfg.get("size"))
+            manager._cache[img_key] = base_img
+
+            if weapon_name == "laser" and base_img:
+                yellow_img = base_img.copy()
+                yellow_overlay = pygame.Surface(base_img.get_size(), pygame.SRCALPHA)
+                yellow_overlay.fill((255, 255, 100, 200))
+                yellow_img.blit(yellow_overlay, (0, 0), special_flags=pygame.BLEND_MULT)
+                manager._cache["laser_yellow_img"] = yellow_img
+
+        # Sounds
+        for sound_type in ("sound_start", "sound_hit", "sound_destroy", "sound_fly"):
+            snd_key = f"{weapon_name}_{sound_type}"
+            if pcfg.get(sound_type) and not manager.get(snd_key):
+                try:
+                    manager._cache[snd_key] = manager.load_sound(pcfg[sound_type])
+                except Exception:
+                    manager._cache[snd_key] = None
+
+        # Explosion Frames
+        ex = pcfg.get("explosion")
+        if ex:
+            expl_key = f"expl_{weapon_name}"
+            if not manager.get(expl_key):
+                frames = manager.load_spritesheet(
+                    path=ex["sheet"], cols=ex["cols"], rows=ex["rows"],
+                    frame_size=(ex["fw"], ex["fh"]), scale=ex.get("scale", 1.0)
+                )
+                manager._cache[expl_key] = frames
+                manager.set(f"expl_{weapon_name}_fps", ex.get("fps", 24))
+                manager.set(f"expl_{weapon_name}_keep", ex.get("keep", None))
+
+    # ===== Music Paths =====
+    if not manager.get("music_paths"):
+        manager.set("music_paths", {"raining_bits": "assets/music/raining_bits.ogg"})
+
+    # ===== Shield =====
+    if not manager.get("shield_frames"):
+        scfg = SHIELD_CONFIG[1]["shield"]
+        frames = manager.load_spritesheet(
+            path=scfg["sheet"], cols=scfg["cols"], rows=scfg["rows"],
+            frame_size=(scfg["fw"], scfg["fh"]), scale=scfg.get("scale", 1.0)
+        )
+        manager._cache["shield_frames"] = frames
+        manager.set("shield_fps", scfg.get("fps"))
+        manager.set("shield_duration", scfg.get("duration"))
+        manager.set("shield_cooldown", scfg.get("cooldown"))
+        manager.set("shield_scale", scfg.get("scale"))
+
+    # ===== Sounds =====
+    sound_map = {
+        "shield_hit_sound": "assets/sound/shieldImpact.mp3",
+        "shield_activate_sound": "assets/sound/shieldActivate.mp3",
+        "menu_background_sound": "assets/sound/menu-backghround-sound.mp3",
+        "menu_switch_sound": "assets/sound/menu-switch.mp3",
+        "powerup_pickup_sound": "assets/sound/powerup-pickup.mp3",
+        "emp_fire_sound": "assets/sound/emp-fire.mp3",
+        "rocket_fly_loop_sound": "assets/sound/rocket-fly-loop.mp3",
+    }
+    for key, path in sound_map.items():
+        if not manager.get(key):
+            try:
+                manager._cache[key] = manager.load_sound(path)
+            except Exception:
+                manager._cache[key] = None
+
+    print("✅ Game assets loaded")
     return manager

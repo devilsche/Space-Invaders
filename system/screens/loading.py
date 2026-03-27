@@ -77,6 +77,9 @@ class Loading:
         self.assets = load_powerups( self.assets )
         time.sleep(1.)
 
+        self._draw('done', 0.95, 'Loading game assets...')
+        self.assets = load_game_assets(self.assets)
+
         self._draw('done', 1.0, 'Loading complete!')
         time.sleep(1)
 
