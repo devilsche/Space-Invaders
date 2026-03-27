@@ -200,6 +200,10 @@ class AppController:
 
         self.current_state = AppState.PLAYING
 
+        # Screen-Referenz aktualisieren und UI an Bildschirmgröße anpassen
+        self.game.screen = self.screen
+        self.game._reinitialize_ui()
+
         # Konfiguriere das Game
         self.game.game_mode = mode
         self.game.game_state = "playing"

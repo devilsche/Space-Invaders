@@ -18,7 +18,7 @@ def main():
 
     pygame.init()
 
-    screen = pygame.display.set_mode((1920, 1080), pygame.RESIZABLE)
+    screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
     icon = pygame.image.load("assets/images/player/stage4.png").convert_alpha()
 
     pygame.display.set_caption("Ironblast")
@@ -32,6 +32,7 @@ def main():
 
     # App Controller starten
     app = AppController(assets=assets, screen=screen, firebase_available=firebase_status)
+    app.is_fullscreen = True
 
     print("🚀 Starting Ironblast")
 

@@ -317,6 +317,11 @@ class Game:
         config.settings.WIDTH  = cw
         config.settings.HEIGHT = ch
 
+        # Modul-Level WIDTH/HEIGHT in game.py aktualisieren
+        global WIDTH, HEIGHT
+        WIDTH  = cw
+        HEIGHT = ch
+
         import system.utils
         system.utils.update_screen_size(cw, ch)
 
