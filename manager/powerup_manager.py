@@ -17,6 +17,12 @@ class PowerUpManager:
         self.powerups: list[PowerUp] = []
         self._queued_drops           = []
         self._last_process           = pygame.time.get_ticks()
+        self._excluded_types         = set()  # PowerUp-Typen die nicht droppen sollen
+
+    def set_excluded_types(self, excluded):
+        """Setzt die ausgeschlossenen PowerUp-Typen basierend auf Schiff-Config"""
+        self._excluded_types = set(excluded)
+        calculator.set_excluded(self._excluded_types)
 
     def add_drop_to_queue(self, x: int, y: int):
         """Fügt eine Position zur PowerUp-Drop-Prüfung hinzu"""
@@ -74,11 +80,19 @@ class PowerUpDropCalculator:
     def __init__(self, config):
         self.config = config
         self.powerup_types = list(config.keys())
+        self._excluded = set()
+
+    def set_excluded(self, excluded):
+        """Setzt ausgeschlossene Typen"""
+        self._excluded = set(excluded)
 
     def calculate_drop(self) -> tuple[str, dict] | None:
         """Berechnet einen einzelnen PowerUp-Drop mit zwei-stufigem System"""
-        # Stufe 1: Wähle zufällig einen PowerUp-Typ (alle gleiche Chance)
-        chosen_type   = random.choice(self.powerup_types)
+        # Stufe 1: Wähle zufällig einen PowerUp-Typ (nur erlaubte)
+        available = [t for t in self.powerup_types if t not in self._excluded]
+        if not available:
+            return None
+        chosen_type   = random.choice(available)
         chosen_config = self.config[chosen_type]
 
         # Stufe 2: Würfle ob dieser Typ wirklich droppt

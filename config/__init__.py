@@ -3,3 +3,4 @@ from .weapon import WEAPON_CONFIG, WEAPON_CONFIG, EMP_CONFIG
 from .settings import GAME_CONFIG
 from .shield import SHIELD_CONFIG
 from .ship import SHIP_CONFIG
+from .levels import LEVEL_CONFIG, UPGRADE_CONFIG

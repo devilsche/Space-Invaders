@@ -186,6 +186,14 @@ class AppController:
         """
         print(f"🎮 Starting Game: {mode} mode, stage {stage}")
 
+        # Stoppe Menu-Musik BEVOR das Spiel startet
+        menu = self.get_menu_screen()
+        menu.stop_menu_music()
+        try:
+            pygame.mixer.Channel(29).stop()
+        except Exception:
+            pass
+
         self.current_state = AppState.PLAYING
 
         # Konfiguriere das Game
@@ -194,13 +202,9 @@ class AppController:
 
         if mode == "survivor":
             self.game.survivor_selected_stage = stage
-
-        # Starte neues Spiel
-        self.game._start_new_game()
-
-        # Stoppe Menu-Musik
-        menu = self.get_menu_screen()
-        menu.stop_menu_music()
+            self.game._start_survivor_mode()
+        else:
+            self.game._start_new_game()
 
     def run(self):
         """

@@ -291,9 +291,9 @@ class GameMenu:
         overlay.fill((0, 0, 0))
         screen.blit(overlay, (0, 0))
 
-        self._draw_title(screen, "GAME PAUSED");
+        self.draw_title(screen, "GAME PAUSED");
         self._draw_options(screen, self.pause_options, 280)
-        self._draw_controls_text(screen, "[UP/DOWN] Navigate - [ENTER] Select - [ESC] Resume")
+        self.draw_controls_text(screen, "[UP/DOWN] Navigate - [ENTER] Select - [ESC] Resume")
 
 
     def _draw_start_menu(self, screen):
@@ -301,31 +301,31 @@ class GameMenu:
         # Titel mit coolen Effekten zeichnen
         self._draw_title_with_effects(screen)
         self._draw_options(screen, self.menu_options, 280)
-        self._draw_controls_text(screen)
+        self.draw_controls_text(screen)
 
     def _draw_mode_select_menu(self, screen):
         """Zeichne Spielmodi-Auswahlmenü"""
 
-        self._draw_title(screen, "SELECT GAME MODE");
+        self.draw_title(screen, "SELECT GAME MODE");
         self._draw_options(screen, self.mode_select_options, 280)
-        self._draw_controls_text(screen)
+        self.draw_controls_text(screen)
 
     def _draw_highscore_menu(self, screen):
         """Zeichne Highscore-Menü mit Titel und Optionen"""
 
-        self._draw_title(screen, "HIGHSCORES")
+        self.draw_title(screen, "HIGHSCORES")
         self._draw_options(screen, self.current_options, 280)
-        self._draw_controls_text(screen, "[UP/DOWN] Navigate - [ENTER] Select - [ESC] Back")
+        self.draw_controls_text(screen, "[UP/DOWN] Navigate - [ENTER] Select - [ESC] Back")
 
 
     def _draw_survivor_stage_menu(self, screen):
         """Zeichne Survivor-Stage-Auswahl für Highscores"""
 
-        self._draw_title( screen, "SURVIVOR HIGHSCORES")
+        self.draw_title( screen, "SURVIVOR HIGHSCORES")
         self._draw_options(screen, self.current_options)
-        self._draw_controls_text(screen, "[UP/DOWN] Navigate - [ENTER] Select - [ESC] Back")
+        self.draw_controls_text(screen, "[UP/DOWN] Navigate - [ENTER] Select - [ESC] Back")
 
-    def _draw_controls_text(self, screen, text="[UP/DOWN] Navigate - [ENTER] Select - [ESC] Quit", y_position=None, color=None):
+    def draw_controls_text(self, screen, text="[UP/DOWN] Navigate - [ENTER] Select - [ESC] Quit", y_position=None, color=None):
         """
         Zentrale Control-Text Anzeige für alle Screens
 
@@ -362,7 +362,7 @@ class GameMenu:
 
         return text_rect
 
-    def _draw_title(self, screen, text, color=(255, 255, 100), shadow=(100, 100, 0), position=100):
+    def draw_title(self, screen, text, color=(255, 255, 100), shadow=(100, 100, 0), position=100, y_position=None):
         """
         Zentrale Titel-Anzeige für alle Screens
 
@@ -373,6 +373,8 @@ class GameMenu:
             shadow  : Tuple - Schattenfarbe (default: (100, 100, 0))
             position: Int - Y-Position des Titels (default: 200)
         """
+        if y_position is not None:
+            position = y_position
         current_width = screen.get_width()
 
         self._draw_text_with_shadow(
@@ -384,6 +386,7 @@ class GameMenu:
             color,
             shadow
         )
+
 
     def _draw_options(self, screen, options, position = 250):
         current_width  = screen.get_width()
@@ -428,8 +431,8 @@ class GameMenu:
             )
 
     def _draw_title_with_effects(self, screen):
-        """Zeichne den Titel 'NOVA STRIKE' mit coolen Effekten"""
-        title_text     = "NOVA STRIKE"
+        """Zeichne den Titel 'IRONBLAST' mit coolen Effekten"""
+        title_text     = "IRONBLAST"
         current_height = screen.get_height()
         title_y        = current_height // 4
 

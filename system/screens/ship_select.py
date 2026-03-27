@@ -8,6 +8,54 @@ class ShipSelectScreen:
     def __init__(self):
         self.selected_stage = 1
         self.show_info      = False
+        # Caches (werden bei Bedarf initialisiert)
+        self._cached_fonts = None
+        self._cached_fonts_scale = None
+        self._cached_ships = {}  # stage -> scaled Surface
+        self._cached_ships_scale = None
+
+    def _get_fonts(self, ui_scale):
+        """Fonts cachen - nur neu laden wenn sich ui_scale ändert"""
+        if self._cached_fonts is not None and self._cached_fonts_scale == ui_scale:
+            return self._cached_fonts
+        try:
+            fonts = {
+                "title":    pygame.font.Font("assets/fonts/Astralight.ttf"    , int(120 * ui_scale)),
+                "subtitle": pygame.font.Font("assets/fonts/White On Black.ttf", int(50 * ui_scale)),
+                "info":     pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(32 * ui_scale)),
+                "weapon":   pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(24 * ui_scale)),
+                "control":  pygame.font.Font("assets/fonts/KGRedHands.ttf"    , int(24 * ui_scale)),
+                "desc":     pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(24 * ui_scale)),
+            }
+        except:
+            fonts = {
+                "title":    pygame.font.Font(None, int(120 * ui_scale)),
+                "subtitle": pygame.font.Font(None, int(50 * ui_scale)),
+                "info":     pygame.font.Font(None, int(32 * ui_scale)),
+                "weapon":   pygame.font.Font(None, int(24 * ui_scale)),
+                "control":  pygame.font.Font(None, int(24 * ui_scale)),
+                "desc":     pygame.font.Font(None, int(24 * ui_scale)),
+            }
+        self._cached_fonts = fonts
+        self._cached_fonts_scale = ui_scale
+        return fonts
+
+    def _get_ship_image(self, stage, ui_scale):
+        """Ship-Bilder cachen - nur neu laden wenn sich ui_scale ändert"""
+        if self._cached_ships_scale != ui_scale:
+            self._cached_ships.clear()
+            self._cached_ships_scale = ui_scale
+        if stage not in self._cached_ships:
+            config = SHIP_CONFIG[stage]
+            try:
+                ship_img     = pygame.image.load(config["img"]).convert_alpha()
+                preview_size = (config["size"][0] * 3, config["size"][1] * 3)
+                ship_img     = pygame.transform.scale(ship_img, preview_size)
+            except:
+                ship_img = pygame.Surface((60, 60))
+                ship_img.fill((100, 100, 255))
+            self._cached_ships[stage] = ship_img
+        return self._cached_ships[stage]
 
     def handle_and_draw(self, screen, bg_scaled, assets=None):
         """
@@ -37,32 +85,14 @@ class ShipSelectScreen:
         cw, ch = screen.get_size()
         ui_scale = max(cw / 1920, ch / 1080) * 1.2
 
-        # Fonts laden
-        try:
-            title_font    = pygame.font.Font("assets/fonts/Astralight.ttf"    , int(120 * ui_scale))
-            subtitle_font = pygame.font.Font("assets/fonts/White On Black.ttf", int(50 * ui_scale))
-            info_font     = pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(32 * ui_scale))
-            weapon_font   = pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(24 * ui_scale))
-            control_font  = pygame.font.Font("assets/fonts/KGRedHands.ttf"    , int(24 * ui_scale))
-            desc_font     = pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(24 * ui_scale))
-        except:
-            title_font    = pygame.font.Font(None, int(120 * ui_scale))
-            subtitle_font = pygame.font.Font(None, int(50 * ui_scale))
-            info_font     = pygame.font.Font(None, int(32 * ui_scale))
-            weapon_font   = pygame.font.Font(None, int(24 * ui_scale))
-            control_font  = pygame.font.Font(None, int(24 * ui_scale))
-            desc_font     = pygame.font.Font(None, int(24 * ui_scale))
+        # Fonts aus Cache laden
+        fonts = self._get_fonts(ui_scale)
 
         # Info-Overlay anzeigen (wenn "i" gedrückt wurde)
         if self.show_info:
             self._draw_info_overlay(
-                screen,
-                cw,
-                ch,
-                ui_scale,
-                subtitle_font,
-                desc_font,
-                control_font
+                screen, cw, ch, ui_scale,
+                fonts["subtitle"], fonts["desc"], fonts["control"]
             )
 
             # Event Handling für Info-Screen
@@ -79,16 +109,9 @@ class ShipSelectScreen:
 
         # Hauptscreen zeichnen
         self._draw_main_screen(
-            screen,
-            cw,
-            ch,
-            ui_scale,
-            title_font,
-            subtitle_font,
-            info_font,
-            weapon_font,
-            control_font,
-            desc_font
+            screen, cw, ch, ui_scale,
+            fonts["title"], fonts["subtitle"], fonts["info"],
+            fonts["weapon"], fonts["control"], fonts["desc"]
         )
 
         # Event Handling
@@ -208,14 +231,8 @@ class ShipSelectScreen:
             x_pos = ship_spacing * (i + 1)
             config = SHIP_CONFIG[stage]
 
-            # Ship Image laden und skalieren
-            try:
-                ship_img     = pygame.image.load(config["img"]).convert_alpha()
-                preview_size = (config["size"][0] * 3, config["size"][1] * 3)
-                ship_img     = pygame.transform.scale(ship_img, preview_size)
-            except:
-                ship_img = pygame.Surface((60, 60))
-                ship_img.fill((100, 100, 255))
+            # Ship Image aus Cache laden
+            ship_img = self._get_ship_image(stage, ui_scale)
 
             ship_rect = ship_img.get_rect(center=(x_pos, start_y))
 

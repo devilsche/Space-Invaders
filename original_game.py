@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ORIGINAL Space Invaders Spiel - DIREKT AUSFÜHRBAR
+ORIGINAL Ironblast Spiel - DIREKT AUSFÜHRBAR
 
 Dieses Script startet Ihr originales, funktionierendes Spiel
 ohne das neue AppController-System.
@@ -13,7 +13,7 @@ from game.game import Game
 
 def main():
     """Startet Ihr originales Spiel direkt"""
-    print("🚀 Starting ORIGINAL Space Invaders Game")
+    print("🚀 Starting ORIGINAL Ironblast Game")
     
     # Erstelle und starte das originale Spiel
     game = Game()

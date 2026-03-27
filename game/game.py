@@ -19,12 +19,15 @@ from system.screens.top10_survivor import SurvivorTop10Screen
 from system.saving_overlay import SavingOverlay
 
 class Game:
-    def __init__(self, assets=None):
+    def __init__(self, assets=None, screen=None):
         pygame.init()
 
-        # Pygame Setup (optional: vsync wenn verfügbar)
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))  # , pygame.SCALED, vsync=1
-        pygame.display.set_caption("Nova Strike")
+        # Pygame Setup - bestehendes Display nutzen oder neues erstellen
+        if screen is not None:
+            self.screen = screen
+        else:
+            self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        pygame.display.set_caption("Ironblast")
         self.clock = pygame.time.Clock()
 
         # Game State
@@ -156,6 +159,19 @@ class Game:
         self._total_kills  = 0
         self._boss_spawned = False
 
+        # Wave/Level System (Normal Mode)
+        self._current_wave       = 0      # Aktuelle Wave (0-basiert)
+        self._wave_enemy_queue   = []     # Noch zu spawnende Gegner der aktuellen Wave
+        self._wave_total_enemies = 0      # Gesamtgegner der aktuellen Wave
+        self._wave_kills         = 0      # Kills in aktueller Wave
+        self._level_config       = None   # Aktuelle Level-Config
+        self._all_waves_done     = False  # Alle Waves gespawnt?
+
+        # Upgrade-Multiplikatoren
+        self._damage_multiplier          = 1.0
+        self._fire_rate_multiplier       = 1.0
+        self._shield_duration_multiplier = 1.0
+
         # Power-Ups
         self.powerups = []
         self.powerup_shield       = None
@@ -210,7 +226,15 @@ class Game:
         self.projectile_manager.physics_update(self)
 
     def _show_kill_counter(self):
-        if self._total_kills < 50:
+        if self.game_mode == "normal" and self._level_config:
+            waves = self._level_config.get("waves", [])
+            if self._boss_spawned:
+                self.kill_display_text = f"Lv{self.level} BOSS"
+            elif self._current_wave > 0:
+                self.kill_display_text = f"Lv{self.level} Wave {self._current_wave}/{len(waves)}"
+            else:
+                self.kill_display_text = f"Lv{self.level} Kill {self._total_kills}"
+        elif self._total_kills < 50:
             self.kill_display_text = f"Kill {self._total_kills}/50"
         else:
             self.kill_display_text = f"Kill {self._total_kills}"
@@ -508,13 +532,20 @@ class Game:
         self.wave_movements[wave_id] = {"speed": base, "direction": 1, "enemy_type": enemy_type}
         self.wave_num += 1
 
-    def _spawn_fly_in_enemy(self):
+    def _spawn_fly_in_enemy(self, enemy_type=None):
         if self._fly_in_spawn_count >= self._max_fly_in_enemies: return
         spawn_x = random.randint(50, WIDTH - 50)
         spawn_y = -50
         path = random.choice(["straight", "straight", "sine", "sine", "circle"])
-        enemy_type = random.choice(["alien", "drone", "tank", "sniper"])
+        if enemy_type is None:
+            enemy_type = random.choice(["alien", "drone", "tank", "sniper"])
         enemy = Enemy(enemy_type, self.assets, spawn_x, spawn_y)
+        # HP-Multiplikator aus Level-Config anwenden
+        if self._level_config and self.game_mode == "normal":
+            hp_mult = self._level_config.get("enemy_hp_multiplier", 1.0)
+            if hp_mult != 1.0:
+                enemy.max_hp = int(enemy.max_hp * hp_mult)
+                enemy.hp = enemy.max_hp
         enemy.wave_id = f"fly_in_{self._fly_in_spawn_count}"
         enemy.movement_type = "fly_in"
         enemy.move_cfg = enemy.move_cfg.copy()
@@ -535,22 +566,26 @@ class Game:
         self.fly_in_enemies.append(enemy)
         self._fly_in_spawn_count += 1
 
-    def _spawn_boss_group(self):
-        for _ in range(2):
+    def _spawn_boss_group(self, count=2, hp_multiplier=1.0):
+        for _ in range(count):
             spawn_x = random.randint(100, WIDTH - 100)
             spawn_y = -80
             boss = Enemy("boss", self.assets, spawn_x, spawn_y)
+            if hp_multiplier != 1.0:
+                boss.max_hp = int(boss.max_hp * hp_multiplier)
+                boss.hp = boss.max_hp
             boss.move_cfg = boss.move_cfg.copy()
             boss.move_cfg["type"] = "fly_in"
             boss.move_cfg["target_y"] = random.randint(100, 140)
             boss.move_cfg["path"] = "sine"
-            boss.move_cfg["speed"] = 3.0  # 100% schneller (war 1.5)
+            boss.move_cfg["speed"] = 3.0
             boss.move_cfg["amplitude"] = 30
             boss.move_cfg["frequency"] = 0.5
             self.fly_in_enemies.append(boss)
             self._fly_in_spawn_count += 1
         self._boss_spawned = True
         self._max_fly_in_enemies = len(self.fly_in_enemies)
+        print(f">>> BOSS SPAWNED! {count}x boss (HP mult: {hp_multiplier}x)")
 
     def _update_fly_in_spawning(self):
         now = pygame.time.get_ticks()
@@ -589,20 +624,54 @@ class Game:
                 self._last_fly_in_spawn = now
             return
 
-        # Normal Mode: Boss bei 50 Kills
-        if self._total_kills >= 50 and not self._boss_spawned and len(self.fly_in_enemies) == 0:
-            self._spawn_boss_group()
+        # Normal Mode: Wave-basiertes Spawning
+        if self._level_config is None:
             return
-        if self._total_kills >= 50:
+
+        # Boss-Phase: Warte bis Boss besiegt
+        if self._boss_spawned:
             return
+
+        # Alle Waves gespawnt + keine Gegner mehr → Boss spawnen
+        if self._all_waves_done and len(self.fly_in_enemies) == 0:
+            boss_config = self._level_config.get("boss", {})
+            boss_count = boss_config.get("count", 1)
+            boss_hp_mult = boss_config.get("hp_multiplier", 1.0)
+            self._spawn_boss_group(count=boss_count, hp_multiplier=boss_hp_mult)
+            return
+
+        # Wave-Queue leer → nächste Wave starten
+        if len(self._wave_enemy_queue) == 0 and not self._all_waves_done:
+            waves = self._level_config.get("waves", [])
+            if self._current_wave < len(waves):
+                # Lade nächste Wave
+                wave = waves[self._current_wave]
+                self._wave_enemy_queue = []
+                for enemy_type, count in wave["enemies"]:
+                    self._wave_enemy_queue.extend([enemy_type] * count)
+                random.shuffle(self._wave_enemy_queue)
+                self._wave_total_enemies = len(self._wave_enemy_queue)
+                self._wave_kills = 0
+                spawn_delay = wave.get("spawn_delay", 3000)
+                self._fly_in_spawn_interval = int(spawn_delay * self._level_config.get("spawn_speed_multiplier", 1.0))
+                self._current_wave += 1
+                self._last_fly_in_spawn = now  # Kurze Pause vor Wave-Start
+                print(f">>> Wave {self._current_wave}/{len(waves)} started: {len(self._wave_enemy_queue)} enemies")
+            else:
+                # Alle Waves gespawnt
+                self._all_waves_done = True
+            return
+
+        # Spawne Gegner aus der Queue
         if (now - self._last_fly_in_spawn > self._fly_in_spawn_interval and
-            self._fly_in_spawn_count < self._max_fly_in_enemies):
-            group_size = random.randint(2, 4)
+            self._fly_in_spawn_count < self._max_fly_in_enemies and
+            len(self._wave_enemy_queue) > 0):
+            group_size = min(random.randint(2, 4), len(self._wave_enemy_queue))
             for _ in range(group_size):
-                if self._fly_in_spawn_count < self._max_fly_in_enemies:
-                    self._spawn_fly_in_enemy()
+                if self._wave_enemy_queue and self._fly_in_spawn_count < self._max_fly_in_enemies:
+                    enemy_type = self._wave_enemy_queue.pop(0)
+                    self._spawn_fly_in_enemy(enemy_type=enemy_type)
             self._last_fly_in_spawn = now
-            self._fly_in_spawn_interval = random.randint(4000, 6000)
 
     def get_game_time(self):
         current_time = pygame.time.get_ticks()
@@ -679,28 +748,28 @@ class Game:
                         for shot in shots:
                             ds = DoubleLaser.create(shot.rect.centerx, shot.rect.centery, self.assets, owner="player", angle_deg=0)
                             enhanced.append(ds)
-                        for s in enhanced: self.projectile_manager.add_player_shot(s)
+                        self._add_player_shots(enhanced)
                     else:
-                        for s in shots: self.projectile_manager.add_player_shot(s)
+                        self._add_player_shots(shots)
                 elif e.key == pygame.K_r and not self.paused and not self.player_dead:
                     shots = self.player.shoot_weapon("rocket")
                     if shots:
-                        for s in shots: self.projectile_manager.add_player_shot(s)
+                        self._add_player_shots(shots)
                         self.weapon_cooldowns["rocket_last_used"] = pygame.time.get_ticks()
                 elif e.key == pygame.K_t and not self.paused and not self.player_dead:
                     shots = self.player.shoot_weapon("homing_rocket")
                     if shots:
-                        for s in shots: self.projectile_manager.add_player_shot(s)
+                        self._add_player_shots(shots)
                         self.weapon_cooldowns["homing_rocket_last_used"] = pygame.time.get_ticks()
                 elif e.key == pygame.K_b and not self.paused and not self.player_dead:
                     shots = self.player.shoot_weapon("blaster")
                     if shots:
-                        for s in shots: self.projectile_manager.add_player_shot(s)
+                        self._add_player_shots(shots)
                         self.weapon_cooldowns["blaster_last_used"] = pygame.time.get_ticks()
                 elif e.key == pygame.K_e and not self.paused and not self.player_dead:
                     shots = self.player.shoot_weapon("nuke")
                     if shots:
-                        for s in shots: self.projectile_manager.add_player_shot(s)
+                        self._add_player_shots(shots)
                         self.weapon_cooldowns["nuke_last_used"] = pygame.time.get_ticks()
                 elif e.key == pygame.K_q and not self.paused and not self.player_dead:
                     # Survivor Mode: Kein normales Shield
@@ -777,9 +846,9 @@ class Game:
                 for shot in shots:
                     ds = DoubleLaser.create(shot.rect.centerx, shot.rect.centery, self.assets, owner="player", angle_deg=0)
                     enhanced.append(ds)
-                for s in enhanced: self.projectile_manager.add_player_shot(s)
+                self._add_player_shots(enhanced)
             else:
-                for s in shots: self.projectile_manager.add_player_shot(s)
+                self._add_player_shots(shots)
 
         if keys[pygame.K_v] and not self.paused and not self.player_dead:
             if self.emp_powerup.can_use(now):
@@ -1067,8 +1136,12 @@ class Game:
             # Normal Mode → direkt zur Namenseingabe
             # Survivor Mode → Victory Screen (kann wiederholen)
             if self.game_mode == "normal":
-                self.game_state = "normal_name_input"
-                print(f">>> LEVEL COMPLETE! Normal Mode → Name Input <<<")
+                if self.level < 5:
+                    self.game_state = "level_complete"
+                    print(f">>> LEVEL {self.level} COMPLETE! → Upgrade Screen <<<")
+                else:
+                    self.game_state = "normal_name_input"
+                    print(f">>> ALL LEVELS COMPLETE! → Name Input <<<")
             else:
                 self.game_state = "victory"
                 print(f">>> LEVEL COMPLETE! Victory Screen activated! <<<")
@@ -1220,11 +1293,10 @@ class Game:
         if self.player_dead: return
         self.player_dead = True
 
-        # Survivor Mode: Sofort Game Over, speichere Zeit
+        # Survivor Mode: Sofort Game Over, Namen eingeben
         if self.game_mode == "survivor":
-            from system.utils import save_survivor_score
-            save_survivor_score(self.survivor_time)
-            self.game_state = "survivor_game_over"
+            self.survivor_player_name = ""
+            self.game_state = "survivor_name_input"
         else:
             self._respawn_ready_at = pygame.time.get_ticks() + self.lives_cooldown
 
@@ -1286,6 +1358,26 @@ class Game:
                 # Update game's selected stage to match screen selection (for arrow key changes)
                 if action is None:
                     self.survivor_selected_stage = self.ship_select_screen.selected_stage
+            elif self.game_state == "level_complete":
+                from system.screens.upgrade_screen import UpgradeScreen
+                if not hasattr(self, '_upgrade_screen') or self._upgrade_screen is None:
+                    ship_stage = self.player.stage if hasattr(self.player, 'stage') else 1
+                    self._upgrade_screen = UpgradeScreen(ship_stage=ship_stage)
+                result = self._upgrade_screen.handle_and_draw(
+                    self.screen, self.score, self.level, self._total_kills, self.assets
+                )
+                if result == "quit":
+                    self.running = False
+                elif isinstance(result, tuple) and result[0] == "continue":
+                    _, new_score, upgrades = result
+                    self.score = new_score
+                    # Upgrades anwenden
+                    self._apply_upgrades(upgrades)
+                    # Reset Upgrade-Screen für nächstes Level
+                    self._upgrade_screen = None
+                    # Nächstes Level starten
+                    self._start_next_level()
+
             elif self.game_state == "victory":
                 # Starte Menümusik wenn noch nicht gestartet (Spielmusik stoppen)
                 if not self.menu.menu_music_playing:
@@ -1513,7 +1605,9 @@ class Game:
                 self._last_stats_log = current_time
 
         self.explosion_manager.print_stats()
-        pygame.quit()
+        # Nur pygame beenden wenn kein AppController (standalone Modus)
+        if self.app_controller is None:
+            pygame.quit()
 
     def _handle_menu(self):
         # Starte Menu-Musik wenn noch nicht gestartet
@@ -1651,6 +1745,7 @@ class Game:
         self.explosion_manager.clear_all()
         self.powerup_manager.clear_all()
         self.projectile_manager.clear_all()
+        self._update_powerup_filter()
 
         # Reset Laufzeit-Status
         self.weapon_cooldowns.update({
@@ -1664,6 +1759,18 @@ class Game:
         self._boss_spawned       = False
         self._fly_in_spawn_count = 0
         self._last_fly_in_spawn  = pygame.time.get_ticks()
+
+        # Wave/Level System initialisieren
+        from config.levels import LEVEL_CONFIG
+        self._current_wave       = 0
+        self._wave_enemy_queue   = []
+        self._wave_total_enemies = 0
+        self._wave_kills         = 0
+        self._all_waves_done     = False
+        self._level_config       = LEVEL_CONFIG.get(self.level, None)
+        if self._level_config:
+            print(f">>> Level {self.level}: '{self._level_config['name']}' loaded ({len(self._level_config['waves'])} waves)")
+
         self.powerups.clear()
         self.double_laser_active = False
         self.speed_boost_active  = False
@@ -1676,6 +1783,111 @@ class Game:
                 pygame.mixer.music.play(-1)
         except pygame.error:
             pass
+
+    def _add_player_shots(self, shots):
+        """Fügt Spieler-Schüsse hinzu und wendet Damage-Multiplikator an"""
+        if not shots:
+            return
+        for s in shots:
+            if self._damage_multiplier != 1.0:
+                s.dmg = int(s.dmg * self._damage_multiplier)
+            self.projectile_manager.add_player_shot(s)
+
+    def _update_powerup_filter(self):
+        """Filtert PowerUp-Drops basierend auf Schiff-Waffen"""
+        from config.ship import SHIP_CONFIG
+        excluded = []
+        stage = self.player.stage if hasattr(self.player, 'stage') else 1
+        ship_cfg = SHIP_CONFIG.get(stage, {})
+        weapons = ship_cfg.get("weapons", {})
+        has_shield = ship_cfg.get("shield", 0) > 0
+
+        # EMP/Nuke PowerUp nur wenn Schiff Nuke hat
+        if weapons.get("nuke", 0) == 0:
+            excluded.append("emp")
+
+        # Shield PowerUp nur wenn Schiff Shield hat
+        if not has_shield:
+            excluded.append("shield")
+
+        self.powerup_manager.set_excluded_types(excluded)
+        if excluded:
+            print(f"  PowerUp filter: excluded {excluded} for Stage {stage}")
+
+    def _apply_upgrades(self, upgrades):
+        """Wendet Upgrade-Levels auf den Spieler an"""
+        from config.levels import UPGRADE_CONFIG
+
+        # Ship Upgrade
+        ship_upgrades = upgrades.get("next_ship", 0)
+        if ship_upgrades > 0:
+            new_stage = self.player.stage + ship_upgrades
+            new_stage = min(new_stage, 4)
+            self.player.set_stage(new_stage)
+            self.player.current_health = self.player.max_health
+            self._update_powerup_filter()
+            print(f"  Ship upgraded to Stage {new_stage}")
+
+        # Extra Life
+        extra_lives = upgrades.get("extra_life", 0)
+        if extra_lives > 0:
+            self.lives += extra_lives
+            print(f"  Extra lives: +{extra_lives} → {self.lives} lives")
+
+        # Damage Multiplier
+        damage_level = upgrades.get("damage", 0)
+        if damage_level > 0:
+            self._damage_multiplier = 1.0 + (UPGRADE_CONFIG["damage"]["effect"] * damage_level)
+            print(f"  Damage multiplier: x{self._damage_multiplier:.1f}")
+
+        # Fire Rate
+        fire_rate_level = upgrades.get("fire_rate", 0)
+        if fire_rate_level > 0:
+            self._fire_rate_multiplier = 1.0 - (UPGRADE_CONFIG["fire_rate"]["effect"] * fire_rate_level)
+            self._fire_rate_multiplier = max(0.3, self._fire_rate_multiplier)  # Min 30% cooldown
+            print(f"  Fire rate multiplier: x{self._fire_rate_multiplier:.2f}")
+
+        # EMP Charges
+        emp_level = upgrades.get("emp_charges", 0)
+        if emp_level > 0:
+            charges = int(UPGRADE_CONFIG["emp_charges"]["effect"] * emp_level)
+            if hasattr(self, 'emp_charges'):
+                self.emp_charges += charges
+            print(f"  EMP charges: +{charges}")
+
+        # Shield Duration
+        shield_level = upgrades.get("shield_duration", 0)
+        if shield_level > 0:
+            self._shield_duration_multiplier = 1.0 + (UPGRADE_CONFIG["shield_duration"]["effect"] * shield_level)
+            print(f"  Shield duration multiplier: x{self._shield_duration_multiplier:.1f}")
+
+    def _start_next_level(self):
+        """Startet das nächste Level mit bestehenden Stats"""
+        from config.levels import LEVEL_CONFIG
+        self.level += 1
+        self.game_state = "playing"
+
+        # Reset Wave/Spawn State (aber behalte Score, Lives, Player)
+        self.enemies.clear()
+        self.fly_in_enemies.clear()
+        self.explosion_manager.clear_all()
+        self.projectile_manager.clear_all()
+        self.powerup_manager.clear_all()
+        self.powerups.clear()
+
+        self._total_kills        = 0
+        self._boss_spawned       = False
+        self._fly_in_spawn_count = 0
+        self._last_fly_in_spawn  = pygame.time.get_ticks()
+        self._current_wave       = 0
+        self._wave_enemy_queue   = []
+        self._wave_total_enemies = 0
+        self._wave_kills         = 0
+        self._all_waves_done     = False
+
+        self._level_config = LEVEL_CONFIG.get(self.level, None)
+        if self._level_config:
+            print(f">>> Level {self.level}: '{self._level_config['name']}' started ({len(self._level_config['waves'])} waves)")
 
     def _start_survivor_mode(self):
         """Starte Survivor Mode: 1 HP, kein Shield, Zeit-basiert"""
@@ -1725,6 +1937,7 @@ class Game:
         self.explosion_manager.clear_all()
         self.powerup_manager.clear_all()
         self.projectile_manager.clear_all()
+        self._update_powerup_filter()
 
         # Reset Laufzeit-Status
         self.weapon_cooldowns.update({
@@ -1778,6 +1991,7 @@ class Game:
         self.explosion_manager.clear_all()
         self.powerup_manager.clear_all()
         self.projectile_manager.clear_all()
+        self._update_powerup_filter()
 
     def _start_game_mode(self):
         """Helper method to start the appropriate game mode"""

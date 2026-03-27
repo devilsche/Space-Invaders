@@ -1,6 +1,6 @@
-# 🚀 Nova Strike - Feature Roadmap
+# 🚀 Ironblast - Feature Roadmap
 
-Ein hochperformantes Nova Strike Spiel mit modernen Optimierungen und spannenden Features!
+Ein hochperformantes Ironblast Spiel mit modernen Optimierungen und spannenden Features!
 
 ## 📋 **Patch Notes & Updates**
 
@@ -45,7 +45,7 @@ python main.py
 
 ### 🎨 **NEW: Professional Menu System**
 
-- **Animated Title Effects**: "NOVA STRIKE" with multi-layered pulsating blue glow
+- **Animated Title Effects**: "IRONBLAST" with multi-layered pulsating blue glow
 - **Smart Scaling**: All menu elements scale perfectly across resolutions
 - **Intuitive Navigation**: UP/DOWN arrows with animated selection highlighting
 - **Fullscreen Support**: F11 maximize, Alt+Enter fullscreen in all menu states
@@ -81,7 +81,7 @@ python main.py
 - **⚡ CPU-Optimierung**: 60-80% weniger CPU-Last durch Frame-Caching
 - **🚀 Keine Einfrierungen**: Auch bei 50+ gleichzeitigen Explosionen flüssiges Gameplay
 
-Spannende Ideen für weitere Verbesserungen des Nova Strike Spiels:
+Spannende Ideen für weitere Verbesserungen des Ironblast Spiels:
 
 ## 🚀 Gameplay-Erweiterungen
 

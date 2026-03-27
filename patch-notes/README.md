@@ -1,8 +1,8 @@
-# 📋 Nova Strike - Patch Notes Overview
+# 📋 Ironblast - Patch Notes Overview
 
-# 📋 Nova Strike - Patch Notes
+# 📋 Ironblast - Patch Notes
 
-Release history and detailed change logs for the Nova Strike game.
+Release history and detailed change logs for the Ironblast game.
 
 ## 🚀 Version History
 

@@ -150,8 +150,7 @@ class MenuScreen:
 
         elif action == "start_survivor":
             self.stop_menu_music()
-            # Wechsle zu Schiff-Auswahl (wird später implementiert)
-            return "start_survivor_stage1_ship1"  # Temporary
+            return "start_survivor"
 
         # Highscore Actions
         elif action == "show_normal_highscores":

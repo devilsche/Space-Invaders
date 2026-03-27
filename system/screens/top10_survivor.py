@@ -9,7 +9,7 @@ class SurvivorTop10Screen:
     def __init__(self, assets=None):
         self.assets = assets  # Speichere Assets-Referenz für Font-Caching
 
-    def handle_and_draw(self, screen, bg_scaled, top10_list, stage, menu_ref, came_from='menu'):
+    def handle_and_draw(self, screen, bg_scaled, top10_list, stage, menu_ref, came_from='menu', source_label=None):
         """
         Zeichnet die Top 10 Highscore Liste für eine Stage
 
@@ -112,11 +112,19 @@ class SurvivorTop10Screen:
             screen.blit(time_text, (col_time_x, y))
             screen.blit(kills_text, (col_kills_x, y))
 
+        # Source-Label anzeigen (LOCAL/ONLINE)
+        if source_label:
+            source_color = (100, 255, 100) if source_label == "ONLINE" else (200, 200, 200)
+            source_text = rank_font.render(f"[ {source_label} ]", True, source_color)
+            source_rect = source_text.get_rect(center=(cw // 2, subtitle_rect.bottom + int(10 * ui_scale)))
+            screen.blit(source_text, source_rect)
+
         # Controls abhängig von came_from
         if came_from == 'game':
             controls_text = "[ENTER] Try Again - [ESC] Menu"
         else:
-            controls_text = "[ESC] Back to Menu"
+            tab_text = "[TAB] Local/Online - " if source_label else ""
+            controls_text = f"{tab_text}[ESC] Back to Menu"
 
         menu_ref.draw_controls_text(screen, controls_text)
 
@@ -126,8 +134,10 @@ class SurvivorTop10Screen:
             if event.type == pygame.QUIT:
                 return "quit"
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_RETURN and came_from == 'game':
-                    result = "retry"  # Try Again
+                if event.key == pygame.K_TAB:
+                    result = "toggle_source"
+                elif event.key == pygame.K_RETURN and came_from == 'game':
+                    result = "retry"
                 elif event.key == pygame.K_ESCAPE:
                     if came_from == 'game':
                         result = "menu"

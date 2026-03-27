@@ -24,6 +24,12 @@
     "stage": 4
   },
   {
+    "time": 34.841,
+    "kills": 74,
+    "name": "LuCKoT",
+    "stage": 4
+  },
+  {
     "time": 28.446,
     "kills": 22,
     "name": "Nic",
@@ -32,6 +38,12 @@
   {
     "time": 21.903,
     "kills": 20,
+    "name": "Nic",
+    "stage": 4
+  },
+  {
+    "time": 20.595,
+    "kills": 25,
     "name": "Nic",
     "stage": 4
   },
@@ -48,22 +60,16 @@
     "stage": 4
   },
   {
-    "time": 4.688,
-    "kills": 0,
-    "name": "Player",
-    "stage": 4
-  },
-  {
-    "time": 1.512,
-    "kills": 0,
-    "name": "Player",
-    "stage": 4
-  },
-  {
     "time": 27.742,
     "kills": 17,
     "name": "Nic",
     "stage": 2
+  },
+  {
+    "time": 78.324,
+    "kills": 67,
+    "name": "LuCKoR",
+    "stage": 3
   },
   {
     "time": 13.481,
@@ -81,6 +87,12 @@
     "time": 152.129,
     "kills": 31,
     "name": "Player",
+    "stage": 1
+  },
+  {
+    "time": 82.832,
+    "kills": 57,
+    "name": "Nic",
     "stage": 1
   },
   {
