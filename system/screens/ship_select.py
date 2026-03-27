@@ -41,20 +41,28 @@ class ShipSelectScreen:
         self._cached_fonts_scale = ui_scale
         return fonts
 
-    def _get_ship_image(self, stage, ui_scale):
-        """Ship-Bilder cachen - nur neu laden wenn sich ui_scale ändert"""
+    def _get_ship_image(self, stage, ui_scale, assets=None):
+        """Ship-Bilder cachen - nutzt AssetManager wenn verfügbar"""
         if self._cached_ships_scale != ui_scale:
             self._cached_ships.clear()
             self._cached_ships_scale = ui_scale
         if stage not in self._cached_ships:
             config = SHIP_CONFIG[stage]
-            try:
-                ship_img     = pygame.image.load(config["img"]).convert_alpha()
-                preview_size = (config["size"][0] * 3, config["size"][1] * 3)
-                ship_img     = pygame.transform.scale(ship_img, preview_size)
-            except:
-                ship_img = pygame.Surface((60, 60))
-                ship_img.fill((100, 100, 255))
+            preview_size = (config["size"][0] * 3, config["size"][1] * 3)
+            ship_img = None
+            # Zuerst aus AssetManager (funktioniert immer, auch mit PyInstaller)
+            if assets:
+                cached = assets.get(f"player_stage{stage}")
+                if cached:
+                    ship_img = pygame.transform.scale(cached, preview_size)
+            # Fallback: von Disk laden
+            if ship_img is None:
+                try:
+                    raw = pygame.image.load(config["img"]).convert_alpha()
+                    ship_img = pygame.transform.scale(raw, preview_size)
+                except:
+                    ship_img = pygame.Surface((60, 60))
+                    ship_img.fill((100, 100, 255))
             self._cached_ships[stage] = ship_img
         return self._cached_ships[stage]
 
@@ -112,7 +120,8 @@ class ShipSelectScreen:
         self._draw_main_screen(
             screen, cw, ch, ui_scale,
             fonts["title"], fonts["subtitle"], fonts["info"],
-            fonts["weapon"], fonts["control"], fonts["desc"]
+            fonts["weapon"], fonts["control"], fonts["desc"],
+            assets
         )
 
         # Event Handling
@@ -208,7 +217,7 @@ class ShipSelectScreen:
         screen.blit(close_text, close_rect)
 
     def _draw_main_screen(self, screen, cw, ch, ui_scale, title_font, subtitle_font,
-                          info_font, weapon_font, control_font, desc_font):
+                          info_font, weapon_font, control_font, desc_font, assets=None):
         """Zeichnet den Hauptscreen mit Schiffsauswahl"""
         # Title
         title_y = int(ch * 0.08)
@@ -234,7 +243,7 @@ class ShipSelectScreen:
             config = SHIP_CONFIG[stage]
 
             # Ship Image aus Cache laden
-            ship_img = self._get_ship_image(stage, ui_scale)
+            ship_img = self._get_ship_image(stage, ui_scale, assets)
 
             ship_rect = ship_img.get_rect(center=(x_pos, start_y))
 
