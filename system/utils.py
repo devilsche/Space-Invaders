@@ -1,7 +1,21 @@
 import json
 import os
+import sys
 import pygame
 from config.settings import GAME_CONFIG
+
+
+def resource_path(relative_path):
+    """
+    Gibt den korrekten Pfad zu einer Ressource zurück.
+    Funktioniert sowohl im Entwicklungsmodus als auch in PyInstaller-Bundles.
+    """
+    if hasattr(sys, '_MEIPASS'):
+        # PyInstaller Bundle - Assets sind in temporärem Ordner
+        return os.path.join(sys._MEIPASS, relative_path)
+    # Entwicklungsmodus - normaler relativer Pfad
+    return relative_path
+
 
 REFERENCE_WIDTH  = GAME_CONFIG["REFERENCE_WIDTH"]
 REFERENCE_HEIGHT = GAME_CONFIG["REFERENCE_HEIGHT"]

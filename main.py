@@ -11,6 +11,7 @@ import pygame
 from system.screens.loading import Loading
 from system.app_controller import AppController
 from system.firebase_manager import initialize_firebase
+from system.utils import resource_path
 
 
 def main():
@@ -19,7 +20,7 @@ def main():
     pygame.init()
 
     screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-    icon = pygame.image.load("assets/images/player/stage4.png").convert_alpha()
+    icon = pygame.image.load(resource_path("assets/images/player/stage4.png")).convert_alpha()
 
     pygame.display.set_caption("Ironblast")
     pygame.display.set_icon(icon)

@@ -1,7 +1,7 @@
 import pygame
 import random
 from assets.load_assets import load_assets
-from system.utils       import load_highscore, scale, load_survivor_highscores
+from system.utils       import load_highscore, scale, load_survivor_highscores, resource_path
 from system.hud         import HUD
 from system.health_bar  import HealthBar
 from config             import *
@@ -96,7 +96,7 @@ class Game:
             music_paths = self.assets.get("music_paths")
             if music_paths and "raining_bits" in music_paths:
                 try:
-                    pygame.mixer.music.load(music_paths["raining_bits"])
+                    pygame.mixer.music.load(resource_path(music_paths["raining_bits"]))
                 except pygame.error:
                     pass
 

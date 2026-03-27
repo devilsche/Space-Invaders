@@ -6,9 +6,17 @@ Features: Lazy Loading, Caching, Error Handling, Type Safety
 """
 import pygame
 import os
+import sys
 from typing import Any
 from enum import Enum
 import logging
+
+
+def resource_path(relative_path):
+    """Gibt den korrekten Pfad für PyInstaller-Bundles zurück."""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return relative_path
 
 # Logging Setup
 logging.basicConfig(level=logging.INFO)
@@ -107,7 +115,7 @@ class AssetManager:
 
         try:
             # Lade Bild
-            img = pygame.image.load(path)
+            img = pygame.image.load(resource_path(path))
 
             if convert_alpha:
                 img = img.convert_alpha()
@@ -153,7 +161,7 @@ class AssetManager:
             return self._cache[cache_key]
 
         try:
-            sound = pygame.mixer.Sound(path)
+            sound = pygame.mixer.Sound(resource_path(path))
             sound.set_volume(volume)
 
             # Cache speichern

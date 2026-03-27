@@ -1,6 +1,7 @@
 # system/screens/upgrade_screen.py - Upgrade Screen zwischen den Leveln
 import pygame
 from config.levels import UPGRADE_CONFIG
+from system.utils import resource_path
 
 
 class UpgradeScreen:
@@ -50,10 +51,10 @@ class UpgradeScreen:
 
         # Fonts
         try:
-            title_font = pygame.font.Font("assets/fonts/Astralight.ttf", int(80 * ui_scale))
-            subtitle_font = pygame.font.Font("assets/fonts/White On Black.ttf", int(40 * ui_scale))
-            info_font = pygame.font.Font("assets/fonts/monofonto rg.otf", int(24 * ui_scale))
-            controls_font = pygame.font.Font("assets/fonts/monofonto rg.otf", int(20 * ui_scale))
+            title_font = pygame.font.Font(resource_path("assets/fonts/Astralight.ttf"), int(80 * ui_scale))
+            subtitle_font = pygame.font.Font(resource_path("assets/fonts/White On Black.ttf"), int(40 * ui_scale))
+            info_font = pygame.font.Font(resource_path("assets/fonts/monofonto rg.otf"), int(24 * ui_scale))
+            controls_font = pygame.font.Font(resource_path("assets/fonts/monofonto rg.otf"), int(20 * ui_scale))
         except:
             title_font = pygame.font.Font(None, int(80 * ui_scale))
             subtitle_font = pygame.font.Font(None, int(40 * ui_scale))

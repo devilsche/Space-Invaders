@@ -1,7 +1,7 @@
 # system/survivor_screens.py - Survivor Mode specific screens
 import pygame
 import time
-from system.utils import load_survivor_highscores, save_survivor_score, get_online_manager
+from system.utils import load_survivor_highscores, save_survivor_score, get_online_manager, resource_path
 
 
 def draw_saving_progress(screen, phase="local", progress=0.0, status_text="Saving..."):
@@ -49,7 +49,7 @@ def draw_saving_progress(screen, phase="local", progress=0.0, status_text="Savin
 
     # Status Text
     try:
-        font = pygame.font.Font("assets/fonts/monofonto rg.otf", 14)
+        font = pygame.font.Font(resource_path("assets/fonts/monofonto rg.otf"), 14)
     except:
         font = pygame.font.Font(None, 16)
 
@@ -161,11 +161,11 @@ class SurvivorNameInputScreen:
 
         # Fonts mit Unicode-Support laden
         try:
-            title_font       = pygame.font.Font("assets/fonts/Astralight.ttf"    , int(80 * ui_scale))
-            stats_font       = pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(45 * ui_scale))
-            prompt_font      = pygame.font.Font("assets/fonts/White On Black.ttf", int(40 * ui_scale))
-            name_font        = pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(60 * ui_scale))
-            instruction_font = pygame.font.Font("assets/fonts/White On Black.ttf", int(28 * ui_scale))
+            title_font       = pygame.font.Font(resource_path("assets/fonts/Astralight.ttf")    , int(80 * ui_scale))
+            stats_font       = pygame.font.Font(resource_path("assets/fonts/monofonto rg.otf")  , int(45 * ui_scale))
+            prompt_font      = pygame.font.Font(resource_path("assets/fonts/White On Black.ttf"), int(40 * ui_scale))
+            name_font        = pygame.font.Font(resource_path("assets/fonts/monofonto rg.otf")  , int(60 * ui_scale))
+            instruction_font = pygame.font.Font(resource_path("assets/fonts/White On Black.ttf"), int(28 * ui_scale))
         except:
             title_font       = pygame.font.Font(None, int(80 * ui_scale))
             stats_font       = pygame.font.Font(None, int(50 * ui_scale))
@@ -283,11 +283,11 @@ class SurvivorGameOverScreen:
 
         # Fonts mit Unicode-Support laden
         try:
-            title_font       = pygame.font.Font("assets/fonts/Astralight.ttf"    , int(120 * ui_scale))
-            time_font        = pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(60  * ui_scale))
-            leaderboard_font = pygame.font.Font("assets/fonts/White On Black.ttf", int(50  * ui_scale))
-            score_font       = pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(28  * ui_scale))
-            controls_font    = pygame.font.Font("assets/fonts/KGRedHands.ttf"    , int(24  * ui_scale))
+            title_font       = pygame.font.Font(resource_path("assets/fonts/Astralight.ttf")    , int(120 * ui_scale))
+            time_font        = pygame.font.Font(resource_path("assets/fonts/monofonto rg.otf")  , int(60  * ui_scale))
+            leaderboard_font = pygame.font.Font(resource_path("assets/fonts/White On Black.ttf"), int(50  * ui_scale))
+            score_font       = pygame.font.Font(resource_path("assets/fonts/monofonto rg.otf")  , int(28  * ui_scale))
+            controls_font    = pygame.font.Font(resource_path("assets/fonts/KGRedHands.ttf")    , int(24  * ui_scale))
         except:
             title_font       = pygame.font.Font(None, int(120 * ui_scale))
             time_font        = pygame.font.Font(None, int(70 * ui_scale))

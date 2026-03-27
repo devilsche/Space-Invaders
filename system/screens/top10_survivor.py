@@ -1,6 +1,7 @@
 # system/screens/top10_survivor.py - Survivor Mode Top 10 Screen
 import pygame
 from config.stages import get_stage_name
+from system.utils import resource_path
 
 
 class SurvivorTop10Screen:
@@ -49,8 +50,8 @@ class SurvivorTop10Screen:
             subtitle_font = self.assets.get('font_subtitle_large', pygame.font.Font(None, 50))
         else:
             try:
-                rank_font = pygame.font.Font("assets/fonts/monofonto rg.otf", 32)
-                subtitle_font = pygame.font.Font("assets/fonts/White On Black.ttf", 50)
+                rank_font = pygame.font.Font(resource_path("assets/fonts/monofonto rg.otf"), 32)
+                subtitle_font = pygame.font.Font(resource_path("assets/fonts/White On Black.ttf"), 50)
             except:
                 rank_font = pygame.font.Font(None, 32)
                 subtitle_font = pygame.font.Font(None, 50)

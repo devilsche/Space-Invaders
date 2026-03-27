@@ -1,5 +1,6 @@
 # system/victory_screen.py - Victory Screen after Boss Kill
 import pygame
+from system.utils import resource_path
 
 class VictoryScreen:
     """Victory Screen nach Level-Abschluss"""
@@ -47,7 +48,7 @@ class VictoryScreen:
 
         # Große Schrift für Title
         try:
-            title_font = pygame.font.Font("assets/fonts/Astralight.ttf", int(120 * ui_scale))
+            title_font = pygame.font.Font(resource_path("assets/fonts/Astralight.ttf"), int(120 * ui_scale))
         except:
             title_font = pygame.font.Font(None, int(120 * ui_scale))
 
@@ -82,7 +83,7 @@ class VictoryScreen:
 
         # Controls
         try:
-            controls_font = pygame.font.Font("assets/fonts/KGRedHands.ttf", int(24 * ui_scale))
+            controls_font = pygame.font.Font(resource_path("assets/fonts/KGRedHands.ttf"), int(24 * ui_scale))
         except:
             controls_font = pygame.font.Font(None, int(24 * ui_scale))
         controls_y    = ch - int(50 * ui_scale)

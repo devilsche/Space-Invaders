@@ -2,6 +2,7 @@
 import pygame
 import math
 from config.settings import GAME_CONFIG
+from system.utils import resource_path
 
 WIDTH     = GAME_CONFIG["WIDTH"]
 HEIGHT    = GAME_CONFIG["HEIGHT"]
@@ -46,7 +47,7 @@ class GameMenu:
     def load_assets(self, assets):
         """Lade Menü-Assets"""
         try:
-            self.background_image = pygame.image.load("assets/images/background.png").convert()
+            self.background_image = pygame.image.load(resource_path("assets/images/background.png")).convert()
             # Skaliere auf Bildschirmgröße falls nötig
             self.assets = assets
             if self.background_image.get_size() != (WIDTH, HEIGHT):

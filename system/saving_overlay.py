@@ -1,5 +1,6 @@
 # system/saving_overlay.py - Transparente Speicher-Animation Komponente
 import pygame
+from system.utils import resource_path
 
 
 class SavingOverlay:
@@ -54,7 +55,7 @@ class SavingOverlay:
         # Status Text
         if self.font is None:
             try:
-                self.font = pygame.font.Font("assets/fonts/monofonto rg.otf", 14)
+                self.font = pygame.font.Font(resource_path("assets/fonts/monofonto rg.otf"), 14)
             except:
                 self.font = pygame.font.Font(None, 16)
         

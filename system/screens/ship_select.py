@@ -1,6 +1,7 @@
 # system/ship_select.py - Ship Selection Screen for Survivor Mode
 import pygame
 from config.ship import SHIP_CONFIG
+from system.utils import resource_path
 
 class ShipSelectScreen:
     """Schiffsauswahl-Screen für den Survivor-Modus"""
@@ -20,12 +21,12 @@ class ShipSelectScreen:
             return self._cached_fonts
         try:
             fonts = {
-                "title":    pygame.font.Font("assets/fonts/Astralight.ttf"    , int(120 * ui_scale)),
-                "subtitle": pygame.font.Font("assets/fonts/White On Black.ttf", int(50 * ui_scale)),
-                "info":     pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(32 * ui_scale)),
-                "weapon":   pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(24 * ui_scale)),
-                "control":  pygame.font.Font("assets/fonts/KGRedHands.ttf"    , int(24 * ui_scale)),
-                "desc":     pygame.font.Font("assets/fonts/monofonto rg.otf"  , int(24 * ui_scale)),
+                "title":    pygame.font.Font(resource_path("assets/fonts/Astralight.ttf")    , int(120 * ui_scale)),
+                "subtitle": pygame.font.Font(resource_path("assets/fonts/White On Black.ttf"), int(50 * ui_scale)),
+                "info":     pygame.font.Font(resource_path("assets/fonts/monofonto rg.otf")  , int(32 * ui_scale)),
+                "weapon":   pygame.font.Font(resource_path("assets/fonts/monofonto rg.otf")  , int(24 * ui_scale)),
+                "control":  pygame.font.Font(resource_path("assets/fonts/KGRedHands.ttf")    , int(24 * ui_scale)),
+                "desc":     pygame.font.Font(resource_path("assets/fonts/monofonto rg.otf")  , int(24 * ui_scale)),
             }
         except:
             fonts = {

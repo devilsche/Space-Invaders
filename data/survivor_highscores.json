@@ -1,5 +1,11 @@
 [
   {
+    "time": 365.631,
+    "kills": 818,
+    "name": "LuCKoR",
+    "stage": 4
+  },
+  {
     "time": 140.528,
     "kills": 441,
     "name": "Nic",
@@ -50,12 +56,6 @@
   {
     "time": 15.123,
     "kills": 11,
-    "name": "Nic",
-    "stage": 4
-  },
-  {
-    "time": 13.581,
-    "kills": 9,
     "name": "Nic",
     "stage": 4
   },

@@ -40,13 +40,13 @@ def get_font(assets, font_key, scale_factor=1.0):
     try:
         # Versuche Pfad aus Font zu extrahieren (funktioniert nur bei benutzerdefinierten Fonts)
         if 'Astralight' in font_key or 'title' in font_key:
-            return pygame.font.Font("assets/fonts/Astralight.ttf", scaled_size)
+            return pygame.font.Font(resource_path("assets/fonts/Astralight.ttf"), scaled_size)
         elif 'subtitle' in font_key or 'White' in str(base_font):
-            return pygame.font.Font("assets/fonts/White On Black.ttf", scaled_size)
+            return pygame.font.Font(resource_path("assets/fonts/White On Black.ttf"), scaled_size)
         elif 'mono' in font_key:
-            return pygame.font.Font("assets/fonts/monofonto rg.otf", scaled_size)
+            return pygame.font.Font(resource_path("assets/fonts/monofonto rg.otf"), scaled_size)
         elif 'controls' in font_key:
-            return pygame.font.Font("assets/fonts/KGRedHands.ttf", scaled_size)
+            return pygame.font.Font(resource_path("assets/fonts/KGRedHands.ttf"), scaled_size)
         else:
             return pygame.font.Font(None, scaled_size)
     except:
