@@ -7,6 +7,8 @@ Neue Architektur mit AppController:
 - Modulare Screen-Architektur
 """
 
+import sys
+import os
 import pygame
 from system.screens.loading import Loading
 from system.app_controller import AppController
@@ -15,6 +17,10 @@ from system.firebase_manager import initialize_firebase
 
 def main():
     """Hauptfunktion - Initialisiert und startet die Anwendung"""
+
+    # PyInstaller: Arbeitsverzeichnis auf den Entpack-Ordner setzen
+    if getattr(sys, 'frozen', False):
+        os.chdir(sys._MEIPASS)
 
     pygame.init()
 
